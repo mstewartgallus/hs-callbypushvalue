@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 46195bd62e2546a59e8f13793985a3d2a023e608e4282ba1b9332828941dbda4
+-- hash: 03794c4bde3e2b4bc9e413797eb94d5884e18243e72dbe9acaec179e3703f8c5
 
 name:           cpbv
 version:        0.1.0.0
@@ -33,6 +33,7 @@ library
       Compiler
       Core
       Cps
+      GlobalMap
       Lib
       Term
       VarMap

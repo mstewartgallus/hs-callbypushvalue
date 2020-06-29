@@ -2,6 +2,7 @@
 module Common (V, (:->), Type (..), F, U, Stack, Label (..), Constant (..), Global (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
+import Data.Typeable
 
 data V a b
 
@@ -34,7 +35,8 @@ data Label a = Label (Type a) T.Text
 data Constant a where
   IntegerConstant :: Integer -> Constant (F Integer)
 
-data Global a = Global (Type a) T.Text T.Text
+data Global a where
+  Global :: Typeable a => Type a -> T.Text -> T.Text -> Global a
 
 
 instance TextShow (Variable a) where

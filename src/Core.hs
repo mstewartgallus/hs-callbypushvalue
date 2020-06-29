@@ -6,7 +6,6 @@ module Core (
   ) where
 import qualified Data.Text as T
 import Common
-import Term
 
 {-
 Define a standard library of call by push value types.
@@ -28,8 +27,9 @@ int = ApplyType returns intRaw
 intRaw :: Type Integer
 intRaw = NominalType (T.pack "core") (T.pack "int")
 
-plus :: Term (F Integer :-> F Integer :-> F Integer)
-plus = GlobalTerm (Global (ApplyType (ApplyType fn int) (ApplyType (ApplyType fn int) int)) (T.pack "core") (T.pack "+"))
+plus :: Global (F Integer :-> F Integer :-> F Integer)
+plus = Global (ApplyType (ApplyType fn int) (ApplyType (ApplyType fn int) int)) (T.pack "core") (T.pack "+")
 
+-- fixme...
 strictPlus :: Global (Integer -> Integer -> F Integer)
 strictPlus = Global undefined (T.pack "core") (T.pack "+!")

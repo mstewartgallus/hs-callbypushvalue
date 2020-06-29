@@ -9,7 +9,7 @@ program :: Term (F Integer)
 program = let
   x =  Variable int (T.pack "x")
   in ApplyTerm (LambdaTerm x $
-                   ApplyTerm (ApplyTerm plus (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
+                   ApplyTerm (ApplyTerm (GlobalTerm plus) (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
 
 phases :: Term a -> (Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do

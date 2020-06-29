@@ -2,6 +2,7 @@
 module Cbpv (Code (..), Value (..)) where
 import Common
 import TextShow
+import Data.Typeable
 import qualified Data.Text as T
 
 data Code a where
@@ -16,7 +17,7 @@ data Code a where
 
 data Value a where
   VariableValue :: Variable a -> Value a
-  ThunkValue :: Code a -> Value (U a)
+  ThunkValue ::  Code a -> Value (U a)
 
 
 instance TextShow (Code a) where

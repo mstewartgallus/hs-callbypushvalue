@@ -1,12 +1,10 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
+{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving, FlexibleContexts #-}
 module Lib
     (
       fn, thunk, int, plus,
-      Term (
-        VariableTerm, ApplyTerm, LambdaTerm, ConstantTerm
-           ),
-      Variable (Variable ),
-      Constant (IntegerConstant ),
+      Term (..),
+      Variable (..),
+      Constant (..),
       Global (Global ),
       Type (), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
@@ -23,9 +21,11 @@ import TextShow
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Unsafe.Coerce
+import GlobalMap (GlobalMap)
+import qualified GlobalMap as GlobalMap
 
 import Control.Monad.ST
+import Data.Typeable
 
 import Core
 import Common
@@ -120,15 +120,9 @@ toCps (ThrowAction binder body) _ = do
 
 
 intrinsify :: Code a -> Compiler (Code a)
-intrinsify global@(GlobalCode (Global _ package name)) =
-  if package /= T.pack "core"
-  then pure global
-  else if name == T.pack "+"
-  -- fixme... do in a type safe way
-  then do
-    p <- plusIntrinsic
-    pure (unsafeCoerce p)
-  else pure global
+intrinsify global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
+  Nothing -> pure global
+  Just (Intrinsic intrinsic) -> intrinsic
 intrinsify (LambdaCode binder x) = pure (LambdaCode binder) <*> intrinsify x
 intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyValue x
 intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyValue x
@@ -139,6 +133,13 @@ intrinsify x = pure x
 intrinsifyValue :: Value a -> Compiler (Value a)
 intrinsifyValue (ThunkValue code) = pure ThunkValue <*> intrinsify code
 intrinsifyValue x = pure x
+
+newtype Intrinsic a = Intrinsic (Compiler (Code a))
+
+intrinsics :: GlobalMap Intrinsic
+intrinsics = GlobalMap.fromList [
+     GlobalMap.Entry plus (Intrinsic plusIntrinsic)
+  ]
 
 plusIntrinsic :: Compiler (Code (F Integer :-> F Integer :-> F Integer))
 plusIntrinsic = do
