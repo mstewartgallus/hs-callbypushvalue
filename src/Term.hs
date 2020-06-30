@@ -11,6 +11,20 @@ data Term a where
   LambdaTerm :: Variable a -> Term b -> Term (a :-> b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
 
+data AnyTerm where
+  AnyTerm :: Term a -> AnyTerm
+
+instance Eq AnyTerm where
+  AnyTerm (VariableTerm v) == AnyTerm (VariableTerm v') = AnyVariable v == AnyVariable v'
+  -- AnyTerm (ConstantTerm k) == AnyTerm (ConstantTerm k') = k == k'
+  -- AnyTerm (GlobalTerm g) == AnyTerm (GlobalTerm g') = g == g'
+  AnyTerm (LetTerm term binder body) == AnyTerm (LetTerm term' binder' body') = AnyTerm term == AnyTerm term' && AnyVariable binder' == AnyVariable binder' && AnyTerm body == AnyTerm body'
+  AnyTerm (ApplyTerm f x) == AnyTerm (ApplyTerm f' x') = AnyTerm f == AnyTerm f' && AnyTerm x == AnyTerm x'
+  _ == _ = False
+
+instance Eq (Term a) where
+  x == y = AnyTerm x == AnyTerm y
+
 instance TextShow (Term a) where
   showb (VariableTerm v) = showb v
   showb (ConstantTerm k) = showb k

@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Common (V, (:->), Type (..), F, U, Stack, Label (..), Constant (..), Global (..), Variable (..)) where
+module Common (V, (:->), Type (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
 import Data.Typeable
@@ -22,9 +22,13 @@ data Stack a
 
 
 data Variable a = Variable (Type a) T.Text
+data AnyVariable where
+  AnyVariable :: Variable a -> AnyVariable
 
 instance Eq (Variable a) where
   (Variable _ x) == (Variable _ y) = x == y
+instance Eq AnyVariable where
+  AnyVariable (Variable _ x) == AnyVariable (Variable _ y) = x == y
 
 instance Ord (Variable a) where
   compare (Variable _ x) (Variable _ y) = compare x y
@@ -34,10 +38,24 @@ data Label a = Label (Type a) T.Text
 
 data Constant a where
   IntegerConstant :: Integer -> Constant (F Integer)
+data AnyConstant where
+  AnyConstant :: Constant a -> AnyConstant
+
+instance Eq (Constant a) where
+  x == y = AnyConstant x == AnyConstant y
+instance Eq AnyConstant where
+  AnyConstant (IntegerConstant x) == AnyConstant (IntegerConstant y) = x == y
 
 data Global a where
   Global :: Typeable a => Type a -> T.Text -> T.Text -> Global a
+data AnyGlobal where
+  AnyGlobal :: Global a -> AnyGlobal
 
+
+instance Eq (Global a) where
+  (Global _ a x) == (Global _ b y) = a == b && x == y
+instance Eq AnyGlobal where
+  AnyGlobal (Global _ a x) == AnyGlobal (Global _ b y) = a == b && x == y
 
 instance TextShow (Variable a) where
   showb (Variable _ name) = fromText name
