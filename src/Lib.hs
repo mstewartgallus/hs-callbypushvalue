@@ -8,7 +8,7 @@ module Lib
       Global (Global ),
       Type (), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
-      toCallByPushValue, toExplicitCatchThrow, toCps',
+      simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
       intrinsify, simplifyCpbv
     ) where
 
@@ -42,6 +42,11 @@ toCallByPushValue :: Term a -> Code a
 toCallByPushValue (VariableTerm x) = ForceCode (VariableValue (thunkify x))
 toCallByPushValue (ConstantTerm x) = ConstantCode x
 toCallByPushValue (GlobalTerm x) = GlobalCode x
+toCallByPushValue (LetTerm term binder body) = let
+  term' = toCallByPushValue term
+  binder' = thunkify binder
+  body' = toCallByPushValue body
+  in LetBeCode (ThunkValue term') binder' body'
 toCallByPushValue (LambdaTerm binder body) = let
   binder' = thunkify binder
   body' = toCallByPushValue body
@@ -63,6 +68,9 @@ toExplicitCatchThrow (LetToCode action binder body) = do
   action' <- toExplicitCatchThrow action
   body' <- toExplicitCatchThrow body
   return (LetToAction action' binder body')
+toExplicitCatchThrow (LetBeCode value binder body) = do
+  body' <- toExplicitCatchThrow body
+  toExplicitCatchThrowValue value $ \value' -> LetBeAction value' binder body'
 toExplicitCatchThrow (ForceCode thunk) = do
   -- fixme...
   v <- getVariable undefined
@@ -106,6 +114,9 @@ toCps (LetToAction action binder body) k = do
   toCps action $ \act -> do
       body' <- toCps body k
       pure (JumpEffect act (ToStackStuff binder body'))
+toCps (LetBeAction value binder body) k = do
+      body' <- toCps body k
+      pure (JumpEffect (ReturnCps (VariableStuff value)) (ToStackStuff binder body'))
 toCps (CatchAction binder body) k = do
   -- fixme...
   label <- getLabel undefined

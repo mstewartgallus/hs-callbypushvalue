@@ -11,21 +11,25 @@ program = let
   in ApplyTerm (LambdaTerm x $
                    ApplyTerm (ApplyTerm (GlobalTerm plus) (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
 
-phases :: Term a -> (Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
+phases :: Term a -> (Term a, Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do
-  let cpbv = toCallByPushValue term
+  let simpleTerm = simplifyTerm term
+  let cpbv = toCallByPushValue simpleTerm
   intrinsified <- intrinsify cpbv
   let simplified = simplifyCpbv intrinsified
   catchThrow <- toExplicitCatchThrow intrinsified
   cps <- toCps' catchThrow
-  return (cpbv, intrinsified, simplified, catchThrow, cps)
+  return (simpleTerm, cpbv, intrinsified, simplified, catchThrow, cps)
 
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (cpbv, intrinsified, simplified, catchThrow, cps) = phases program
+  let (simpleTerm, cpbv, intrinsified, simplified, catchThrow, cps) = phases program
+
+  putStrLn "\nSimplifed Term:"
+  printT simpleTerm
 
   putStrLn "\nCall By Push Value:"
   printT cpbv
@@ -33,7 +37,7 @@ main = do
   putStrLn "\nIntrinsified:"
   printT intrinsified
 
-  putStrLn "\nSimplified:"
+  putStrLn "\nSimplified CBPV:"
   printT simplified
 
   putStrLn "\nCatch/Throw:"
