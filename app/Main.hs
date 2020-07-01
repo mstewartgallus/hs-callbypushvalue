@@ -27,7 +27,7 @@ phases term = flip evalState (CompilerState 0 0) $ do
   let optCbpv = fixpoint simplifyCbpv intrinsified
 
   catchThrow <- toExplicitCatchThrow intrinsified
-  let optCatchThrow = simplifyCallcc catchThrow
+  let optCatchThrow = fixpoint simplifyCallcc catchThrow
 
   cps <- toCps' catchThrow
 
