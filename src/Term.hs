@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
+{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving, ViewPatterns, PatternSynonyms #-}
 module Term (simplify, inline, Term (..)) where
 import Common
 import TextShow
@@ -48,46 +48,38 @@ instance Eq (Term a) where
 instance TextShow (Term a) where
   showb term = Unique.stream $ \stream -> process stream term where
       process :: Unique.Stream -> Term a -> Builder
-      process stream (VariableTerm v) = showb v
-      process stream (ConstantTerm k) = showb k
-      process stream (GlobalTerm g) = showb g
-      process stream (LetTerm term t f) = let
-          (head, tail) = Unique.pick stream
+      process _ (VariableTerm v) = showb v
+      process _ (ConstantTerm k) = showb k
+      process _ (GlobalTerm g) = showb g
+      process (Pick head (Split left right)) (LetTerm term t f) = let
           x = Variable t (toText (showb head))
-          (left, right) = Unique.split tail
           term' = process left term
           body = process right (f (VariableTerm x))
           in fromString "let " <> term' <> fromString " = " <> showb x <> fromString " in\n" <> body <> fromString ""
-      process stream (LambdaTerm t body) = let
-          (head, tail) = Unique.pick stream
+      process (Pick head tail) (LambdaTerm t body) = let
           x = Variable t (toText (showb head))
           body' = process tail (body (VariableTerm x))
           in fromString "(λ " <> showb x <> fromString " → " <> body' <> fromString ")"
-      process stream (ApplyTerm f x) = let
-        (left, right) = Unique.split stream
+      process (Split left right) (ApplyTerm f x) = let
         f' = process left f
         x' = process right x
         in (fromString "(" <> f' <> fromString " " <> x' <> fromString ")")
 
+pattern Pick head tail <- (Unique.pick -> (head, tail))
+pattern Split left right <- (Unique.split -> (left, right))
+
 simplify :: Unique.Stream -> Term a -> Term a
 simplify supply (ApplyTerm (LambdaTerm t f) term) = simplify supply (LetTerm term t f)
-simplify supply (LetTerm term t body) = let
-  (head, tail) = Unique.pick supply
+simplify (Pick head (Split left (Split a b))) (LetTerm term t body) = let
   x = Variable t (toText (showb head))
-  (left, right) = Unique.split tail
   term' = simplify left term
-  (a, b) = Unique.split right
   body' = simplify a (body (VariableTerm x))
   in LetTerm term' t (\val ->substitute' x val b body')
-simplify supply (LambdaTerm t body) = let
-  (head, tail) = Unique.pick supply
+simplify (Pick head (Split left right)) (LambdaTerm t body) = let
   x = Variable t (toText (showb head))
-  (left, right) = Unique.split tail
   body' = simplify left (body (VariableTerm x))
   in LambdaTerm t (\val -> substitute' x val right body')
-simplify supply (ApplyTerm f x) = let
-  (left, right) = Unique.split supply
-  in ApplyTerm (simplify left f) (simplify right x)
+simplify (Split left right) (ApplyTerm f x) = ApplyTerm (simplify left f) (simplify right x)
 simplify _ t = t
 
 -- count :: Variable a -> Term b -> Int
@@ -126,23 +118,16 @@ substitute' key value = substitute (VarMap.insert key (X value) VarMap.empty)
 substitute :: VarMap X -> Unique.Stream -> Term a -> Term a
 substitute map = w where
   w :: Unique.Stream -> Term x -> Term x
-  w stream (LetTerm term t body) = let
-    (head, tail) = Unique.pick stream
-    (left, right) = Unique.split tail
-    (a, b) = Unique.split right
+  w (Pick head (Split left (Split a b))) (LetTerm term t body) = let
     x = Variable t (toText (showb head))
     term' = w left term
     body' = w a (body (VariableTerm x))
     in LetTerm term' t (\val -> substitute' x val b body')
-  w supply v@(VariableTerm variable) = case VarMap.lookup variable map of
+  w _ v@(VariableTerm variable) = case VarMap.lookup variable map of
     Nothing -> v
     Just (X replacement) -> replacement
-  w supply (ApplyTerm f x) = let
-    (left, right) = Unique.split supply
-    in ApplyTerm (w left f) (w right x)
-  w supply (LambdaTerm t body) = let
-    (head, tail) = Unique.pick supply
-    (left, right) = Unique.split tail
+  w (Split left right) (ApplyTerm f x) = ApplyTerm (w left f) (w right x)
+  w (Pick head (Split left right)) (LambdaTerm t body) = let
     x = Variable t (toText (showb head))
     body' = w left (body (VariableTerm x))
     in LambdaTerm t (\val -> substitute' x val right body')
