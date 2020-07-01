@@ -17,6 +17,34 @@ data Thing a where
   ConstantThing :: Constant a -> Thing a
   VariableThing :: Variable a -> Thing a
 
+data AnyAction where
+  AnyAction :: Action a -> AnyAction
+
+data AnyThing where
+  AnyThing :: Thing a -> AnyThing
+
+instance Eq AnyAction where
+  AnyAction (GlobalAction g) == AnyAction (GlobalAction g') = AnyGlobal g == AnyGlobal g'
+  AnyAction (LambdaAction binder body) == AnyAction (LambdaAction binder' body') = AnyVariable binder == AnyVariable binder' && AnyAction body == AnyAction body'
+  AnyAction (LetBeAction value binder body) == AnyAction (LetBeAction value' binder' body') = AnyThing value == AnyThing value' && AnyVariable binder' == AnyVariable binder' && AnyAction body == AnyAction body'
+  AnyAction (LetToAction act binder body) == AnyAction (LetToAction act' binder' body') = AnyAction act == AnyAction act' && AnyVariable binder' == AnyVariable binder' && AnyAction body == AnyAction body'
+  AnyAction (ApplyAction f x) == AnyAction (ApplyAction f' x') = AnyAction f == AnyAction f' && AnyThing x == AnyThing x'
+  AnyAction (ReturnAction x) == AnyAction (ReturnAction x') = AnyThing x == AnyThing x'
+  AnyAction (CatchAction binder body) == AnyAction (CatchAction binder' body') = AnyVariable binder == AnyVariable binder' && AnyAction body == AnyAction body'
+  AnyAction (ThrowAction stack body) == AnyAction (ThrowAction stack' body') = AnyThing stack == AnyThing stack' && AnyAction body == AnyAction body'
+  _ == _ = False
+
+instance Eq AnyThing where
+  AnyThing (ConstantThing k) == AnyThing (ConstantThing k') = AnyConstant k == AnyConstant k'
+  AnyThing (VariableThing v) == AnyThing (VariableThing v') = AnyVariable v == AnyVariable v'
+  _ == _ = False
+
+instance Eq (Action a) where
+  x == y = AnyAction x == AnyAction y
+
+instance Eq (Thing a) where
+  x == y = AnyThing x == AnyThing y
+
 instance TextShow (Action a) where
   showb (GlobalAction g) = showb g
   showb (LambdaAction binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
