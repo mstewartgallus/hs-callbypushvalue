@@ -80,6 +80,7 @@ simplify (ForceCode x) = ForceCode (simplifyValue x)
 simplify (LambdaCode binder body) = let
   body' = simplify body
   in LambdaCode binder body'
+simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyValue x)
 simplify (ReturnCode value) = ReturnCode (simplifyValue value)
 simplify (LetBeCode value binder body) = LetBeCode (simplifyValue value) binder (simplify body)
