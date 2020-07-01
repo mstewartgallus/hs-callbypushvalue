@@ -1,13 +1,10 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving, ViewPatterns, PatternSynonyms #-}
+{-# LANGUAGE GADTs, TypeOperators, ViewPatterns, PatternSynonyms #-}
 module Term (simplify, inline, build, Build (..), Term (..)) where
 import Common
 import TextShow
 import VarMap (VarMap)
 import qualified VarMap
 import qualified Unique
-import Compiler
-import Control.Monad.State
-import Data.Typeable
 
 data Build a where
   VariableBuild :: Variable (U a) -> Build a
@@ -44,23 +41,15 @@ data AnyTerm where
   AnyTerm :: Term a -> AnyTerm
 
 instance Eq AnyTerm where
-  AnyTerm x == AnyTerm y = evalState (x `eq` y) (CompilerState 0 0) where
-    eq :: Term a -> Term b -> Compiler Bool
-    VariableTerm v `eq` VariableTerm v' = pure (AnyVariable v == AnyVariable v')
-    ConstantTerm k `eq` ConstantTerm k' = pure (AnyConstant k == AnyConstant k')
-    GlobalTerm g `eq` GlobalTerm g' = pure (AnyGlobal g == AnyGlobal g')
-    LetTerm term x f `eq` LetTerm term' x' f' = do
-      a <- term `eq` term'
-      b <- f `eq` f'
-      pure (a && b && AnyVariable x == AnyVariable x')
-    LambdaTerm x f `eq` LambdaTerm x' f' = do
-      a <- f `eq` f'
-      return (a && AnyVariable x == AnyVariable x')
-    ApplyTerm f x `eq` ApplyTerm f' x' = do
-      a <- f `eq` f'
-      b <- x `eq` x'
-      pure (a && b)
-    _ `eq` _ = pure False
+  AnyTerm x == AnyTerm y = x `eq` y where
+    eq :: Term a -> Term b -> Bool
+    VariableTerm v `eq` VariableTerm v' = AnyVariable v == AnyVariable v'
+    ConstantTerm k `eq` ConstantTerm k' = AnyConstant k == AnyConstant k'
+    GlobalTerm g `eq` GlobalTerm g' = AnyGlobal g == AnyGlobal g'
+    LetTerm term x f `eq` LetTerm term' x' f' = term `eq` term' && f `eq` f' && AnyVariable x == AnyVariable x'
+    LambdaTerm x f `eq` LambdaTerm x' f' = f `eq` f' && AnyVariable x == AnyVariable x'
+    ApplyTerm f x `eq` ApplyTerm f' x' = f `eq` f' && x `eq` x'
+    _ `eq` _ = False
 
 instance Eq (Term a) where
   x == y = AnyTerm x == AnyTerm y
@@ -116,9 +105,11 @@ inline' :: VarMap X -> Term a -> Build a
 inline' map = w where
   w :: Term x -> Build x
 
-  w (LetTerm term binder@(Variable t _) body) = if count binder body <= 1
-    then inline' (VarMap.insert binder (X (w term)) map) body
-    else LetBuild (w term) t $ \value -> inline' (VarMap.insert binder (X value) map) body
+  w (LetTerm term binder@(Variable t _) body) = let
+        term' = w term
+    in if count binder body <= 1
+    then inline' (VarMap.insert binder (X term') map) body
+    else LetBuild term' t $ \value -> inline' (VarMap.insert binder (X value) map) body
 
   w v@(VariableTerm variable) = case VarMap.lookup variable map of
     Just (X replacement) -> replacement
