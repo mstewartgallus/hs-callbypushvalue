@@ -4,6 +4,8 @@ import Lib
 import Control.Monad.State
 import TextShow
 import qualified Data.Text as T
+import Term (Term)
+import qualified Term
 import Unique
 
 fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
@@ -13,9 +15,9 @@ fixpoint op = w 0 where
     newTerm = op term
     in if newTerm == term then term else w (tick + 1) newTerm
 
-program :: Term (F Integer)
-program = ApplyTerm (LambdaTerm (Type undefined) $ \x ->
-          ApplyTerm (ApplyTerm (GlobalTerm plus)  x) x) (ConstantTerm (IntegerConstant 5))
+mkProgram :: Unique.Stream -> Term (F Integer)
+mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (Type undefined) $ \x ->
+          Term.ApplyBuild (Term.ApplyBuild (Term.GlobalBuild plus)  x) x) (Term.ConstantBuild (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
@@ -47,6 +49,8 @@ phases supply term = let
 main :: IO ()
 main = do
   stream <- Unique.streamIO
+  let (left, right) = Unique.split stream
+  let program = mkProgram left
 
   putStrLn "Lambda Calculus:"
   printT program

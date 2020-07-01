@@ -2,7 +2,8 @@
 module Lib
     (
       fn, thunk, int, plus,
-      Term (..),
+      Build (..),
+      Term,
       Variable (..),
       Constant (..),
       Global (Global ),
@@ -29,7 +30,7 @@ import Common
 import Compiler
 import Callcc (Action (..), Thing (..))
 import qualified Callcc
-import Term (Term (..))
+import Term (Build (..), Term (..))
 import qualified Term
 import Cbpv (Code (..), Value (..))
 import qualified Cbpv

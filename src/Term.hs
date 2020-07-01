@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving, ViewPatterns, PatternSynonyms #-}
-module Term (simplify, inline, Term (..)) where
+module Term (simplify, inline, build, Build (..), Term (..)) where
 import Common
 import TextShow
 import VarMap (VarMap)
@@ -9,10 +9,35 @@ import Compiler
 import Control.Monad.State
 import Data.Typeable
 
+data Build a where
+  VariableBuild :: Variable (U a) -> Build a
+  ConstantBuild :: Constant a -> Build (F a)
+  GlobalBuild :: Global a -> Build a
+  LetBuild :: Build a -> Type (U a) -> (Build a -> Build b) -> Build b
+  LambdaBuild :: Type (U a) -> (Build a -> Build b) -> Build (a :-> b)
+  ApplyBuild :: Build (a :-> b) -> Build a -> Build b
+
+build ::  Build a -> Unique.Stream -> Term a
+build (VariableBuild v) _ = VariableTerm v
+build (ConstantBuild v) _ = ConstantTerm v
+build (GlobalBuild v) _ = GlobalTerm v
+build (ApplyBuild f x) (Split left right) = ApplyTerm (build f left) (build x right)
+build (LetBuild term t body) (Pick head (Split left right)) = let
+  x = Variable t (toText (showb head))
+  term' = build term left
+  body' = build (body (VariableBuild x)) right
+  in Let term' x body'
+build (LambdaBuild t body) (Pick head tail) = let
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuild x)) tail
+  in Lambda x body'
+
 data Term a where
   VariableTerm :: Variable (U a) -> Term a
   ConstantTerm :: Constant a -> Term (F a)
   GlobalTerm :: Global a -> Term a
+  Let :: Term a -> Variable (U a) -> Term b -> Term b
+  Lambda :: Variable (U a) -> Term b -> Term (a :-> b)
   LetTerm :: Term a -> Type (U a) -> (Term a -> Term b) -> Term b
   LambdaTerm :: Type (U a) -> (Term a -> Term b) -> Term (a :-> b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
@@ -46,24 +71,12 @@ instance Eq (Term a) where
   x == y = AnyTerm x == AnyTerm y
 
 instance TextShow (Term a) where
-  showb term = Unique.stream $ \stream -> process stream term where
-      process :: Unique.Stream -> Term a -> Builder
-      process _ (VariableTerm v) = showb v
-      process _ (ConstantTerm k) = showb k
-      process _ (GlobalTerm g) = showb g
-      process (Pick head (Split left right)) (LetTerm term t f) = let
-          x = Variable t (toText (showb head))
-          term' = process left term
-          body = process right (f (VariableTerm x))
-          in fromString "let " <> term' <> fromString " = " <> showb x <> fromString " in\n" <> body <> fromString ""
-      process (Pick head tail) (LambdaTerm t body) = let
-          x = Variable t (toText (showb head))
-          body' = process tail (body (VariableTerm x))
-          in fromString "(λ " <> showb x <> fromString " → " <> body' <> fromString ")"
-      process (Split left right) (ApplyTerm f x) = let
-        f' = process left f
-        x' = process right x
-        in (fromString "(" <> f' <> fromString " " <> x' <> fromString ")")
+  showb (VariableTerm v) = showb v
+  showb (ConstantTerm k) = showb k
+  showb (GlobalTerm g) = showb g
+  showb (Let term binder body) = fromString "let " <> showb term <> fromString " = " <> showb binder <> fromString " in\n" <> showb body <> fromString ""
+  showb (Lambda binder body) = fromString "(λ " <> showb binder <> fromString " → " <> showb body <> fromString ")"
+  showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
 pattern Pick head tail <- (Unique.pick -> (head, tail))
 pattern Split left right <- (Unique.split -> (left, right))
