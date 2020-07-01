@@ -14,7 +14,7 @@ fixpoint op = w 0 where
 
 program :: Term (F Integer)
 program = let
-  x =  Variable int (T.pack "x")
+  x =  Variable (Type undefined) (T.pack "x")
   in ApplyTerm (LambdaTerm x $
                    ApplyTerm (ApplyTerm (GlobalTerm plus) (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
 

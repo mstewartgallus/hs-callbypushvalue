@@ -6,11 +6,11 @@ import VarMap (VarMap)
 import qualified VarMap
 
 data Term a where
-  VariableTerm :: Variable a -> Term a
-  ConstantTerm :: Constant a -> Term a
+  VariableTerm :: Variable (U a) -> Term a
+  ConstantTerm :: Constant a -> Term (F a)
   GlobalTerm :: Global a -> Term a
-  LetTerm :: Term a -> Variable a -> Term b -> Term b
-  LambdaTerm :: Variable a -> Term b -> Term (a :-> b)
+  LetTerm :: Term a -> Variable (U a) -> Term b -> Term b
+  LambdaTerm :: Variable (U a) -> Term b -> Term (a :-> b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
 
 data AnyTerm where
@@ -54,17 +54,20 @@ count v = w where
 inline :: Term a -> Term a
 inline = inline' VarMap.empty
 
-inline' :: VarMap Term -> Term a -> Term a
+data X a where
+  X :: Term a -> X (U a)
+
+inline' :: VarMap X -> Term a -> Term a
 inline' map = w where
   w :: Term x -> Term x
 
   w (LetTerm term binder body) = if count binder body <= 1
-    then inline' (VarMap.insert binder (w term) map) body
+    then inline' (VarMap.insert binder (X (w term)) map) body
     else LetTerm (w term) binder (inline' (VarMap.delete binder map) body)
 
   w v@(VariableTerm variable) = case VarMap.lookup variable map of
     Nothing -> v
-    Just replacement -> replacement
+    Just (X replacement) -> replacement
 
   w (ApplyTerm f x) = ApplyTerm (w f) (w x)
   w (LambdaTerm binder body) = LambdaTerm binder (inline' (VarMap.delete binder map) body)

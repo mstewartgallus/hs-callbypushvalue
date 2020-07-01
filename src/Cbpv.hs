@@ -10,7 +10,6 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 
 data Code a where
-  ConstantCode :: Constant a -> Code a
   GlobalCode :: Global a -> Code a
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
   ApplyCode :: Code (a -> b) -> Value a -> Code b
@@ -21,13 +20,13 @@ data Code a where
 
 data Value a where
   VariableValue :: Variable a -> Value a
+  ConstantValue :: Constant a -> Value a
   ThunkValue ::  Code a -> Value (U a)
 
 data AnyCode where
   AnyCode :: Code a -> AnyCode
 
 instance Eq AnyCode where
-  AnyCode (ConstantCode k) == AnyCode (ConstantCode k') = AnyConstant k == AnyConstant k'
   AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
   AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
   AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyValue value == AnyValue value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
@@ -44,6 +43,7 @@ data AnyValue where
   AnyValue :: Value a -> AnyValue
 
 instance Eq AnyValue where
+  AnyValue (ConstantValue k) == AnyValue (ConstantValue k') = AnyConstant k == AnyConstant k'
   AnyValue (VariableValue v) == AnyValue (VariableValue v') = AnyVariable v == AnyVariable v'
   AnyValue (ThunkValue code) == AnyValue (ThunkValue code') = AnyCode code == AnyCode code'
   _ == _ = False
@@ -52,7 +52,6 @@ instance Eq (Value a) where
   x == y = AnyValue x == AnyValue y
 
 instance TextShow (Code a) where
-  showb (ConstantCode k) = showb k
   showb (GlobalCode g) = showb g
   showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
@@ -63,6 +62,7 @@ instance TextShow (Code a) where
 
 instance TextShow (Value a) where
   showb (VariableValue v) = showb v
+  showb (ConstantValue k) = showb k
   showb (ThunkValue code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
 
 {-
@@ -76,11 +76,10 @@ So far we handle:
 simplify :: Code a -> Code a
 simplify (ForceCode (ThunkValue x)) = simplify x
 simplify (ForceCode x) = ForceCode (simplifyValue x)
--- FIXME
+simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = let
   body' = simplify body
   in LambdaCode binder body'
-simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyValue x)
 simplify (ReturnCode value) = ReturnCode (simplifyValue value)
 simplify (LetBeCode value binder body) = LetBeCode (simplifyValue value) binder (simplify body)
@@ -105,7 +104,6 @@ intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyValue x
 intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyValue x
 intrinsify (LetBeCode value binder body) = pure LetBeCode <*> intrinsifyValue value <*> pure binder <*> intrinsify body
 intrinsify (LetToCode action binder body) = pure LetToCode <*> intrinsify action <*> pure binder <*> intrinsify body
-intrinsify x = pure x
 
 intrinsifyValue :: Value a -> Compiler (Value a)
 intrinsifyValue (ThunkValue code) = pure ThunkValue <*> intrinsify code

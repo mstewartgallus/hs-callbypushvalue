@@ -39,7 +39,7 @@ instance Ord (Variable a) where
 data Label a = Label (Type a) T.Text
 
 data Constant a where
-  IntegerConstant :: Integer -> Constant (F Integer)
+  IntegerConstant :: Integer -> Constant Integer
 data AnyConstant where
   AnyConstant :: Constant a -> AnyConstant
 
