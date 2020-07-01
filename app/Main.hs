@@ -20,7 +20,7 @@ program = let
 
 phases :: Term a -> (Term a, Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do
-  let simpleTerm = fixpoint simplifyTerm term
+  let simpleTerm = fixpoint (inlineTerm . simplifyTerm) term
   let cpbv = toCallByPushValue simpleTerm
   intrinsified <- intrinsify cpbv
   let simplified = simplifyCpbv intrinsified

@@ -8,7 +8,7 @@ module Lib
       Global (Global ),
       Type (), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
-      simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
+      inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
       intrinsify, simplifyCpbv
     ) where
 
@@ -36,6 +36,7 @@ import qualified Term
 import Cbpv
 import Cps
 
+inlineTerm = Term.inline
 simplifyTerm = Term.simplify
 
 thunkify :: Variable a -> Variable (U a)

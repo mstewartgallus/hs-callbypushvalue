@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Term (simplify, Term (..)) where
+module Term (simplify, inline, Term (..)) where
 import Common
 import TextShow
 import VarMap (VarMap)
@@ -42,9 +42,30 @@ simplify (LambdaTerm binder body) = LambdaTerm binder (simplify body)
 simplify (ApplyTerm f x) = ApplyTerm (simplify f) (simplify x)
 simplify t = t
 
-inline :: VarMap Term -> Term a -> Term a
-inline map = w where
+count :: Variable a -> Term b -> Int
+count v = w where
+  w :: Term x -> Int
+  w (VariableTerm binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+  w (LetTerm term binder body) = w term + if AnyVariable binder == AnyVariable v then 0 else w body
+  w (LambdaTerm binder body) = if AnyVariable binder == AnyVariable v then 0 else w body
+  w (ApplyTerm f x) = w f + w x
+  w _ = 0
+
+inline :: Term a -> Term a
+inline = inline' VarMap.empty
+
+inline' :: VarMap Term -> Term a -> Term a
+inline' map = w where
+  w :: Term x -> Term x
+
+  w (LetTerm term binder body) = if count binder body <= 1
+    then inline' (VarMap.insert binder (w term) map) body
+    else LetTerm (w term) binder (inline' (VarMap.delete binder map) body)
+
   w v@(VariableTerm variable) = case VarMap.lookup variable map of
     Nothing -> v
     Just replacement -> replacement
+
+  w (ApplyTerm f x) = ApplyTerm (w f) (w x)
+  w (LambdaTerm binder body) = LambdaTerm binder (inline' (VarMap.delete binder map) body)
   w term = term
