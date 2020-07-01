@@ -18,7 +18,7 @@ program = ApplyTerm (LambdaTerm (Type undefined) $ \x ->
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
-phases :: Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
+phases ::  Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do
   let optTerm = fixpoint (inlineTerm . simplifyTerm) term
 

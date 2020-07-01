@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03794c4bde3e2b4bc9e413797eb94d5884e18243e72dbe9acaec179e3703f8c5
+-- hash: 7c3ab3ffd8fc9c714338ce5d57f11acd172a1f7bf8688dd5a958d02308920484
 
 name:           cpbv
 version:        0.1.0.0
@@ -36,13 +36,15 @@ library
       GlobalMap
       Lib
       Term
+      Unique
       VarMap
   other-modules:
       Paths_cpbv
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
+      atomic-primops >=0.8 && <0.9
+    , base >=4.7 && <5
     , containers >=0.6 && <0.7
     , mtl >=2.2 && <3
     , text >=1.2 && <2
@@ -57,7 +59,8 @@ executable cpbv-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      atomic-primops >=0.8 && <0.9
+    , base >=4.7 && <5
     , containers >=0.6 && <0.7
     , cpbv
     , mtl >=2.2 && <3
@@ -74,7 +77,8 @@ test-suite cpbv-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      atomic-primops >=0.8 && <0.9
+    , base >=4.7 && <5
     , containers >=0.6 && <0.7
     , cpbv
     , mtl >=2.2 && <3
