@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
-module Unique (Unique, split, pick, stream) where
+module Unique (Unique, Stream, split, pick, stream, streamIO) where
 import System.IO.Unsafe
 import TextShow
 import Data.Atomics.Counter
@@ -9,20 +9,26 @@ newtype Unique = Unique Int deriving (Eq, Ord)
 instance TextShow Unique where
   showb (Unique n) = fromString "v" <> showb n
 
-newtype Supply = Supply (forall a. Choice a -> a)
+newtype Stream = Stream (forall a. Choice a -> a)
 
 data Choice a where
-   Pick :: Choice (Unique, Supply)
-   Split :: Choice (Supply, Supply)
+   Pick :: Choice (Unique, Stream)
+   Split :: Choice (Stream, Stream)
 
-split :: Supply -> (Supply, Supply)
-split (Supply f) = f Split
+split :: Stream -> (Stream, Stream)
+split (Stream f) = f Split
 
-pick :: Supply -> (Unique, Supply)
-pick (Supply f) = f Pick
+pick :: Stream -> (Unique, Stream)
+pick (Stream f) = f Pick
 
-stream :: IO Supply
-stream = let
+-- fixme.. not sure is safe
+stream :: (Stream -> a) -> a
+stream f = unsafePerformIO $ do
+ s <- streamIO
+ pure (f s)
+
+streamIO :: IO Stream
+streamIO = let
     make counter = loop where
          uniqueId = do
              c <- incrCounter 1 counter
@@ -36,7 +42,7 @@ stream = let
                  l <- loop
                  r <- loop
                  return (l, r)
-             pure $ Supply $ \choice -> case choice of
+             pure $ Stream $ \choice -> case choice of
                  Pick -> pick
                  Split -> split
   in do

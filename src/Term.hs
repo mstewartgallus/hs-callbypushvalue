@@ -4,6 +4,7 @@ import Common
 import TextShow
 import VarMap (VarMap)
 import qualified VarMap
+import qualified Unique
 import Compiler
 import Control.Monad.State
 import Data.Typeable
@@ -45,24 +46,28 @@ instance Eq (Term a) where
   x == y = AnyTerm x == AnyTerm y
 
 instance TextShow (Term a) where
-  showb term = evalState (process term) (CompilerState 0 0) where
-      process :: Term a -> Compiler Builder
-      process (VariableTerm v) = pure $ showb v
-      process (ConstantTerm k) = pure $ showb k
-      process (GlobalTerm g) = pure $ showb g
-      process (LetTerm term t f) = do
-          x <- getVariable t
-          term' <- process term
-          body <- process (f (VariableTerm x))
-          pure $ fromString "let " <> term' <> fromString " = " <> showb x <> fromString " in\n" <> body <> fromString ""
-      process (LambdaTerm t body) = do
-          v <- getVariable t
-          body' <- process (body (VariableTerm v))
-          pure $ fromString "(λ " <> showb v <> fromString " → " <> body' <> fromString ")"
-      process (ApplyTerm f x) = do
-        f' <- process f
-        x' <- process x
-        pure (fromString "(" <> f' <> fromString " " <> x' <> fromString ")")
+  showb term = Unique.stream $ \stream -> process stream term where
+      process :: Unique.Stream -> Term a -> Builder
+      process stream (VariableTerm v) = showb v
+      process stream (ConstantTerm k) = showb k
+      process stream (GlobalTerm g) = showb g
+      process stream (LetTerm term t f) = let
+          (head, tail) = Unique.pick stream
+          x = Variable t (toText (showb head))
+          (left, right) = Unique.split tail
+          term' = process left term
+          body = process right (f (VariableTerm x))
+          in fromString "let " <> term' <> fromString " = " <> showb x <> fromString " in\n" <> body <> fromString ""
+      process stream (LambdaTerm t body) = let
+          (head, tail) = Unique.pick stream
+          x = Variable t (toText (showb head))
+          body' = process tail (body (VariableTerm x))
+          in fromString "(λ " <> showb x <> fromString " → " <> body' <> fromString ")"
+      process stream (ApplyTerm f x) = let
+        (left, right) = Unique.split stream
+        f' = process left f
+        x' = process right x
+        in (fromString "(" <> f' <> fromString " " <> x' <> fromString ")")
 
 simplify :: Term a -> Term a
 simplify (ApplyTerm (LambdaTerm t f) term) = simplify (LetTerm term t f)
