@@ -26,9 +26,10 @@ phases supply term = let
     optimizeTerm :: Unique.Stream -> Term a -> Term a
     optimizeTerm s t = let
       (left, right) = Unique.split s
-      simplified = simplifyTerm left t
-      inlined = inlineTerm simplified
-      in if inlined == t then t else optimizeTerm right inlined
+      simplified = Term.build (Term.simplify t) left
+      inlined = Term.build (Term.inline simplified) right
+      -- fixme.. get fixpoint working
+      in inlined
   in flip evalState (CompilerState 0 0) $ do
 
   let optTerm = optimizeTerm supply term

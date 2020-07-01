@@ -52,14 +52,12 @@ toCallByPushValue :: Term a -> Compiler (Code a)
 toCallByPushValue (VariableTerm x) = pure $ ForceCode (VariableValue x)
 toCallByPushValue (ConstantTerm x) = pure $ ReturnCode (ConstantValue x)
 toCallByPushValue (GlobalTerm x) = pure $ GlobalCode x
-toCallByPushValue (LetTerm term t body) = do
-  binder <- getVariable t
+toCallByPushValue (LetTerm term binder body) = do
   term' <- toCallByPushValue term
-  body' <- toCallByPushValue (body (VariableTerm binder))
+  body' <- toCallByPushValue body
   pure $ LetBeCode (ThunkValue term') binder body'
-toCallByPushValue (LambdaTerm t body) = do
-  binder <- getVariable t
-  body' <- toCallByPushValue (body (VariableTerm binder))
+toCallByPushValue (LambdaTerm binder body) = do
+  body' <- toCallByPushValue body
   pure $ LambdaCode binder body'
 toCallByPushValue (ApplyTerm f x) = do
   f' <- toCallByPushValue f
