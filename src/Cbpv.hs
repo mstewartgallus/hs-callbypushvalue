@@ -23,6 +23,33 @@ data Value a where
   VariableValue :: Variable a -> Value a
   ThunkValue ::  Code a -> Value (U a)
 
+data AnyCode where
+  AnyCode :: Code a -> AnyCode
+
+instance Eq AnyCode where
+  AnyCode (ConstantCode k) == AnyCode (ConstantCode k') = AnyConstant k == AnyConstant k'
+  AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
+  AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyValue value == AnyValue value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (LetToCode act binder body) == AnyCode (LetToCode act' binder' body') = AnyCode act == AnyCode act' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyValue x == AnyValue x'
+  AnyCode (ForceCode x) == AnyCode (ForceCode x') = AnyValue x == AnyValue x'
+  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyValue x == AnyValue x'
+  _ == _ = False
+
+instance Eq (Code a) where
+  x == y = AnyCode x == AnyCode y
+
+data AnyValue where
+  AnyValue :: Value a -> AnyValue
+
+instance Eq AnyValue where
+  AnyValue (VariableValue v) == AnyValue (VariableValue v') = AnyVariable v == AnyVariable v'
+  AnyValue (ThunkValue code) == AnyValue (ThunkValue code') = AnyCode code == AnyCode code'
+  _ == _ = False
+
+instance Eq (Value a) where
+  x == y = AnyValue x == AnyValue y
 
 instance TextShow (Code a) where
   showb (ConstantCode k) = showb k

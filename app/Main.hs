@@ -23,7 +23,7 @@ phases term = flip evalState (CompilerState 0 0) $ do
   let simpleTerm = fixpoint (inlineTerm . simplifyTerm) term
   let cpbv = toCallByPushValue simpleTerm
   intrinsified <- intrinsify cpbv
-  let simplified = simplifyCbpv intrinsified
+  let simplified = fixpoint simplifyCbpv intrinsified
   catchThrow <- toExplicitCatchThrow intrinsified
   cps <- toCps' catchThrow
   return (simpleTerm, cpbv, intrinsified, simplified, catchThrow, cps)
