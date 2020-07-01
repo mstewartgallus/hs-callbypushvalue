@@ -9,7 +9,7 @@ module Lib
       Type (..), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
       inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
-      intrinsify, simplifyCbpv, simplifyCallcc
+      intrinsify, simplifyCbpv, inlineCbpv, simplifyCallcc
     ) where
 
 import Control.Monad.State
@@ -38,6 +38,7 @@ import Cps
 inlineTerm = Term.inline
 simplifyTerm = Term.simplify
 simplifyCbpv = Cbpv.simplify
+inlineCbpv = Cbpv.inline
 simplifyCallcc = Callcc.simplify
 intrinsify = Cbpv.intrinsify
 

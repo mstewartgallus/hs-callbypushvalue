@@ -1,7 +1,8 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Common (V, (:->), Type (..), Name (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+module Common (compareVariable, V, (:->), Type (..), Name (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
+import Data.Dynamic
 import Data.Typeable
 
 data V a b
@@ -34,6 +35,11 @@ instance Eq AnyVariable where
 
 instance Ord (Variable a) where
   compare (Variable _ x) (Variable _ y) = compare x y
+
+
+compareVariable :: Variable a -> Variable b -> a -> Maybe b
+compareVariable (Variable (Type _) x) (Variable (Type _) y) value = if x == y then fromDynamic (toDyn value) else Nothing
+
 
 
 data Label a = Label (Type a) T.Text

@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cbpv (Code (..), Value (..), simplify, intrinsify) where
+module Cbpv (Code (..), Value (..), simplify, intrinsify, inline) where
 import Common
 import TextShow
 import Data.Typeable
@@ -8,6 +8,8 @@ import Compiler
 import Core
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
+import VarMap (VarMap)
+import qualified VarMap as VarMap
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -92,7 +94,46 @@ simplifyValue (ThunkValue x) = ThunkValue (simplify x)
 simplifyValue x = x
 
 
+count :: Variable a -> Code b -> Int
+count v = code where
+  code :: Code x -> Int
+  code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+  code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
+  code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+  code (ApplyCode f x) = code f + value x
+  code (ForceCode thunk) = value thunk
+  code (ReturnCode x) = value x
+  code _ = 0
+
+  value :: Value x -> Int
+  value (VariableValue binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+  value (ThunkValue c) = code c
+  value _ = 0
+
+inline :: Code a -> Code a
+inline = inline' VarMap.empty
+
+inline' :: VarMap Value -> Code a -> Code a
+inline' map = code where
+  code :: Code x -> Code x
+  code (LetBeCode term binder body) = if count binder body <= 1
+    then inline' (VarMap.insert binder (value term) map) body
+    else LetBeCode (value term) binder (inline' (VarMap.delete binder map) body)
+  code (LetToCode term binder body) = LetToCode (code term) binder (inline' (VarMap.delete binder map) body)
+  code (ApplyCode f x) = ApplyCode (code f) (value x)
+  code (LambdaCode binder body) = LambdaCode binder (inline' (VarMap.delete binder map) body)
+  code term = term
+
+  value :: Value x -> Value x
+  value v@(VariableValue variable) = case VarMap.lookup variable map of
+    Nothing -> v
+    Just replacement -> replacement
+  value (ThunkValue c) = ThunkValue (code c)
+  value x = x
+
 
+
+-- Fixme... use a different file for this?
 
 intrinsify :: Code a -> Compiler (Code a)
 intrinsify global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
