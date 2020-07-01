@@ -82,6 +82,7 @@ simplify (LambdaCode binder body) = let
   in LambdaCode binder body'
 simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyValue x)
 simplify (ReturnCode value) = ReturnCode (simplifyValue value)
+simplify (LetBeCode value binder body) = LetBeCode (simplifyValue value) binder (simplify body)
 simplify (LetToCode action binder body) = LetToCode (simplify action) binder (simplify body)
 simplify x = x
 
