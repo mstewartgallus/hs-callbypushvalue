@@ -9,7 +9,7 @@ module Lib
       Type (), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
       inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
-      intrinsify, simplifyCpbv
+      intrinsify, simplifyCbpv
     ) where
 
 import Control.Monad.State
@@ -21,9 +21,6 @@ import TextShow
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import GlobalMap (GlobalMap)
-import qualified GlobalMap as GlobalMap
-
 import Control.Monad.ST
 import Data.Typeable
 
@@ -33,11 +30,14 @@ import Compiler
 import Callcc
 import Term (Term (..))
 import qualified Term
-import Cbpv
+import Cbpv (Code (..), Value (..))
+import qualified Cbpv
 import Cps
 
 inlineTerm = Term.inline
 simplifyTerm = Term.simplify
+simplifyCbpv = Cbpv.simplify
+intrinsify = Cbpv.intrinsify
 
 thunkify :: Variable a -> Variable (U a)
 thunkify (Variable (Type t) name) = let
@@ -133,69 +133,3 @@ toCps (CatchAction binder body) k = do
 toCps (ThrowAction binder body) _ = do
   toCps body $ \x -> do
       pure (JumpEffect x (VariableStuff binder))
-
-
-
-intrinsify :: Code a -> Compiler (Code a)
-intrinsify global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
-  Nothing -> pure global
-  Just (Intrinsic intrinsic) -> intrinsic
-intrinsify (LambdaCode binder x) = pure (LambdaCode binder) <*> intrinsify x
-intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyValue x
-intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyValue x
-intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyValue x
-intrinsify (LetToCode action binder body) = pure LetToCode <*> intrinsify action <*> pure binder <*> intrinsify body
-intrinsify x = pure x
-
-intrinsifyValue :: Value a -> Compiler (Value a)
-intrinsifyValue (ThunkValue code) = pure ThunkValue <*> intrinsify code
-intrinsifyValue x = pure x
-
-newtype Intrinsic a = Intrinsic (Compiler (Code a))
-
-intrinsics :: GlobalMap Intrinsic
-intrinsics = GlobalMap.fromList [
-     GlobalMap.Entry plus (Intrinsic plusIntrinsic)
-  ]
-
-plusIntrinsic :: Compiler (Code (F Integer :-> F Integer :-> F Integer))
-plusIntrinsic = do
-  x <- getVariable int
-  y <- getVariable int
-  let x' = thunkify x
-  let y' = thunkify y
-  x'' <- getVariable intRaw
-  y'' <- getVariable intRaw
-  pure $
-    LambdaCode x' $
-    LambdaCode y' $
-    LetToCode (ForceCode (VariableValue x')) x'' $
-    LetToCode (ForceCode (VariableValue y')) y'' $
-    ApplyCode (ApplyCode (GlobalCode strictPlus) (VariableValue x'')) (VariableValue y'')
-
-
-
-{-
-Simplify Call By Push Value Inverses
-
-So far we handle:
-
-- force (thunk X) to X
-- thunk (force X) to X
--}
-simplifyCpbv :: Code a -> Code a
-simplifyCpbv (ForceCode (ThunkValue x)) = simplifyCpbv x
-simplifyCpbv (ForceCode x) = ForceCode (simplifyCpbvValue x)
--- FIXME
-simplifyCpbv (LambdaCode binder body) = let
-  body' = simplifyCpbv body
-  in LambdaCode binder body'
-simplifyCpbv (ApplyCode f x) = ApplyCode (simplifyCpbv f) (simplifyCpbvValue x)
-simplifyCpbv (ReturnCode value) = ReturnCode (simplifyCpbvValue value)
-simplifyCpbv (LetToCode action binder body) = LetToCode (simplifyCpbv action) binder (simplifyCpbv body)
-simplifyCpbv x = x
-
-simplifyCpbvValue :: Value a -> Value a
-simplifyCpbvValue (ThunkValue (ForceCode x)) = simplifyCpbvValue x
-simplifyCpbvValue (ThunkValue x) = ThunkValue (simplifyCpbv x)
-simplifyCpbvValue x = x
