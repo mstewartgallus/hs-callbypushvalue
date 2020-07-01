@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Callcc (Action (..), Thing (..)) where
+module Callcc (Action (..), Thing (..), simplify) where
 import Common
 import TextShow
 
@@ -30,3 +30,14 @@ instance TextShow (Action a) where
 instance TextShow (Thing a) where
   showb (ConstantThing k) = showb k
   showb (VariableThing b) = showb b
+
+simplify :: Action a -> Action a
+simplify (LetToAction (ReturnAction value) binder body) = simplify (LetBeAction value binder body)
+
+simplify (LambdaAction binder body) = LambdaAction binder (simplify body)
+simplify (ApplyAction f x) = ApplyAction (simplify f) x
+simplify (LetBeAction thing binder body) = LetBeAction thing binder (simplify body)
+simplify (LetToAction act binder body) = LetToAction (simplify act) binder (simplify body)
+simplify (CatchAction binder body) = CatchAction binder (simplify body)
+simplify (ThrowAction stack act) = ThrowAction stack (simplify act)
+simplify x = x

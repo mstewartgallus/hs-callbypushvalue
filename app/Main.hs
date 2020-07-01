@@ -18,37 +18,45 @@ program = let
   in ApplyTerm (LambdaTerm x $
                    ApplyTerm (ApplyTerm (GlobalTerm plus) (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
 
-phases :: Term a -> (Term a, Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
+phases :: Term a -> (Term a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do
-  let simpleTerm = fixpoint (inlineTerm . simplifyTerm) term
-  let cpbv = toCallByPushValue simpleTerm
-  intrinsified <- intrinsify cpbv
-  let simplified = fixpoint simplifyCbpv intrinsified
+  let optTerm = fixpoint (inlineTerm . simplifyTerm) term
+
+  let cbpv = toCallByPushValue optTerm
+  intrinsified <- intrinsify cbpv
+  let optCbpv = fixpoint simplifyCbpv intrinsified
+
   catchThrow <- toExplicitCatchThrow intrinsified
+  let optCatchThrow = simplifyCallcc catchThrow
+
   cps <- toCps' catchThrow
-  return (simpleTerm, cpbv, intrinsified, simplified, catchThrow, cps)
+
+  return (optTerm, cbpv, intrinsified, optCbpv, catchThrow, optCatchThrow, cps)
 
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (simpleTerm, cpbv, intrinsified, simplified, catchThrow, cps) = phases program
+  let (optTerm, cbpv, intrinsified, optCbpv, catchThrow, optCatchThrow, cps) = phases program
 
-  putStrLn "\nSimplifed Term:"
-  printT simpleTerm
+  putStrLn "\nOptimized Term:"
+  printT optTerm
 
   putStrLn "\nCall By Push Value:"
-  printT cpbv
+  printT cbpv
 
   putStrLn "\nIntrinsified:"
   printT intrinsified
 
-  putStrLn "\nSimplified CBPV:"
-  printT simplified
+  putStrLn "\nOptimized CBPV:"
+  printT optCbpv
 
   putStrLn "\nCatch/Throw:"
   printT catchThrow
+
+  putStrLn "\nOptimized Catch/Throw:"
+  printT optCatchThrow
 
   putStrLn "\nCps:"
   printT cps

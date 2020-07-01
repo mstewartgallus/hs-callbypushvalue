@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving, FlexibleContexts #-}
+{-# LANGUAGE GADTs, TypeOperators #-}
 module Lib
     (
       fn, thunk, int, plus,
@@ -9,7 +9,7 @@ module Lib
       Type (..), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
       inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
-      intrinsify, simplifyCbpv
+      intrinsify, simplifyCbpv, simplifyCallcc
     ) where
 
 import Control.Monad.State
@@ -27,7 +27,8 @@ import Data.Typeable
 import Core
 import Common
 import Compiler
-import Callcc
+import Callcc (Action (..), Thing (..))
+import qualified Callcc
 import Term (Term (..))
 import qualified Term
 import Cbpv (Code (..), Value (..))
@@ -37,6 +38,7 @@ import Cps
 inlineTerm = Term.inline
 simplifyTerm = Term.simplify
 simplifyCbpv = Cbpv.simplify
+simplifyCallcc = Callcc.simplify
 intrinsify = Cbpv.intrinsify
 
 thunkify :: Variable a -> Variable (U a)
