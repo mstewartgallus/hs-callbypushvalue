@@ -1,7 +1,9 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Term (simplifyTerm, Term (..)) where
+module Term (simplify, Term (..)) where
 import Common
 import TextShow
+import VarMap (VarMap)
+import qualified VarMap
 
 data Term a where
   VariableTerm :: Variable a -> Term a
@@ -16,8 +18,8 @@ data AnyTerm where
 
 instance Eq AnyTerm where
   AnyTerm (VariableTerm v) == AnyTerm (VariableTerm v') = AnyVariable v == AnyVariable v'
-  -- AnyTerm (ConstantTerm k) == AnyTerm (ConstantTerm k') = k == k'
-  -- AnyTerm (GlobalTerm g) == AnyTerm (GlobalTerm g') = g == g'
+  AnyTerm (ConstantTerm k) == AnyTerm (ConstantTerm k') = AnyConstant k == AnyConstant k'
+  AnyTerm (GlobalTerm g) == AnyTerm (GlobalTerm g') = AnyGlobal g == AnyGlobal g'
   AnyTerm (LetTerm term binder body) == AnyTerm (LetTerm term' binder' body') = AnyTerm term == AnyTerm term' && AnyVariable binder' == AnyVariable binder' && AnyTerm body == AnyTerm body'
   AnyTerm (ApplyTerm f x) == AnyTerm (ApplyTerm f' x') = AnyTerm f == AnyTerm f' && AnyTerm x == AnyTerm x'
   _ == _ = False
@@ -33,10 +35,16 @@ instance TextShow (Term a) where
   showb (LambdaTerm binder body) = fromString "(λ " <> showb binder <> fromString " → " <> showb body <> fromString ")"
   showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
-simplifyTerm :: Term a -> Term a
-simplifyTerm (ApplyTerm (LambdaTerm binder body) term) = simplifyTerm (LetTerm term binder body)
+simplify :: Term a -> Term a
+simplify (ApplyTerm (LambdaTerm binder body) term) = simplify (LetTerm term binder body)
+simplify (LetTerm term binder body) = LetTerm (simplify term) binder (simplify body)
+simplify (LambdaTerm binder body) = LambdaTerm binder (simplify body)
+simplify (ApplyTerm f x) = ApplyTerm (simplify f) (simplify x)
+simplify t = t
 
-simplifyTerm (LetTerm term binder body) = LetTerm (simplifyTerm term) binder (simplifyTerm body)
-simplifyTerm (LambdaTerm binder body) = LambdaTerm binder (simplifyTerm body)
-simplifyTerm (ApplyTerm f x) = ApplyTerm (simplifyTerm f) (simplifyTerm x)
-simplifyTerm t = t
+inline :: VarMap Term -> Term a -> Term a
+inline map = w where
+  w v@(VariableTerm variable) = case VarMap.lookup variable map of
+    Nothing -> v
+    Just replacement -> replacement
+  w term = term

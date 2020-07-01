@@ -31,12 +31,17 @@ import Core
 import Common
 import Compiler
 import Callcc
-import Term
+import Term (Term (..))
+import qualified Term
 import Cbpv
 import Cps
 
+simplifyTerm = Term.simplify
+
 thunkify :: Variable a -> Variable (U a)
-thunkify (Variable t name) = Variable (ApplyType thunk t) name
+thunkify (Variable (Type t) name) = let
+  Type thunk' = thunk
+  in Variable (Type (ApplyName thunk' t)) name
 
 toCallByPushValue :: Term a -> Code a
 toCallByPushValue (VariableTerm x) = ForceCode (VariableValue (thunkify x))

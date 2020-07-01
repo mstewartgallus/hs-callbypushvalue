@@ -5,6 +5,13 @@ import Control.Monad.State
 import TextShow
 import qualified Data.Text as T
 
+fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
+fixpoint op = w 0 where
+  w 5000 term = error ("term did not terminate:\n" <> toString (showb term))
+  w tick term = let
+    newTerm = op term
+    in if newTerm == term then term else w (tick + 1) newTerm
+
 program :: Term (F Integer)
 program = let
   x =  Variable int (T.pack "x")
@@ -13,7 +20,7 @@ program = let
 
 phases :: Term a -> (Term a, Code a, Code a, Code a, Action a, Stuff (Stack (F (Stack a))))
 phases term = flip evalState (CompilerState 0 0) $ do
-  let simpleTerm = simplifyTerm term
+  let simpleTerm = fixpoint simplifyTerm term
   let cpbv = toCallByPushValue simpleTerm
   intrinsified <- intrinsify cpbv
   let simplified = simplifyCpbv intrinsified

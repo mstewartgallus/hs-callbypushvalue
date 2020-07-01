@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Common (V, (:->), Type (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+module Common (V, (:->), Type (..), Name (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
 import Data.Typeable
@@ -10,9 +10,11 @@ type a :-> b = U a -> b
 infixr 9 :->
 
 data Type a where
-  NominalType :: T.Text -> T.Text -> Type a
-  ApplyType :: Type (V a b) -> Type a -> Type b
+  Type :: Typeable a => Name a -> Type a
 
+data Name a where
+  NominalName :: T.Text -> T.Text -> Name a
+  ApplyName :: Name (V a b) -> Name a -> Name b
 
 data F a
 type U a = Stack (F (Stack a))
@@ -46,8 +48,7 @@ instance Eq (Constant a) where
 instance Eq AnyConstant where
   AnyConstant (IntegerConstant x) == AnyConstant (IntegerConstant y) = x == y
 
-data Global a where
-  Global :: Typeable a => Type a -> T.Text -> T.Text -> Global a
+data Global a = Global (Type a) T.Text T.Text
 data AnyGlobal where
   AnyGlobal :: Global a -> AnyGlobal
 

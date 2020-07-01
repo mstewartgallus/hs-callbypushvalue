@@ -6,30 +6,33 @@ module Core (
   ) where
 import qualified Data.Text as T
 import Common
-
+import Data.Typeable
 {-
 Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
 
-fn :: Type (V a (V b (a :-> b)))
-fn = NominalType (T.pack "core") (T.pack "fn")
+fn :: (Typeable a, Typeable b) => Type (V a (V b (a :-> b)))
+fn = Type $ NominalName (T.pack "core") (T.pack "fn")
 
-thunk :: Type (V a (U a))
-thunk = NominalType (T.pack "core") (T.pack "U")
+thunk :: Typeable a => Type (V a (U a))
+thunk = Type $ NominalName (T.pack "core") (T.pack "U")
 
-returns :: Type (V a (F a))
-returns = NominalType (T.pack "core") (T.pack "F")
+returns :: Typeable a => Type (V a (F a))
+returns = Type $ NominalName (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
-int = ApplyType returns intRaw
+int = let
+  Type returns' = returns
+  Type intRaw' = intRaw
+  in Type $ ApplyName returns' intRaw'
 
 intRaw :: Type Integer
-intRaw = NominalType (T.pack "core") (T.pack "int")
+intRaw = Type $ NominalName (T.pack "core") (T.pack "int")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
-plus = Global (ApplyType (ApplyType fn int) (ApplyType (ApplyType fn int) int)) (T.pack "core") (T.pack "+")
+plus = Global (Type undefined) (T.pack "core") (T.pack "+")
 
 -- fixme...
 strictPlus :: Global (Integer -> Integer -> F Integer)
-strictPlus = Global undefined (T.pack "core") (T.pack "+!")
+strictPlus = Global (Type undefined) (T.pack "core") (T.pack "+!")

@@ -1,6 +1,7 @@
 module Compiler (Compiler, CompilerState (..), getVariable, getLabel) where
 import Control.Monad.State
 import Common
+import Data.Typeable
 import TextShow
 
 data CompilerState = CompilerState Integer Integer
