@@ -102,6 +102,7 @@ intrinsify (LambdaCode binder x) = pure (LambdaCode binder) <*> intrinsify x
 intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyValue x
 intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyValue x
 intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyValue x
+intrinsify (LetBeCode value binder body) = pure LetBeCode <*> intrinsifyValue value <*> pure binder <*> intrinsify body
 intrinsify (LetToCode action binder body) = pure LetToCode <*> intrinsify action <*> pure binder <*> intrinsify body
 intrinsify x = pure x
 
