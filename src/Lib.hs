@@ -47,18 +47,23 @@ thunkify (Variable (Type t) name) = let
   Type thunk' = thunk
   in Variable (Type (ApplyName thunk' t)) name
 
-toCallByPushValue :: Term a -> Code a
-toCallByPushValue (VariableTerm x) = ForceCode (VariableValue x)
-toCallByPushValue (ConstantTerm x) = ReturnCode (ConstantValue x)
-toCallByPushValue (GlobalTerm x) = GlobalCode x
-toCallByPushValue (LetTerm term binder body) = let
-  term' = toCallByPushValue term
-  body' = toCallByPushValue body
-  in LetBeCode (ThunkValue term') binder body'
-toCallByPushValue (LambdaTerm binder body) = let
-  body' = toCallByPushValue body
-  in LambdaCode binder body'
-toCallByPushValue (ApplyTerm f x) = ApplyCode (toCallByPushValue f) (ThunkValue (toCallByPushValue x))
+toCallByPushValue :: Term a -> Compiler (Code a)
+toCallByPushValue (VariableTerm x) = pure $ ForceCode (VariableValue x)
+toCallByPushValue (ConstantTerm x) = pure $ ReturnCode (ConstantValue x)
+toCallByPushValue (GlobalTerm x) = pure $ GlobalCode x
+toCallByPushValue (LetTerm term t body) = do
+  binder <- getVariable t
+  term' <- toCallByPushValue term
+  body' <- toCallByPushValue (body (VariableTerm binder))
+  pure $ LetBeCode (ThunkValue term') binder body'
+toCallByPushValue (LambdaTerm t body) = do
+  binder <- getVariable t
+  body' <- toCallByPushValue (body (VariableTerm binder))
+  pure $ LambdaCode binder body'
+toCallByPushValue (ApplyTerm f x) = do
+  f' <- toCallByPushValue f
+  x' <- toCallByPushValue x
+  pure $ ApplyCode f' (ThunkValue x')
 
 
 

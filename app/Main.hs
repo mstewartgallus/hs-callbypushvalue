@@ -13,10 +13,8 @@ fixpoint op = w 0 where
     in if newTerm == term then term else w (tick + 1) newTerm
 
 program :: Term (F Integer)
-program = let
-  x =  Variable (Type undefined) (T.pack "x")
-  in ApplyTerm (LambdaTerm x $
-                   ApplyTerm (ApplyTerm (GlobalTerm plus) (VariableTerm x)) (VariableTerm x)) (ConstantTerm (IntegerConstant 5))
+program = ApplyTerm (LambdaTerm (Type undefined) $ \x ->
+          ApplyTerm (ApplyTerm (GlobalTerm plus)  x) x) (ConstantTerm (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
@@ -24,7 +22,8 @@ phases :: Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a,
 phases term = flip evalState (CompilerState 0 0) $ do
   let optTerm = fixpoint (inlineTerm . simplifyTerm) term
 
-  let cbpv = toCallByPushValue optTerm
+  cbpv <- toCallByPushValue optTerm
+
   let optCbpv = fixpoint optimizeCbpv cbpv
   intrinsified <- intrinsify optCbpv
   let optIntrinsified = fixpoint optimizeCbpv intrinsified
