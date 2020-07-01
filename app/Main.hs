@@ -4,6 +4,7 @@ import Lib
 import Control.Monad.State
 import TextShow
 import qualified Data.Text as T
+import Unique
 
 fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
 fixpoint op = w 0 where
@@ -18,9 +19,17 @@ program = ApplyTerm (LambdaTerm (Type undefined) $ \x ->
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
-phases ::  Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
-phases term = flip evalState (CompilerState 0 0) $ do
-  let optTerm = fixpoint (inlineTerm . simplifyTerm) term
+phases :: Unique.Stream -> Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
+phases supply term = let
+    optimizeTerm :: Unique.Stream -> Term a -> Term a
+    optimizeTerm s t = let
+      (left, right) = Unique.split s
+      simplified = simplifyTerm left t
+      inlined = inlineTerm simplified
+      in if inlined == t then t else optimizeTerm right inlined
+  in flip evalState (CompilerState 0 0) $ do
+
+  let optTerm = optimizeTerm supply term
 
   cbpv <- toCallByPushValue optTerm
 
@@ -37,10 +46,12 @@ phases term = flip evalState (CompilerState 0 0) $ do
 
 main :: IO ()
 main = do
+  stream <- Unique.streamIO
+
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps) = phases program
+  let (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps) = phases stream program
 
   putStrLn "\nOptimized Term:"
   printT optTerm

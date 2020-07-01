@@ -69,15 +69,26 @@ instance TextShow (Term a) where
         x' = process right x
         in (fromString "(" <> f' <> fromString " " <> x' <> fromString ")")
 
-simplify :: Term a -> Term a
-simplify (ApplyTerm (LambdaTerm t f) term) = simplify (LetTerm term t f)
-
--- fixme...
-simplify (LetTerm term t f) = LetTerm (simplify term) t (\x -> simplify (f x))
-simplify (LambdaTerm t body) = LambdaTerm t (\x -> simplify (body x))
-
-simplify (ApplyTerm f x) = ApplyTerm (simplify f) (simplify x)
-simplify t = t
+simplify :: Unique.Stream -> Term a -> Term a
+simplify supply (ApplyTerm (LambdaTerm t f) term) = simplify supply (LetTerm term t f)
+simplify supply (LetTerm term t body) = let
+  (head, tail) = Unique.pick supply
+  x = Variable t (toText (showb head))
+  (left, right) = Unique.split tail
+  term' = simplify left term
+  (a, b) = Unique.split right
+  body' = simplify a (body (VariableTerm x))
+  in LetTerm term' t (\val ->substitute' x val b body')
+simplify supply (LambdaTerm t body) = let
+  (head, tail) = Unique.pick supply
+  x = Variable t (toText (showb head))
+  (left, right) = Unique.split tail
+  body' = simplify left (body (VariableTerm x))
+  in LambdaTerm t (\val -> substitute' x val right body')
+simplify supply (ApplyTerm f x) = let
+  (left, right) = Unique.split supply
+  in ApplyTerm (simplify left f) (simplify right x)
+simplify _ t = t
 
 -- count :: Variable a -> Term b -> Int
 -- count v = w where
@@ -91,8 +102,8 @@ simplify t = t
 inline :: Term a -> Term a
 inline = id -- inline' VarMap.empty
 
--- data X a where
---   X :: Term a -> X (U a)
+data X a where
+  X :: Term a -> X (U a)
 
 -- inline' :: VarMap X -> Term a -> Term a
 -- inline' map = w where
@@ -109,3 +120,30 @@ inline = id -- inline' VarMap.empty
 --   w (ApplyTerm f x) = ApplyTerm (w f) (w x)
 --   w (LambdaTerm binder body) = LambdaTerm binder (inline' (VarMap.delete binder map) body)
 --   w term = term
+substitute' :: Variable (U b) -> Term b -> Unique.Stream -> Term a -> Term a
+substitute' key value = substitute (VarMap.insert key (X value) VarMap.empty)
+
+substitute :: VarMap X -> Unique.Stream -> Term a -> Term a
+substitute map = w where
+  w :: Unique.Stream -> Term x -> Term x
+  w stream (LetTerm term t body) = let
+    (head, tail) = Unique.pick stream
+    (left, right) = Unique.split tail
+    (a, b) = Unique.split right
+    x = Variable t (toText (showb head))
+    term' = w left term
+    body' = w a (body (VariableTerm x))
+    in LetTerm term' t (\val -> substitute' x val b body')
+  w supply v@(VariableTerm variable) = case VarMap.lookup variable map of
+    Nothing -> v
+    Just (X replacement) -> replacement
+  w supply (ApplyTerm f x) = let
+    (left, right) = Unique.split supply
+    in ApplyTerm (w left f) (w right x)
+  w supply (LambdaTerm t body) = let
+    (head, tail) = Unique.pick supply
+    (left, right) = Unique.split tail
+    x = Variable t (toText (showb head))
+    body' = w left (body (VariableTerm x))
+    in LambdaTerm t (\val -> substitute' x val right body')
+  w _ term = term
