@@ -7,6 +7,8 @@ import qualified Data.Text as T
 import Term
 import Term (Term)
 import qualified Term
+import qualified Cbpv
+import qualified Cps
 import Unique
 
 fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
@@ -22,7 +24,7 @@ mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (Type undefined) $ \x
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
-phases :: Unique.Stream -> Term a -> (Term a, Code a, Code a, Code a, Code a, Action a, Action a, Stuff (Stack (F (Stack a))))
+phases :: Unique.Stream -> Term a -> (Term a, Cbpv.Code a, Cbpv.Code a, Cbpv.Code a, Cbpv.Code a, Action a, Action a, Cps.Code a)
 phases supply term = let
     optimizeTerm :: Unique.Stream -> Term a -> Term a
     optimizeTerm s t = let

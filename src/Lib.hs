@@ -7,7 +7,7 @@ module Lib
       Variable (..),
       Constant (..),
       Global (Global ),
-      Type (..), Code (), Action (), Stuff (), Stack (), F (), U (), (:->) (),
+      Type (..), Action (), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
       inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
       intrinsify, simplifyCbpv, inlineCbpv, simplifyCallcc
@@ -32,7 +32,6 @@ import Callcc (Action (..), Thing (..))
 import qualified Callcc
 import Term (Build (..), Term (..))
 import qualified Term
-import Cbpv (Code (..), Value (..))
 import qualified Cbpv
 import Cps
 
@@ -48,49 +47,49 @@ thunkify (Variable (Type t) name) = let
   Type thunk' = thunk
   in Variable (Type (ApplyName thunk' t)) name
 
-toCallByPushValue :: Term a -> Compiler (Code a)
-toCallByPushValue (VariableTerm x) = pure $ ForceCode (VariableValue x)
-toCallByPushValue (ConstantTerm x) = pure $ ReturnCode (ConstantValue x)
-toCallByPushValue (GlobalTerm x) = pure $ GlobalCode x
+toCallByPushValue :: Term a -> Compiler (Cbpv.Code a)
+toCallByPushValue (VariableTerm x) = pure $ Cbpv.ForceCode (Cbpv.VariableValue x)
+toCallByPushValue (ConstantTerm x) = pure $ Cbpv.ReturnCode (Cbpv.ConstantValue x)
+toCallByPushValue (GlobalTerm x) = pure $ Cbpv.GlobalCode x
 toCallByPushValue (LetTerm term binder body) = do
   term' <- toCallByPushValue term
   body' <- toCallByPushValue body
-  pure $ LetBeCode (ThunkValue term') binder body'
+  pure $ Cbpv.LetBeCode (Cbpv.ThunkValue term') binder body'
 toCallByPushValue (LambdaTerm binder body) = do
   body' <- toCallByPushValue body
-  pure $ LambdaCode binder body'
+  pure $ Cbpv.LambdaCode binder body'
 toCallByPushValue (ApplyTerm f x) = do
   f' <- toCallByPushValue f
   x' <- toCallByPushValue x
-  pure $ ApplyCode f' (ThunkValue x')
+  pure $ Cbpv.ApplyCode f' (Cbpv.ThunkValue x')
 
 
 
-toExplicitCatchThrow :: Code a -> Compiler (Action a)
-toExplicitCatchThrow (GlobalCode x) = pure (GlobalAction x)
-toExplicitCatchThrow (LambdaCode binder body) = do
+toExplicitCatchThrow :: Cbpv.Code a -> Compiler (Action a)
+toExplicitCatchThrow (Cbpv.GlobalCode x) = pure (GlobalAction x)
+toExplicitCatchThrow (Cbpv.LambdaCode binder body) = do
   body' <- toExplicitCatchThrow body
   pure (LambdaAction binder body')
-toExplicitCatchThrow (ApplyCode f x) = do
+toExplicitCatchThrow (Cbpv.ApplyCode f x) = do
   f' <- toExplicitCatchThrow f
   toExplicitCatchThrowValue x (\x' -> ApplyAction f' x')
-toExplicitCatchThrow (LetToCode action binder body) = do
+toExplicitCatchThrow (Cbpv.LetToCode action binder body) = do
   action' <- toExplicitCatchThrow action
   body' <- toExplicitCatchThrow body
   return (LetToAction action' binder body')
-toExplicitCatchThrow (LetBeCode value binder body) = do
+toExplicitCatchThrow (Cbpv.LetBeCode value binder body) = do
   body' <- toExplicitCatchThrow body
   toExplicitCatchThrowValue value $ \value' -> LetBeAction value' binder body'
-toExplicitCatchThrow (ReturnCode x) = toExplicitCatchThrowValue x $ \x' -> ReturnAction x'
-toExplicitCatchThrow (ForceCode thunk) = do
+toExplicitCatchThrow (Cbpv.ReturnCode x) = toExplicitCatchThrowValue x $ \x' -> ReturnAction x'
+toExplicitCatchThrow (Cbpv.ForceCode thunk) = do
   -- fixme...
   v <- getVariable undefined
   toExplicitCatchThrowValue thunk $ \thunk' -> CatchAction v (ThrowAction thunk' (ReturnAction (VariableThing v)))
 
-toExplicitCatchThrowValue :: Value a -> (Thing a -> Action b) -> Compiler (Action b)
-toExplicitCatchThrowValue (ConstantValue x) k = pure (k (ConstantThing x))
-toExplicitCatchThrowValue (VariableValue v) k = pure (k (VariableThing v))
-toExplicitCatchThrowValue (ThunkValue code) k = do
+toExplicitCatchThrowValue :: Cbpv.Value a -> (Thing a -> Action b) -> Compiler (Action b)
+toExplicitCatchThrowValue (Cbpv.ConstantValue x) k = pure (k (ConstantThing x))
+toExplicitCatchThrowValue (Cbpv.VariableValue v) k = pure (k (VariableThing v))
+toExplicitCatchThrowValue (Cbpv.ThunkValue code) k = do
   -- fixme...
   returner <- getVariable undefined
   label <- getVariable undefined
@@ -103,42 +102,36 @@ toExplicitCatchThrowValue (ThunkValue code) k = do
 
 
 
-toCps' :: Action a -> Compiler (Stuff (Stack (F (Stack a))))
+toCps' :: Action a -> Compiler (Cps.Code a)
 toCps' act = do
   k <- getVariable undefined
-  eff <- toCps act $ \act' -> do
-    pure (JumpEffect act' (VariableStuff k))
-  pure (ToStackStuff k eff)
+  eff <- toCps act $ \a -> Cps.JumpEffect a (Cps.VariableValue k)
+  pure (Cps.KontCode k eff)
 
-toCps :: Action a -> (Cps a -> Compiler Effect) -> Compiler Effect
-toCps (GlobalAction x) k = k (GlobalCps x)
-toCps (ReturnAction value) k = k (ReturnCps (toCpsThing value))
+toCps :: Action a -> (Cps.Code a -> Effect) -> Compiler Effect
+toCps (GlobalAction x) k = pure $ k $ Cps.GlobalCode x
+toCps (ReturnAction value) k = pure $ k $ Cps.ReturnCode (toCpsThing value)
 toCps (LambdaAction binder body) k = do
   tail <- getVariable undefined
-  body' <- toCps body $ \b -> do
-    pure (JumpEffect b (VariableStuff tail))
-
-  k (LambdaCps tail (ToStackStuff binder body'))
+  body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableValue tail)
+  pure $ k $ Cps.LambdaCode binder (Cps.KontCode tail body')
 toCps (ApplyAction f x) k = do
-  toCps f $ \f' -> k (ApplyCps f' (toCpsThing x))
+  toCps f $ \f' -> k $ Cps.ApplyCode f' (toCpsThing x)
 toCps (LetToAction action binder body) k = do
-  toCps action $ \act -> do
-      body' <- toCps body k
-      pure (JumpEffect act (ToStackStuff binder body'))
-toCps (LetBeAction value binder body) k = do
-      body' <- toCps body k
-      pure (JumpEffect (ReturnCps (toCpsThing value)) (ToStackStuff binder body'))
-toCps (CatchAction binder body) k = do
-  -- fixme...
-  label <- getLabel undefined
-  body' <- toCps body $ \x -> do
-      pure (JumpEffect x (VariableStuff binder))
-  k' <- k (LabelCps label)
-  pure $ JumpEffect (ReturnCps (LabelStackStuff label k')) $ ToStackStuff binder body'
-toCps (ThrowAction val body) _ = do
-  toCps body $ \x -> do
-      pure (JumpEffect x (toCpsThing val))
+  s <- getVariable undefined
+  b <- toCps body $ \bod -> Cps.JumpEffect bod (Cps.VariableValue s)
+  toCps action $ \act -> k $ Cps.LetToCode act binder (Cps.KontCode s b)
 
-toCpsThing :: Thing a -> Stuff a
-toCpsThing (ConstantThing x) = ConstantStuff x
-toCpsThing (VariableThing x) = VariableStuff x
+toCps (LetBeAction value binder body) k = do
+    t <- getVariable undefined
+    body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableValue t)
+    pure $ k $ Cps.LetBeCode (toCpsThing value) binder (Cps.KontCode t body')
+toCps (CatchAction binder body) k = do
+  body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableValue binder)
+  pure $ k $ Cps.KontCode binder body'
+toCps (ThrowAction val body) _ = do
+  toCps body $ \body' -> Cps.JumpEffect body' (toCpsThing val)
+
+toCpsThing :: Thing a -> Cps.Value a
+toCpsThing (ConstantThing x) = Cps.ConstantValue x
+toCpsThing (VariableThing x) = Cps.VariableValue x
