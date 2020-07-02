@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cbpv (Code (..), Value (..), simplify, intrinsify, inline) where
+module Cbpv (Code (..), Data (..), simplify, intrinsify, inline) where
 import Common
 import TextShow
 import Data.Typeable
@@ -14,16 +14,16 @@ import qualified VarMap as VarMap
 data Code a where
   GlobalCode :: Global a -> Code a
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
-  ApplyCode :: Code (a -> b) -> Value a -> Code b
-  ForceCode :: Value (U a) -> Code a
-  ReturnCode :: Value a -> Code (F a)
+  ApplyCode :: Code (a -> b) -> Data a -> Code b
+  ForceCode :: Data (U a) -> Code a
+  ReturnCode :: Data a -> Code (F a)
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  LetBeCode :: Value a -> Variable a -> Code b -> Code b
+  LetBeCode :: Data a -> Variable a -> Code b -> Code b
 
-data Value a where
-  VariableValue :: Variable a -> Value a
-  ConstantValue :: Constant a -> Value a
-  ThunkValue ::  Code a -> Value (U a)
+data Data a where
+  VariableData :: Variable a -> Data a
+  ConstantData :: Constant a -> Data a
+  ThunkData ::  Code a -> Data (U a)
 
 data AnyCode where
   AnyCode :: Code a -> AnyCode
@@ -31,27 +31,27 @@ data AnyCode where
 instance Eq AnyCode where
   AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
   AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyValue value == AnyValue value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyData value == AnyData value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
   AnyCode (LetToCode act binder body) == AnyCode (LetToCode act' binder' body') = AnyCode act == AnyCode act' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyValue x == AnyValue x'
-  AnyCode (ForceCode x) == AnyCode (ForceCode x') = AnyValue x == AnyValue x'
-  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyValue x == AnyValue x'
+  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyData x == AnyData x'
+  AnyCode (ForceCode x) == AnyCode (ForceCode x') = AnyData x == AnyData x'
+  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyData x == AnyData x'
   _ == _ = False
 
 instance Eq (Code a) where
   x == y = AnyCode x == AnyCode y
 
-data AnyValue where
-  AnyValue :: Value a -> AnyValue
+data AnyData where
+  AnyData :: Data a -> AnyData
 
-instance Eq AnyValue where
-  AnyValue (ConstantValue k) == AnyValue (ConstantValue k') = AnyConstant k == AnyConstant k'
-  AnyValue (VariableValue v) == AnyValue (VariableValue v') = AnyVariable v == AnyVariable v'
-  AnyValue (ThunkValue code) == AnyValue (ThunkValue code') = AnyCode code == AnyCode code'
+instance Eq AnyData where
+  AnyData (ConstantData k) == AnyData (ConstantData k') = AnyConstant k == AnyConstant k'
+  AnyData (VariableData v) == AnyData (VariableData v') = AnyVariable v == AnyVariable v'
+  AnyData (ThunkData code) == AnyData (ThunkData code') = AnyCode code == AnyCode code'
   _ == _ = False
 
-instance Eq (Value a) where
-  x == y = AnyValue x == AnyValue y
+instance Eq (Data a) where
+  x == y = AnyData x == AnyData y
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
@@ -62,13 +62,13 @@ instance TextShow (Code a) where
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
 
-instance TextShow (Value a) where
-  showb (VariableValue v) = showb v
-  showb (ConstantValue k) = showb k
-  showb (ThunkValue code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
+instance TextShow (Data a) where
+  showb (VariableData v) = showb v
+  showb (ConstantData k) = showb k
+  showb (ThunkData code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
 
 {-
-Simplify Call By Push Value Inverses
+Simplify Call By Push Data Inverses
 
 So far we handle:
 
@@ -76,22 +76,22 @@ So far we handle:
 - thunk (force X) to X
 -}
 simplify :: Code a -> Code a
-simplify (ForceCode (ThunkValue x)) = simplify x
-simplify (ForceCode x) = ForceCode (simplifyValue x)
+simplify (ForceCode (ThunkData x)) = simplify x
+simplify (ForceCode x) = ForceCode (simplifyData x)
 simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = let
   body' = simplify body
   in LambdaCode binder body'
-simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyValue x)
-simplify (ReturnCode value) = ReturnCode (simplifyValue value)
-simplify (LetBeCode value binder body) = LetBeCode (simplifyValue value) binder (simplify body)
+simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyData x)
+simplify (ReturnCode value) = ReturnCode (simplifyData value)
+simplify (LetBeCode value binder body) = LetBeCode (simplifyData value) binder (simplify body)
 simplify (LetToCode action binder body) = LetToCode (simplify action) binder (simplify body)
 simplify x = x
 
-simplifyValue :: Value a -> Value a
-simplifyValue (ThunkValue (ForceCode x)) = simplifyValue x
-simplifyValue (ThunkValue x) = ThunkValue (simplify x)
-simplifyValue x = x
+simplifyData :: Data a -> Data a
+simplifyData (ThunkData (ForceCode x)) = simplifyData x
+simplifyData (ThunkData x) = ThunkData (simplify x)
+simplifyData x = x
 
 
 count :: Variable a -> Code b -> Int
@@ -105,15 +105,15 @@ count v = code where
   code (ReturnCode x) = value x
   code _ = 0
 
-  value :: Value x -> Int
-  value (VariableValue binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-  value (ThunkValue c) = code c
+  value :: Data x -> Int
+  value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+  value (ThunkData c) = code c
   value _ = 0
 
 inline :: Code a -> Code a
 inline = inline' VarMap.empty
 
-inline' :: VarMap Value -> Code a -> Code a
+inline' :: VarMap Data -> Code a -> Code a
 inline' map = code where
   code :: Code x -> Code x
   code (LetBeCode term binder body) = if count binder body <= 1
@@ -124,11 +124,11 @@ inline' map = code where
   code (LambdaCode binder body) = LambdaCode binder (inline' (VarMap.delete binder map) body)
   code term = term
 
-  value :: Value x -> Value x
-  value v@(VariableValue variable) = case VarMap.lookup variable map of
+  value :: Data x -> Data x
+  value v@(VariableData variable) = case VarMap.lookup variable map of
     Nothing -> v
     Just replacement -> replacement
-  value (ThunkValue c) = ThunkValue (code c)
+  value (ThunkData c) = ThunkData (code c)
   value x = x
 
 
@@ -140,15 +140,15 @@ intrinsify global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> pure global
   Just (Intrinsic intrinsic) -> intrinsic
 intrinsify (LambdaCode binder x) = pure (LambdaCode binder) <*> intrinsify x
-intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyValue x
-intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyValue x
-intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyValue x
-intrinsify (LetBeCode value binder body) = pure LetBeCode <*> intrinsifyValue value <*> pure binder <*> intrinsify body
+intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyData x
+intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyData x
+intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyData x
+intrinsify (LetBeCode value binder body) = pure LetBeCode <*> intrinsifyData value <*> pure binder <*> intrinsify body
 intrinsify (LetToCode action binder body) = pure LetToCode <*> intrinsify action <*> pure binder <*> intrinsify body
 
-intrinsifyValue :: Value a -> Compiler (Value a)
-intrinsifyValue (ThunkValue code) = pure ThunkValue <*> intrinsify code
-intrinsifyValue x = pure x
+intrinsifyData :: Data a -> Compiler (Data a)
+intrinsifyData (ThunkData code) = pure ThunkData <*> intrinsify code
+intrinsifyData x = pure x
 
 newtype Intrinsic a = Intrinsic (Compiler (Code a))
 
@@ -168,6 +168,6 @@ plusIntrinsic = do
   pure $
     LambdaCode x' $
     LambdaCode y' $
-    LetToCode (ForceCode (VariableValue x')) x'' $
-    LetToCode (ForceCode (VariableValue y')) y'' $
-    ApplyCode (ApplyCode (GlobalCode strictPlus) (VariableValue x'')) (VariableValue y'')
+    LetToCode (ForceCode (VariableData x')) x'' $
+    LetToCode (ForceCode (VariableData y')) y'' $
+    ApplyCode (ApplyCode (GlobalCode strictPlus) (VariableData x'')) (VariableData y'')
