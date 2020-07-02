@@ -45,7 +45,7 @@ phases supply term = let
 
   let optTerm = optimizeTerm supply term
 
-  cbpv <- toCallByPushValue optTerm
+  let cbpv = toCallByPushValue optTerm
 
   let optCbpv = fixpoint optimizeCbpv cbpv
   intrinsified <- intrinsify optCbpv

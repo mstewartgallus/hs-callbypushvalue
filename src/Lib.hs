@@ -46,21 +46,21 @@ thunkify (Variable (Type t) name) = let
   Type thunk' = thunk
   in Variable (Type (ApplyName thunk' t)) name
 
-toCallByPushValue :: Term a -> Compiler (Cbpv.Code a)
-toCallByPushValue (VariableTerm x) = pure $ Cbpv.ForceCode (Cbpv.VariableData x)
-toCallByPushValue (ConstantTerm x) = pure $ Cbpv.ReturnCode (Cbpv.ConstantData x)
-toCallByPushValue (GlobalTerm x) = pure $ Cbpv.GlobalCode x
-toCallByPushValue (LetTerm term binder body) = do
-  term' <- toCallByPushValue term
-  body' <- toCallByPushValue body
-  pure $ Cbpv.LetBeCode (Cbpv.ThunkData term') binder body'
-toCallByPushValue (LambdaTerm binder body) = do
-  body' <- toCallByPushValue body
-  pure $ Cbpv.LambdaCode binder body'
-toCallByPushValue (ApplyTerm f x) = do
-  f' <- toCallByPushValue f
-  x' <- toCallByPushValue x
-  pure $ Cbpv.ApplyCode f' (Cbpv.ThunkData x')
+toCallByPushValue :: Term a -> Cbpv.Code a
+toCallByPushValue (VariableTerm x) = Cbpv.ForceCode (Cbpv.VariableData x)
+toCallByPushValue (ConstantTerm x) = Cbpv.ReturnCode (Cbpv.ConstantData x)
+toCallByPushValue (GlobalTerm x) = Cbpv.GlobalCode x
+toCallByPushValue (LetTerm term binder body) = let
+  term' = toCallByPushValue term
+  body' = toCallByPushValue body
+  in Cbpv.LetBeCode (Cbpv.ThunkData term') binder body'
+toCallByPushValue (LambdaTerm binder body) = let
+  body' = toCallByPushValue body
+  in Cbpv.LambdaCode binder body'
+toCallByPushValue (ApplyTerm f x) = let
+  f' = toCallByPushValue f
+  x' = toCallByPushValue x
+  in Cbpv.ApplyCode f' (Cbpv.ThunkData x')
 
 
 
