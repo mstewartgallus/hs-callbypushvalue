@@ -2,6 +2,53 @@
 module Callcc (Code (..), Data (..), simplify) where
 import Common
 import TextShow
+import Unique
+
+data CodeBuilder a where
+  GlobalBuilder :: Global a -> CodeBuilder a
+  ForceBuilder :: DataBuilder (U a) -> CodeBuilder a
+  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
+  LetToBuilder :: CodeBuilder (F a) -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+  CatchBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder a) -> CodeBuilder a
+  ThrowBuilder :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder b
+
+data DataBuilder a where
+  VariableBuilder :: Variable a -> DataBuilder a
+  ConstantBuilder :: Constant a -> DataBuilder a
+
+buildData :: DataBuilder a -> Data a
+buildData (VariableBuilder v) = VariableData v
+buildData (ConstantBuilder v) = ConstantData v
+
+build :: CodeBuilder a -> Unique.Stream -> Code a
+build (GlobalBuilder v) _ = GlobalCode v
+build (ApplyBuilder f x) stream = ApplyCode (build f stream) (buildData x)
+build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
+  x = Variable t (toText (showb head))
+  term' = build term left
+  body' = build (body (VariableBuilder x)) right
+  in LetToCode term' x body'
+build (LetBeBuilder term t body) (Unique.Pick head tail) = let
+  x = Variable t (toText (showb head))
+  term' = buildData term
+  body' = build (body (VariableBuilder x)) tail
+  in LetBeCode term' x body'
+build (LambdaBuilder t body) (Unique.Pick head tail) = let
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in LambdaCode x body'
+build (CatchBuilder t body) (Unique.Pick head tail) = let
+  -- fixme...
+  x = Variable undefined (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in CatchCode x body'
+build (ThrowBuilder stack value) stream = let
+  stack' = buildData stack
+  value' = build value stream
+  in ThrowCode stack' value'
 
 data Code a where
   GlobalCode :: Global a -> Code a
