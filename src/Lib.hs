@@ -123,9 +123,8 @@ toCps (Callcc.LambdaCode binder body) k = do
 toCps (Callcc.ApplyCode f x) k = do
   toCps f $ \f' -> k $ Cps.ApplyCode f' (toCpsData x)
 toCps (Callcc.LetToCode action binder body) k = do
-  s <- getVariable undefined
-  b <- toCps body $ \bod -> Cps.JumpEffect bod (Cps.VariableData s)
-  toCps action $ \act -> k $ Cps.LetToCode act binder (Cps.KontCode s b)
+  b <- toCps body k
+  toCps action $ \act -> Cps.JumpEffect act $ Cps.LetToStackData binder b
 
 toCps (Callcc.LetBeCode value binder body) k = do
     t <- getVariable undefined

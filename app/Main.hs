@@ -92,3 +92,8 @@ main = do
 
   putStrLn "\nCps:"
   printT cps
+
+  Cps.evaluate cps $ \result -> do
+    printT result
+
+  return ()
