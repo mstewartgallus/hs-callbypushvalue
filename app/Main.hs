@@ -4,6 +4,7 @@ import Lib
 import Control.Monad.State
 import TextShow
 import qualified Data.Text as T
+import Term
 import Term (Term)
 import qualified Term
 import Unique

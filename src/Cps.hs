@@ -3,6 +3,8 @@ module Cps (Cps (..), Stuff (..), Effect (..)) where
 import Common
 import TextShow
 import qualified Data.Text as T
+import VarMap (VarMap)
+import qualified VarMap
 
 data Cps a where
   GlobalCps :: Global a -> Cps a
@@ -35,3 +37,31 @@ instance TextShow (Stuff a) where
 
 instance TextShow Effect where
  showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
+
+newtype Id a = Id a
+
+interpretStuff :: VarMap Id -> Stuff a -> a
+interpretStuff _ (ConstantStuff k) = interpretConstant k
+interpretStuff values (VariableStuff v) = case VarMap.lookup v values of
+  Just (Id x) -> x
+interpretStuff values (ToStackStuff variable effect) = PopStack $ \value -> interpretEffect (VarMap.insert variable (Id value) values) effect
+
+interpret :: VarMap Id -> Cps a -> Stack a -> IO ()
+interpret values (ReturnCps value) (PopStack k) = let
+  value' = interpretStuff values value
+  in k value'
+interpret values (LambdaCps variable body) (PushStack head tail) = let
+  values' = VarMap.insert variable (Id tail) values
+  PopStack body' = interpretStuff values' body
+  in body' head
+-- interpret values (LabelCps label) (PopStack k) = let
+--   value' = interpretStuff values value
+--   in k value'
+
+interpretEffect :: VarMap Id -> Effect -> IO ()
+interpretEffect values (JumpEffect ip stack) = let
+  stack' = interpretStuff values stack
+  in interpret values ip stack'
+
+interpretConstant :: Constant a -> a
+interpretConstant (IntegerConstant x) = x

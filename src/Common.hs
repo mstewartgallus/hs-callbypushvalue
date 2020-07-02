@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Common (compareVariable, V, (:->), Type (..), Name (..), F, U, Stack, Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+module Common (compareVariable, V, (:->), Type (..), Name (..), F, U, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
 import Data.Dynamic
@@ -20,7 +20,9 @@ data Name a where
 data F a
 type U a = Stack (F (Stack a))
 
-data Stack a
+data Stack a where
+  PopStack :: (a -> IO ()) -> Stack (F a)
+  PushStack :: a -> Stack b -> Stack (a -> b)
 
 
 
