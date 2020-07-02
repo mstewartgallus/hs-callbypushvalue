@@ -33,7 +33,7 @@ phases :: Unique.Stream -> Term a -> (Term a,
                                       Callcc.Code a,
                                       Callcc.Code a,
                                       Cps.Code a)
-phases supply term = let
+phases (Unique.Split a b) term = let
     optimizeTerm :: Unique.Stream -> Term a -> Term a
     optimizeTerm s t = let
       (left, right) = Unique.split s
@@ -43,7 +43,7 @@ phases supply term = let
       in inlined
   in flip evalState (CompilerState 0 0) $ do
 
-  let optTerm = optimizeTerm supply term
+  let optTerm = optimizeTerm a term
 
   let cbpv = toCallByPushValue optTerm
 
@@ -51,7 +51,7 @@ phases supply term = let
   intrinsified <- intrinsify optCbpv
   let optIntrinsified = fixpoint optimizeCbpv intrinsified
 
-  catchThrow <- toExplicitCatchThrow intrinsified
+  let catchThrow = toCallcc intrinsified b
   let optCatchThrow = fixpoint simplifyCallcc catchThrow
 
   cps <- toCps' catchThrow

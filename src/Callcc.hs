@@ -1,12 +1,11 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Callcc (Code (..), Data (..), simplify) where
+module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), simplify) where
 import Common
 import TextShow
 import Unique
 
 data CodeBuilder a where
   GlobalBuilder :: Global a -> CodeBuilder a
-  ForceBuilder :: DataBuilder (U a) -> CodeBuilder a
   ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
   LetToBuilder :: CodeBuilder (F a) -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
   LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
@@ -25,6 +24,7 @@ buildData (ConstantBuilder v) = ConstantData v
 
 build :: CodeBuilder a -> Unique.Stream -> Code a
 build (GlobalBuilder v) _ = GlobalCode v
+build (ReturnBuilder v) _ = ReturnCode (buildData v)
 build (ApplyBuilder f x) stream = ApplyCode (build f stream) (buildData x)
 build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
   x = Variable t (toText (showb head))

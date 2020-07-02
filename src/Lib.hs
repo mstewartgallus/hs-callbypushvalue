@@ -9,7 +9,7 @@ module Lib
       Global (Global ),
       Type (..), Stack (), F (), U (), (:->) (),
       CompilerState (..), Compiler,
-      inlineTerm, simplifyTerm, toCallByPushValue, toExplicitCatchThrow, toCps',
+      inlineTerm, simplifyTerm, toCallByPushValue, toCallcc, toCps',
       intrinsify, simplifyCbpv, inlineCbpv, simplifyCallcc
     ) where
 
@@ -33,6 +33,9 @@ import qualified Term
 import qualified Cbpv
 import qualified Callcc
 import Cps
+import qualified VarMap
+import VarMap (VarMap)
+import Unique
 
 inlineTerm = Term.inline
 simplifyTerm = Term.simplify
@@ -64,40 +67,43 @@ toCallByPushValue (ApplyTerm f x) = let
 
 
 
-toExplicitCatchThrow :: Cbpv.Code a -> Compiler (Callcc.Code a)
-toExplicitCatchThrow (Cbpv.GlobalCode x) = pure (Callcc.GlobalCode x)
-toExplicitCatchThrow (Cbpv.LambdaCode binder body) = do
-  body' <- toExplicitCatchThrow body
-  pure (Callcc.LambdaCode binder body')
-toExplicitCatchThrow (Cbpv.ApplyCode f x) = do
-  f' <- toExplicitCatchThrow f
-  toExplicitCatchThrowData x (\x' -> Callcc.ApplyCode f' x')
-toExplicitCatchThrow (Cbpv.LetToCode action binder body) = do
-  action' <- toExplicitCatchThrow action
-  body' <- toExplicitCatchThrow body
-  return (Callcc.LetToCode action' binder body')
-toExplicitCatchThrow (Cbpv.LetBeCode value binder body) = do
-  body' <- toExplicitCatchThrow body
-  toExplicitCatchThrowData value $ \value' -> Callcc.LetBeCode value' binder body'
-toExplicitCatchThrow (Cbpv.ReturnCode x) = toExplicitCatchThrowData x $ \x' -> Callcc.ReturnCode x'
-toExplicitCatchThrow (Cbpv.ForceCode thunk) = do
-  -- fixme...
-  v <- getVariable undefined
-  toExplicitCatchThrowData thunk $ \thunk' -> Callcc.CatchCode v (Callcc.ThrowCode thunk' (Callcc.ReturnCode (Callcc.VariableData v)))
+toCallcc :: Cbpv.Code a -> Unique.Stream -> Callcc.Code a
+toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
 
-toExplicitCatchThrowData :: Cbpv.Data a -> (Callcc.Data a -> Callcc.Code b) -> Compiler (Callcc.Code b)
-toExplicitCatchThrowData (Cbpv.ConstantData x) k = pure (k (Callcc.ConstantData x))
-toExplicitCatchThrowData (Cbpv.VariableData v) k = pure (k (Callcc.VariableData v))
-toExplicitCatchThrowData (Cbpv.ThunkData code) k = do
+data X a = X (Callcc.DataBuilder a)
+
+toExplicitCatchThrow :: VarMap X -> Cbpv.Code a -> Callcc.CodeBuilder a
+toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.GlobalBuilder x
+toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
+  Callcc.LambdaBuilder t $ \x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body
+toExplicitCatchThrow env (Cbpv.ApplyCode f x) = let
+  f' = toExplicitCatchThrow env f
+  in toExplicitCatchThrowData env x (\x' -> Callcc.ApplyBuilder f' x')
+toExplicitCatchThrow env (Cbpv.LetToCode action binder@(Variable t _) body) = let
+  action' = toExplicitCatchThrow env action
+  in Callcc.LetToBuilder action' t (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
+toExplicitCatchThrow env (Cbpv.LetBeCode value binder@(Variable t _) body) =
+  toExplicitCatchThrowData env value $ \value' -> Callcc.LetBeBuilder value' t (\x ->  toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
+toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x $ \x' -> Callcc.ReturnBuilder x'
+toExplicitCatchThrow env (Cbpv.ForceCode thunk) =
+  -- fixme... get type
+  toExplicitCatchThrowData env thunk $ \thunk' -> Callcc.CatchBuilder undefined $ \v -> Callcc.ThrowBuilder thunk' (Callcc.ReturnBuilder v)
+
+toExplicitCatchThrowData :: VarMap X -> Cbpv.Data a -> (Callcc.DataBuilder a -> Callcc.CodeBuilder b) -> Callcc.CodeBuilder b
+toExplicitCatchThrowData _ (Cbpv.ConstantData x) k = k (Callcc.ConstantBuilder x)
+toExplicitCatchThrowData env (Cbpv.VariableData v) k = let
+  Just (X x) = VarMap.lookup v env
+  in k x
+toExplicitCatchThrowData env (Cbpv.ThunkData code) k = let
+  code' = toExplicitCatchThrow env code
   -- fixme...
-  returner <- getVariable undefined
-  label <- getVariable undefined
-  binder <- getVariable undefined
-  code' <- toExplicitCatchThrow code
-  pure $ Callcc.CatchCode returner $ Callcc.LetToCode
-      (Callcc.CatchCode label (Callcc.ThrowCode (Callcc.VariableData returner) (k (Callcc.VariableData label))))
-      binder
-      (Callcc.ThrowCode (Callcc.VariableData binder) code')
+  in Callcc.CatchBuilder undefined $ \returner ->
+  -- fixme...
+  Callcc.LetToBuilder (Callcc.CatchBuilder undefined $ \label ->
+                          Callcc.ThrowBuilder returner (k label))
+    -- fixme...
+      undefined
+      $ \binder -> (Callcc.ThrowBuilder binder code')
 
 
 
