@@ -8,6 +8,7 @@ import Term
 import Term (Term)
 import qualified Term
 import qualified Cbpv
+import qualified Callcc
 import qualified Cps
 import Unique
 
@@ -24,7 +25,14 @@ mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (Type undefined) $ \x
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
-phases :: Unique.Stream -> Term a -> (Term a, Cbpv.Code a, Cbpv.Code a, Cbpv.Code a, Cbpv.Code a, Action a, Action a, Cps.Code a)
+phases :: Unique.Stream -> Term a -> (Term a,
+                                      Cbpv.Code a,
+                                      Cbpv.Code a,
+                                      Cbpv.Code a,
+                                      Cbpv.Code a,
+                                      Callcc.Code a,
+                                      Callcc.Code a,
+                                      Cps.Code a)
 phases supply term = let
     optimizeTerm :: Unique.Stream -> Term a -> Term a
     optimizeTerm s t = let

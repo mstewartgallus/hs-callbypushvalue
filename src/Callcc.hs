@@ -1,71 +1,71 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Callcc (Action (..), Thing (..), simplify) where
+module Callcc (Code (..), Value (..), simplify) where
 import Common
 import TextShow
 
-data Action a where
-  GlobalAction :: Global a -> Action a
-  LambdaAction :: Variable a -> Action b -> Action (a -> b)
-  ApplyAction :: Action (a -> b) -> Thing a -> Action b
-  ReturnAction :: Thing a -> Action (F a)
-  LetBeAction :: Thing a -> Variable a -> Action b -> Action b
-  LetToAction :: Action (F a) -> Variable a -> Action b -> Action b
-  CatchAction :: Variable (Stack a) -> Action a -> Action a
-  ThrowAction :: Thing (Stack a) -> Action a -> Action b
+data Code a where
+  GlobalCode :: Global a -> Code a
+  LambdaCode :: Variable a -> Code b -> Code (a -> b)
+  ApplyCode :: Code (a -> b) -> Value a -> Code b
+  ReturnCode :: Value a -> Code (F a)
+  LetBeCode :: Value a -> Variable a -> Code b -> Code b
+  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
+  CatchCode :: Variable (Stack a) -> Code a -> Code a
+  ThrowCode :: Value (Stack a) -> Code a -> Code b
 
-data Thing a where
-  ConstantThing :: Constant a -> Thing a
-  VariableThing :: Variable a -> Thing a
+data Value a where
+  ConstantValue :: Constant a -> Value a
+  VariableValue :: Variable a -> Value a
 
-data AnyAction where
-  AnyAction :: Action a -> AnyAction
+data AnyCode where
+  AnyCode :: Code a -> AnyCode
 
-data AnyThing where
-  AnyThing :: Thing a -> AnyThing
+data AnyValue where
+  AnyValue :: Value a -> AnyValue
 
-instance Eq AnyAction where
-  AnyAction (GlobalAction g) == AnyAction (GlobalAction g') = AnyGlobal g == AnyGlobal g'
-  AnyAction (LambdaAction binder body) == AnyAction (LambdaAction binder' body') = AnyVariable binder == AnyVariable binder' && AnyAction body == AnyAction body'
-  AnyAction (LetBeAction value binder body) == AnyAction (LetBeAction value' binder' body') = AnyThing value == AnyThing value' && AnyVariable binder' == AnyVariable binder' && AnyAction body == AnyAction body'
-  AnyAction (LetToAction act binder body) == AnyAction (LetToAction act' binder' body') = AnyAction act == AnyAction act' && AnyVariable binder' == AnyVariable binder' && AnyAction body == AnyAction body'
-  AnyAction (ApplyAction f x) == AnyAction (ApplyAction f' x') = AnyAction f == AnyAction f' && AnyThing x == AnyThing x'
-  AnyAction (ReturnAction x) == AnyAction (ReturnAction x') = AnyThing x == AnyThing x'
-  AnyAction (CatchAction binder body) == AnyAction (CatchAction binder' body') = AnyVariable binder == AnyVariable binder' && AnyAction body == AnyAction body'
-  AnyAction (ThrowAction stack body) == AnyAction (ThrowAction stack' body') = AnyThing stack == AnyThing stack' && AnyAction body == AnyAction body'
+instance Eq AnyCode where
+  AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
+  AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyValue value == AnyValue value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (LetToCode act binder body) == AnyCode (LetToCode act' binder' body') = AnyCode act == AnyCode act' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyValue x == AnyValue x'
+  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyValue x == AnyValue x'
+  AnyCode (CatchCode binder body) == AnyCode (CatchCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
+  AnyCode (ThrowCode stack body) == AnyCode (ThrowCode stack' body') = AnyValue stack == AnyValue stack' && AnyCode body == AnyCode body'
   _ == _ = False
 
-instance Eq AnyThing where
-  AnyThing (ConstantThing k) == AnyThing (ConstantThing k') = AnyConstant k == AnyConstant k'
-  AnyThing (VariableThing v) == AnyThing (VariableThing v') = AnyVariable v == AnyVariable v'
+instance Eq AnyValue where
+  AnyValue (ConstantValue k) == AnyValue (ConstantValue k') = AnyConstant k == AnyConstant k'
+  AnyValue (VariableValue v) == AnyValue (VariableValue v') = AnyVariable v == AnyVariable v'
   _ == _ = False
 
-instance Eq (Action a) where
-  x == y = AnyAction x == AnyAction y
+instance Eq (Code a) where
+  x == y = AnyCode x == AnyCode y
 
-instance Eq (Thing a) where
-  x == y = AnyThing x == AnyThing y
+instance Eq (Value a) where
+  x == y = AnyValue x == AnyValue y
 
-instance TextShow (Action a) where
-  showb (GlobalAction g) = showb g
-  showb (LambdaAction binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
-  showb (ApplyAction f x) = showb x <> fromString "\n" <> showb f
-  showb (ReturnAction value) = fromString "return " <> showb value
-  showb (LetToAction action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
-  showb (LetBeAction value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (CatchAction binder body) = fromString "catch " <> showb binder <> fromString ".\n" <> showb body
-  showb (ThrowAction label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
+instance TextShow (Code a) where
+  showb (GlobalCode g) = showb g
+  showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
+  showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
+  showb (ReturnCode value) = fromString "return " <> showb value
+  showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
+  showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+  showb (CatchCode binder body) = fromString "catch " <> showb binder <> fromString ".\n" <> showb body
+  showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
-instance TextShow (Thing a) where
-  showb (ConstantThing k) = showb k
-  showb (VariableThing b) = showb b
+instance TextShow (Value a) where
+  showb (ConstantValue k) = showb k
+  showb (VariableValue b) = showb b
 
-simplify :: Action a -> Action a
-simplify (LetToAction (ReturnAction value) binder body) = simplify (LetBeAction value binder body)
+simplify :: Code a -> Code a
+simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
 
-simplify (LambdaAction binder body) = LambdaAction binder (simplify body)
-simplify (ApplyAction f x) = ApplyAction (simplify f) x
-simplify (LetBeAction thing binder body) = LetBeAction thing binder (simplify body)
-simplify (LetToAction act binder body) = LetToAction (simplify act) binder (simplify body)
-simplify (CatchAction binder body) = CatchAction binder (simplify body)
-simplify (ThrowAction stack act) = ThrowAction stack (simplify act)
+simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
+simplify (ApplyCode f x) = ApplyCode (simplify f) x
+simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
+simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
+simplify (CatchCode binder body) = CatchCode binder (simplify body)
+simplify (ThrowCode stack act) = ThrowCode stack (simplify act)
 simplify x = x
