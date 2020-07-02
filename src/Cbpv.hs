@@ -1,15 +1,53 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cbpv (Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (build, CodeBuilder (..), DataBuilder (..), Code (..), Data (..), simplify, intrinsify, inline) where
 import Common
 import TextShow
 import Data.Typeable
 import qualified Data.Text as T
 import Compiler
 import Core
+import Unique
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import VarMap (VarMap)
 import qualified VarMap as VarMap
+
+data CodeBuilder a where
+  GlobalBuilder :: Global a -> CodeBuilder a
+  ForceBuilder :: DataBuilder (U a) -> CodeBuilder a
+  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
+  LetToBuilder :: CodeBuilder (F a) -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+
+data DataBuilder a where
+  VariableBuilder :: Variable a -> DataBuilder a
+  ConstantBuilder :: Constant a -> DataBuilder a
+  ThunkBuilder :: CodeBuilder a -> DataBuilder (U a)
+
+buildData :: DataBuilder a -> Unique.Stream -> Data a
+buildData (VariableBuilder v) _ = VariableData v
+buildData (ConstantBuilder v) _ = ConstantData v
+buildData (ThunkBuilder code) stream = ThunkData (build code stream)
+
+build :: CodeBuilder a -> Unique.Stream -> Code a
+build (GlobalBuilder v) _ = GlobalCode v
+build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
+build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
+  x = Variable t (toText (showb head))
+  term' = build term left
+  body' = build (body (VariableBuilder x)) right
+  in LetToCode term' x body'
+build (LetBeBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
+  x = Variable t (toText (showb head))
+  term' = buildData term left
+  body' = build (body (VariableBuilder x)) right
+  in LetBeCode term' x body'
+build (LambdaBuilder t body) (Unique.Pick head tail) = let
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in LambdaCode x body'
 
 data Code a where
   GlobalCode :: Global a -> Code a

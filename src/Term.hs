@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, TypeOperators, ViewPatterns, PatternSynonyms #-}
+{-# LANGUAGE GADTs, TypeOperators #-}
 module Term (simplify, inline, build, Build (..), Term (..)) where
 import Common
 import TextShow
@@ -14,17 +14,17 @@ data Build a where
   LambdaBuild :: Type (U a) -> (Build a -> Build b) -> Build (a :-> b)
   ApplyBuild :: Build (a :-> b) -> Build a -> Build b
 
-build ::  Build a -> Unique.Stream -> Term a
+build :: Build a -> Unique.Stream -> Term a
 build (VariableBuild v) _ = VariableTerm v
 build (ConstantBuild v) _ = ConstantTerm v
 build (GlobalBuild v) _ = GlobalTerm v
-build (ApplyBuild f x) (Split left right) = ApplyTerm (build f left) (build x right)
-build (LetBuild term t body) (Pick head (Split left right)) = let
+build (ApplyBuild f x) (Unique.Split left right) = ApplyTerm (build f left) (build x right)
+build (LetBuild term t body) (Unique.Pick head (Unique.Split left right)) = let
   x = Variable t (toText (showb head))
   term' = build term left
   body' = build (body (VariableBuild x)) right
   in LetTerm term' x body'
-build (LambdaBuild t body) (Pick head tail) = let
+build (LambdaBuild t body) (Unique.Pick head tail) = let
   x = Variable t (toText (showb head))
   body' = build (body (VariableBuild x)) tail
   in LambdaTerm x body'
@@ -61,9 +61,6 @@ instance TextShow (Term a) where
   showb (LetTerm term binder body) = fromString "let " <> showb term <> fromString " = " <> showb binder <> fromString " in\n" <> showb body <> fromString ""
   showb (LambdaTerm binder body) = fromString "(λ " <> showb binder <> fromString " → " <> showb body <> fromString ")"
   showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
-
-pattern Pick head tail <- (Unique.pick -> (head, tail))
-pattern Split left right <- (Unique.split -> (left, right))
 
 simplify :: Term a -> Build a
 simplify = simplify' VarMap.empty

@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
-module Unique (Unique, Stream, split, pick, stream, streamIO) where
+{-# LANGUAGE GADTs, RankNTypes, ViewPatterns, PatternSynonyms #-}
+module Unique (Unique, Stream, pattern Pick, pattern Split, split, pick, stream, streamIO) where
 import System.IO.Unsafe
 import TextShow
 import Data.Atomics.Counter
@@ -12,14 +12,14 @@ instance TextShow Unique where
 newtype Stream = Stream (forall a. Choice a -> a)
 
 data Choice a where
-   Pick :: Choice (Unique, Stream)
-   Split :: Choice (Stream, Stream)
+   PickChoice :: Choice (Unique, Stream)
+   SplitChoice :: Choice (Stream, Stream)
 
 split :: Stream -> (Stream, Stream)
-split (Stream f) = f Split
+split (Stream f) = f SplitChoice
 
 pick :: Stream -> (Unique, Stream)
-pick (Stream f) = f Pick
+pick (Stream f) = f PickChoice
 
 -- fixme.. not sure is safe
 stream :: (Stream -> a) -> a
@@ -43,8 +43,11 @@ streamIO = let
                  r <- loop
                  return (l, r)
              pure $ Stream $ \choice -> case choice of
-                 Pick -> pick
-                 Split -> split
+                 PickChoice -> pick
+                 SplitChoice -> split
   in do
      counter <- newCounter 0
      make counter
+
+pattern Pick head tail <- (Unique.pick -> (head, tail))
+pattern Split left right <- (Unique.split -> (left, right))
