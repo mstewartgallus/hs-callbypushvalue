@@ -196,7 +196,7 @@ inline' map = code
       if count binder body <= 1
         then inline' (VarMap.insert binder (value term) map) body
         else letBe (value term) $ \x ->
-        inline' (VarMap.insert binder x map) body
+          inline' (VarMap.insert binder x map) body
     code (LetToCode term binder body) = letTo (code term) $ \x ->
       inline' (VarMap.insert binder x map) body
     code (ApplyCode f x) = apply (code f) (value x)
@@ -205,11 +205,10 @@ inline' map = code
     code (ForceCode th) = force (value th)
     code (ReturnCode val) = returns (value val)
     code (GlobalCode g) = global g
-
     value :: Data x -> DataBuilder x
-    value (VariableData variable) = let
-      Just replacement = VarMap.lookup variable map
-      in replacement
+    value (VariableData variable) =
+      let Just replacement = VarMap.lookup variable map
+       in replacement
     value (ThunkData c) = delay (code c)
     value (ConstantData k) = constant k
 
