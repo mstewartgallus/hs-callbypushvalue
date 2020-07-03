@@ -42,7 +42,7 @@ buildData :: DataBuilder a -> Unique.Stream -> Data a
 buildData (VariableBuilder v) _ = VariableData v
 buildData (ConstantBuilder v) _ = ConstantData v
 buildData (LetToStackBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuilder x)) tail
   in LetToStackData x body'
 
@@ -51,17 +51,17 @@ build (GlobalBuilder v) _ = GlobalCode v
 build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
 build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
 build (LambdaBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuilder x)) tail
   in LambdaCode x body'
 build (LetBeBuilder value body) (Unique.Pick head (Unique.Split l r)) = let
   value' = buildData value l
   t = typeOfData value'
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuilder x)) r
   in LetBeCode value' x body'
 build (KontBuilder t body) (Unique.Pick head tail) = let
-  x = Variable (ApplyType stack t) (toText (showb head))
+  x = Variable (ApplyType stack t) head
   body' = build (body (VariableBuilder x)) tail
   in KontCode x body'
 build (JumpBuilder x f) (Unique.Split l r) = let

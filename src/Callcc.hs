@@ -28,22 +28,22 @@ build (GlobalBuilder v) _ = GlobalCode v
 build (ReturnBuilder v) _ = ReturnCode (buildData v)
 build (ApplyBuilder f x) stream = ApplyCode (build f stream) (buildData x)
 build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   term' = build term left
   body' = build (body (VariableBuilder x)) right
   in LetToCode term' x body'
 build (LetBeBuilder term t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   term' = buildData term
   body' = build (body (VariableBuilder x)) tail
   in LetBeCode term' x body'
 build (LambdaBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuilder x)) tail
   in LambdaCode x body'
 build (CatchBuilder t body) (Unique.Pick head tail) = let
   -- fixme...
-  x = Variable (ApplyType stack t) (toText (showb head))
+  x = Variable (ApplyType stack t) head
   body' = build (body (VariableBuilder x)) tail
   in CatchCode x body'
 build (ThrowBuilder stack value) stream = let

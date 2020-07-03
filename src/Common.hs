@@ -3,6 +3,7 @@ module Common (equalType, V, (:->), Type (..), F, U,R, Stack (..), Label (..), C
 import qualified Data.Text as T
 import TextShow
 import Data.Typeable
+import Unique
 import Unsafe.Coerce
 
 data V a b
@@ -32,7 +33,7 @@ data Stack a where
 
 
 
-data Variable a = Variable (Type a) T.Text
+data Variable a = Variable (Type a) Unique
 data AnyVariable where
   AnyVariable :: Variable a -> AnyVariable
 
@@ -67,7 +68,7 @@ instance Eq AnyGlobal where
   AnyGlobal (Global _ a x) == AnyGlobal (Global _ b y) = a == b && x == y
 
 instance TextShow (Variable a) where
-  showb (Variable _ name) = fromText name
+  showb (Variable _ name) = showb name
 instance TextShow (Label a) where
   showb (Label _ name) = fromText name
 instance TextShow (Constant a) where

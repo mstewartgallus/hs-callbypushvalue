@@ -5,10 +5,10 @@ import qualified Data.Map as Map
 import Data.Text(Text)
 import Data.Typeable
 import qualified Data.Text as Text
-
+import Unique
 import Common
 
-newtype VarMap t = VarMap (Map Text.Text (Dyn t))
+newtype VarMap t = VarMap (Map Unique (Dyn t))
 
 data Dyn t where
   Dyn :: Type a -> t a -> Dyn t

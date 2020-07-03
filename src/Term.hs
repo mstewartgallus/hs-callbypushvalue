@@ -20,12 +20,12 @@ build (ConstantBuild v) _ = ConstantTerm v
 build (GlobalBuild v) _ = GlobalTerm v
 build (ApplyBuild f x) (Unique.Split left right) = ApplyTerm (build f left) (build x right)
 build (LetBuild term t body) (Unique.Pick head (Unique.Split left right)) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   term' = build term left
   body' = build (body (VariableBuild x)) right
   in LetTerm term' x body'
 build (LambdaBuild t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuild x)) tail
   in LambdaTerm x body'
 

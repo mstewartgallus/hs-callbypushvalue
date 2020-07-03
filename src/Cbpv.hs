@@ -53,17 +53,17 @@ build (ForceBuilder v) stream = ForceCode (buildData v stream)
 build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
 build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
 build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   term' = build term left
   body' = build (body (VariableBuilder x)) right
   in LetToCode term' x body'
 build (LetBeBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   term' = buildData term left
   body' = build (body (VariableBuilder x)) right
   in LetBeCode term' x body'
 build (LambdaBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t (toText (showb head))
+  x = Variable t head
   body' = build (body (VariableBuilder x)) tail
   in LambdaCode x body'
 
