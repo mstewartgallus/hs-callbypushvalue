@@ -4,33 +4,33 @@
 module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where
 
 import Common
+import Core
 import TextShow (TextShow, fromString, showb)
 import qualified Unique
 import VarMap (VarMap)
 import qualified VarMap
 
 class SystemF t where
-  variable :: Variable (U a) -> t a
   constant :: Constant a -> t (F a)
   global :: Global a -> t a
-  letBe :: t a -> Type (U a) -> (t a -> t b) -> t b
   lambda :: Type (U a) -> (t a -> t b) -> t (a :-> b)
   apply :: t (a :-> b) -> t a -> t b
+  letBe :: t a -> (t a -> t b) -> t b
 
 newtype Builder a = Builder {build :: Unique.Stream -> Term a}
 
 instance SystemF Builder where
-  variable v = (Builder . const) $ VariableTerm v
   constant k = (Builder . const) $ ConstantTerm k
   global g = (Builder . const) $ GlobalTerm g
-  letBe value t f = Builder $ \(Unique.Pick head (Unique.Split l r)) ->
+  letBe value f = Builder $ \(Unique.Pick head (Unique.Split l r)) ->
     let value' = build value l
-        binder = Variable t head
-        body = build (f (variable binder)) r
+        t = typeOf value'
+        binder = Variable (ApplyType thunk t) head
+        body = build (f (Builder $ const $ VariableTerm binder)) r
      in LetTerm value' binder body
   lambda t f = Builder $ \(Unique.Pick h stream) ->
     let binder = Variable t h
-        body = build (f (variable binder)) stream
+        body = build (f (Builder $ const $ VariableTerm binder)) stream
      in LambdaTerm binder body
   apply f x = Builder $ \(Unique.Split l r) ->
     let f' = build f l
@@ -47,6 +47,16 @@ data Term a where
 
 data AnyTerm where
   AnyTerm :: Term a -> AnyTerm
+
+typeOf :: Term a -> Type a
+typeOf (VariableTerm (Variable (ThunkType t) _)) = t
+typeOf (ConstantTerm (IntegerConstant _)) = int
+typeOf (GlobalTerm (Global t _ _)) = t
+typeOf (LetTerm _ _ body) = typeOf body
+typeOf (LambdaTerm (Variable t _) body) = t -=> typeOf body
+typeOf (ApplyTerm f _) =
+  let _ :=> result = typeOf f
+   in result
 
 instance Eq AnyTerm where
   AnyTerm x == AnyTerm y = x `eq` y
@@ -80,10 +90,10 @@ simplify' map = loop
     loop :: Term x -> Builder x
     loop (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
       let term' = loop term
-       in letBe term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
+       in letBe term' $ \value -> simplify' (VarMap.insert binder (X value) map) body
     loop (LetTerm term binder@(Variable t _) body) =
       let term' = simplify term
-       in letBe term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
+       in letBe term' $ \value -> simplify' (VarMap.insert binder (X value) map) body
     loop (LambdaTerm binder@(Variable t _) body) =
       let body' = simplify body
        in lambda t $ \value -> simplify' (VarMap.insert binder (X value) map) body
@@ -117,7 +127,7 @@ inline' map = w
       let term' = w term
        in if count binder body <= 1
             then inline' (VarMap.insert binder (X term') map) body
-            else letBe term' t $ \value ->
+            else letBe term' $ \value ->
               inline' (VarMap.insert binder (X value) map) body
     w v@(VariableTerm variable) = case VarMap.lookup variable map of
       Just (X replacement) -> replacement
