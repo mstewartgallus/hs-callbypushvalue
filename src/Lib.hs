@@ -105,33 +105,36 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k = let
 
 
 toCps' :: Callcc.Code a -> Compiler (Cps.Code a)
+toCps' (Callcc.GlobalCode x) = pure $ Cps.GlobalCode x
+toCps' (Callcc.ReturnCode value) = pure $ Cps.ReturnCode (toCpsData value)
+toCps' (Callcc.LambdaCode binder body) = do
+  body' <- toCps' body
+  pure $ Cps.LambdaCode binder body'
+toCps' (Callcc.ApplyCode f x) = do
+  f' <- toCps' f
+  pure $ Cps.ApplyCode f' (toCpsData x)
 toCps' act = do
   k <- getVariable (ApplyType stack (Callcc.typeOf act))
   eff <- toCps act $ \a -> Cps.JumpEffect a (Cps.VariableData k)
   pure (Cps.KontCode k eff)
 
 toCps :: Callcc.Code a -> (Cps.Code a -> Cps.Code R) -> Compiler (Cps.Code R)
-toCps (Callcc.GlobalCode x) k = pure $ k $ Cps.GlobalCode x
-toCps (Callcc.ReturnCode value) k = pure $ k $ Cps.ReturnCode (toCpsData value)
-toCps (Callcc.LambdaCode binder body) k = do
-  tail <- getVariable (ApplyType stack (Callcc.typeOf body))
-  body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData tail)
-  pure $ k $ Cps.LambdaCode binder (Cps.KontCode tail body')
 toCps (Callcc.ApplyCode f x) k = do
   toCps f $ \f' -> k $ Cps.ApplyCode f' (toCpsData x)
 toCps (Callcc.LetToCode action binder body) k = do
   b <- toCps body k
   toCps action $ \act -> Cps.JumpEffect act $ Cps.LetToStackData binder b
-
 toCps (Callcc.LetBeCode value binder body) k = do
-    tail <- getVariable (ApplyType stack (Callcc.typeOf body))
-    body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData tail)
-    pure $ k $ Cps.LetBeCode (toCpsData value) binder (Cps.KontCode tail body')
+    body' <- toCps' body
+    pure $ k $ Cps.LetBeCode (toCpsData value) binder body'
 toCps (Callcc.CatchCode binder body) k = do
-  body' <- toCps body $ \b -> b
+  body' <- toCps body id
   pure $ k $ Cps.KontCode binder body'
 toCps (Callcc.ThrowCode val body) _ = do
   toCps body $ \body' -> Cps.JumpEffect body' (toCpsData val)
+toCps act k = do
+  val <- toCps' act
+  pure $ k $ val
 
 toCpsData :: Callcc.Data a -> Cps.Data a
 toCpsData (Callcc.ConstantData x) = Cps.ConstantData x
