@@ -35,8 +35,8 @@ data CodeBuilder a where
   GlobalBuilder :: Global a -> CodeBuilder a
   ForceBuilder :: DataBuilder (U a) -> CodeBuilder a
   ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
-  LetToBuilder :: CodeBuilder (F a) -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LetToBuilder :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  LetBeBuilder :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
   LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
   ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
 
@@ -55,14 +55,16 @@ build (GlobalBuilder v) _ = GlobalCode v
 build (ForceBuilder v) stream = ForceCode (buildData v stream)
 build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
 build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
-build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) =
-  let x = Variable t head
-      term' = build term left
+build (LetToBuilder term body) (Unique.Pick head (Unique.Split left right)) =
+  let term' = build term left
+      ReturnsType t = typeOf term'
+      x = Variable t head
       body' = build (body (VariableBuilder x)) right
    in LetToCode term' x body'
-build (LetBeBuilder term t body) (Unique.Pick head (Unique.Split left right)) =
-  let x = Variable t head
-      term' = buildData term left
+build (LetBeBuilder term body) (Unique.Pick head (Unique.Split left right)) =
+  let term' = buildData term left
+      t = typeOfData term'
+      x = Variable t head
       body' = build (body (VariableBuilder x)) right
    in LetBeCode term' x body'
 build (LambdaBuilder t body) (Unique.Pick head tail) =
@@ -87,27 +89,33 @@ data Data a where
 data AnyCode where
   AnyCode :: Code a -> AnyCode
 
+eqCode :: Code a -> Code b -> Bool
+(GlobalCode g) `eqCode` (GlobalCode g') = AnyGlobal g == AnyGlobal g'
+(LambdaCode binder body) `eqCode` (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && body `eqCode` body'
+(LetBeCode value binder body) `eqCode` (LetBeCode value' binder' body') = value `eqData` value' && AnyVariable binder' == AnyVariable binder' && body `eqCode` body'
+(LetToCode act binder body) `eqCode` (LetToCode act' binder' body') = act `eqCode` act' && AnyVariable binder' == AnyVariable binder' && body `eqCode` body'
+(ApplyCode f x) `eqCode` (ApplyCode f' x') = f `eqCode` f' && x `eqData` x'
+(ForceCode x) `eqCode` (ForceCode x') = x `eqData` x'
+(ReturnCode x) `eqCode` (ReturnCode x') = x `eqData` x'
+_ `eqCode` _ = False
+
+eqData :: Data a -> Data b -> Bool
+(ConstantData k) `eqData` (ConstantData k') = AnyConstant k == AnyConstant k'
+(VariableData v) `eqData` (VariableData v') = AnyVariable v == AnyVariable v'
+(ThunkData code) `eqData` (ThunkData code') = code `eqCode` code'
+_ `eqData` _ = False
+
 instance Eq AnyCode where
-  AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
-  AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyData value == AnyData value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (LetToCode act binder body) == AnyCode (LetToCode act' binder' body') = AnyCode act == AnyCode act' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyData x == AnyData x'
-  AnyCode (ForceCode x) == AnyCode (ForceCode x') = AnyData x == AnyData x'
-  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyData x == AnyData x'
-  _ == _ = False
+  AnyCode x == AnyCode y = x `eqCode` y
 
 instance Eq (Code a) where
-  x == y = AnyCode x == AnyCode y
+  x == y = x `eqCode` y
 
 data AnyData where
   AnyData :: Data a -> AnyData
 
 instance Eq AnyData where
-  AnyData (ConstantData k) == AnyData (ConstantData k') = AnyConstant k == AnyConstant k'
-  AnyData (VariableData v) == AnyData (VariableData v') = AnyVariable v == AnyVariable v'
-  AnyData (ThunkData code) == AnyData (ThunkData code') = AnyCode code == AnyCode code'
-  _ == _ = False
+  AnyData x == AnyData y = x `eqData` y
 
 instance Eq (Data a) where
   x == y = AnyData x == AnyData y
@@ -206,10 +214,10 @@ intrins env (ReturnCode x) = ReturnBuilder (intrinsData env x)
 intrins env (LambdaCode binder@(Variable t _) body) = LambdaBuilder t $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
-intrins env (LetBeCode value binder@(Variable t _) body) = LetBeBuilder (intrinsData env value) t $ \value ->
+intrins env (LetBeCode value binder body) = LetBeBuilder (intrinsData env value) $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
-intrins env (LetToCode action binder@(Variable t _) body) = LetToBuilder (intrins env action) t $ \value ->
+intrins env (LetToCode action binder body) = LetToBuilder (intrins env action) $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
 
@@ -232,6 +240,6 @@ plusIntrinsic :: CodeBuilder (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
   LambdaBuilder (ApplyType thunk int) $ \x' ->
     LambdaBuilder (ApplyType thunk int) $ \y' ->
-      LetToBuilder (ForceBuilder x') intRaw $ \x'' ->
-        LetToBuilder (ForceBuilder y') intRaw $ \y'' ->
+      LetToBuilder (ForceBuilder x') $ \x'' ->
+        LetToBuilder (ForceBuilder y') $ \y'' ->
           ApplyBuilder (ApplyBuilder (GlobalBuilder strictPlus) x'') y''

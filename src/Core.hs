@@ -10,6 +10,7 @@ module Core
     stack,
     pattern (:=>),
     (-=>),
+    pattern ReturnsType,
     pattern StackType,
     pattern ThunkType,
     returns,
@@ -86,6 +87,14 @@ getthunktype (ApplyType f x) =
    in -- fixme... wtf?
       unsafeCoerce x
 
+getreturntype :: Type (F a) -> Type a
+getreturntype (ApplyType f x) =
+  let Just Refl = equalType f returns
+   in -- fixme... wtf?
+      unsafeCoerce x
+
 pattern StackType x <- (getstacktype -> x)
 
 pattern ThunkType x <- (getthunktype -> x)
+
+pattern ReturnsType x <- (getreturntype -> x)
