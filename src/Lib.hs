@@ -6,8 +6,6 @@ module Lib
     thunk,
     int,
     plus,
-    Build (..),
-    Term,
     Variable (..),
     Constant (..),
     Global (Global),
@@ -39,7 +37,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Typeable
-import Term (Build (..), Term (..))
+import Term (Term (..))
 import qualified Term
 import TextShow
 import Unique
@@ -94,8 +92,8 @@ toExplicitCatchThrow env (Cbpv.LetBeCode value binder@(Variable t _) body) =
 toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x undefined Callcc.ReturnBuilder
 toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf f
-  -- fixme... get type
-   in toExplicitCatchThrowData env thunk t $ \thunk' ->
+   in -- fixme... get type
+      toExplicitCatchThrowData env thunk t $ \thunk' ->
         Callcc.CatchBuilder t $ \v ->
           Callcc.ThrowBuilder thunk' (Callcc.ReturnBuilder v)
 
@@ -107,8 +105,8 @@ toExplicitCatchThrowData env (Cbpv.VariableData v) _ k =
 toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k =
   let code' = toExplicitCatchThrow env code
       t = Cbpv.typeOf code
-      -- fixme...
-   in Callcc.CatchBuilder kt $ \returner ->
+   in -- fixme...
+      Callcc.CatchBuilder kt $ \returner ->
         Callcc.LetToBuilder
           ( Callcc.CatchBuilder (ApplyType returns (ApplyType stack t)) $ \label ->
               Callcc.ThrowBuilder returner (k label)

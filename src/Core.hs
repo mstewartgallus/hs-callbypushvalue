@@ -69,22 +69,22 @@ a -=> b = ApplyType (ApplyType fnRaw a) b
 decompose :: Type (a -> b) -> (Type a, Type b)
 decompose (ApplyType (ApplyType f x) y) =
   let Just Refl = equalType f fnRaw
-  -- fixme... wtf?
-   in (unsafeCoerce x, unsafeCoerce y)
+   in -- fixme... wtf?
+      (unsafeCoerce x, unsafeCoerce y)
 
 pattern head :=> tail <- (decompose -> (head, tail))
 
 getstacktype :: Type (Stack a) -> Type a
 getstacktype (ApplyType f x) =
   let Just Refl = equalType f stack
-  -- fixme... wtf?
-   in unsafeCoerce x
+   in -- fixme... wtf?
+      unsafeCoerce x
 
 getthunktype :: Type (U a) -> Type a
 getthunktype (ApplyType f x) =
   let Just Refl = equalType f thunk
-  -- fixme... wtf?
-   in unsafeCoerce x
+   in -- fixme... wtf?
+      unsafeCoerce x
 
 pattern StackType x <- (getstacktype -> x)
 

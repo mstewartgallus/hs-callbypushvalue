@@ -1,36 +1,41 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Term (simplify, inline, build, Build (..), Term (..)) where
+module Term (simplify, inline, build, Builder, SystemF (..), Term (..)) where
 
 import Common
-import TextShow
+import TextShow (TextShow, fromString, showb)
 import qualified Unique
 import VarMap (VarMap)
 import qualified VarMap
 
-data Build a where
-  VariableBuild :: Variable (U a) -> Build a
-  ConstantBuild :: Constant a -> Build (F a)
-  GlobalBuild :: Global a -> Build a
-  LetBuild :: Build a -> Type (U a) -> (Build a -> Build b) -> Build b
-  LambdaBuild :: Type (U a) -> (Build a -> Build b) -> Build (a :-> b)
-  ApplyBuild :: Build (a :-> b) -> Build a -> Build b
+class SystemF t where
+  variable :: Variable (U a) -> t a
+  constant :: Constant a -> t (F a)
+  global :: Global a -> t a
+  letBe :: t a -> Type (U a) -> (t a -> t b) -> t b
+  lambda :: Type (U a) -> (t a -> t b) -> t (a :-> b)
+  apply :: t (a :-> b) -> t a -> t b
 
-build :: Build a -> Unique.Stream -> Term a
-build (VariableBuild v) _ = VariableTerm v
-build (ConstantBuild v) _ = ConstantTerm v
-build (GlobalBuild v) _ = GlobalTerm v
-build (ApplyBuild f x) (Unique.Split left right) = ApplyTerm (build f left) (build x right)
-build (LetBuild term t body) (Unique.Pick head (Unique.Split left right)) =
-  let x = Variable t head
-      term' = build term left
-      body' = build (body (VariableBuild x)) right
-   in LetTerm term' x body'
-build (LambdaBuild t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      body' = build (body (VariableBuild x)) tail
-   in LambdaTerm x body'
+newtype Builder a = Builder {build :: Unique.Stream -> Term a}
+
+instance SystemF Builder where
+  variable v = (Builder . const) $ VariableTerm v
+  constant k = (Builder . const) $ ConstantTerm k
+  global g = (Builder . const) $ GlobalTerm g
+  letBe value t f = Builder $ \(Unique.Pick head (Unique.Split l r)) ->
+    let value' = build value l
+        binder = Variable t head
+        body = build (f (variable binder)) r
+     in LetTerm value' binder body
+  lambda t f = Builder $ \(Unique.Pick h stream) ->
+    let binder = Variable t h
+        body = build (f (variable binder)) stream
+     in LambdaTerm binder body
+  apply f x = Builder $ \(Unique.Split l r) ->
+    let f' = build f l
+        x' = build x r
+     in ApplyTerm f' x'
 
 data Term a where
   VariableTerm :: Variable (U a) -> Term a
@@ -66,25 +71,25 @@ instance TextShow (Term a) where
   showb (LambdaTerm binder body) = fromString "(λ " <> showb binder <> fromString " → " <> showb body <> fromString ")"
   showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
-simplify :: Term a -> Build a
+simplify :: Term a -> Builder a
 simplify = simplify' VarMap.empty
 
-simplify' :: VarMap X -> Term a -> Build a
+simplify' :: VarMap X -> Term a -> Builder a
 simplify' map = loop
   where
-    loop :: Term x -> Build x
+    loop :: Term x -> Builder x
     loop (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
       let term' = loop term
-       in LetBuild term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
+       in letBe term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
     loop (LetTerm term binder@(Variable t _) body) =
       let term' = simplify term
-       in LetBuild term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
+       in letBe term' t $ \value -> simplify' (VarMap.insert binder (X value) map) body
     loop (LambdaTerm binder@(Variable t _) body) =
       let body' = simplify body
-       in LambdaBuild t $ \value -> simplify' (VarMap.insert binder (X value) map) body
-    loop (ApplyTerm f x) = ApplyBuild (loop f) (loop x)
-    loop (ConstantTerm c) = ConstantBuild c
-    loop (GlobalTerm g) = GlobalBuild g
+       in lambda t $ \value -> simplify' (VarMap.insert binder (X value) map) body
+    loop (ApplyTerm f x) = apply (loop f) (loop x)
+    loop (ConstantTerm c) = constant c
+    loop (GlobalTerm g) = global g
     loop (VariableTerm v) = case VarMap.lookup v map of
       Just (X x) -> x
 
@@ -98,24 +103,25 @@ count v = w
     w (ApplyTerm f x) = w f + w x
     w _ = 0
 
-inline :: Term a -> Build a
+inline :: Term a -> Builder a
 inline = inline' VarMap.empty
 
 data X a where
-  X :: Build a -> X (U a)
+  X :: Builder a -> X (U a)
 
-inline' :: VarMap X -> Term a -> Build a
+inline' :: VarMap X -> Term a -> Builder a
 inline' map = w
   where
-    w :: Term x -> Build x
+    w :: Term x -> Builder x
     w (LetTerm term binder@(Variable t _) body) =
       let term' = w term
        in if count binder body <= 1
             then inline' (VarMap.insert binder (X term') map) body
-            else LetBuild term' t $ \value -> inline' (VarMap.insert binder (X value) map) body
+            else letBe term' t $ \value ->
+              inline' (VarMap.insert binder (X value) map) body
     w v@(VariableTerm variable) = case VarMap.lookup variable map of
       Just (X replacement) -> replacement
-    w (ApplyTerm f x) = ApplyBuild (w f) (w x)
-    w (LambdaTerm binder@(Variable t _) body) = LambdaBuild t $ \value -> inline' (VarMap.insert binder (X value) map) body
-    w (ConstantTerm c) = ConstantBuild c
-    w (GlobalTerm g) = GlobalBuild g
+    w (ApplyTerm f x) = apply (w f) (w x)
+    w (LambdaTerm binder@(Variable t _) body) = lambda t $ \value -> inline' (VarMap.insert binder (X value) map) body
+    w (ConstantTerm c) = constant c
+    w (GlobalTerm g) = global g

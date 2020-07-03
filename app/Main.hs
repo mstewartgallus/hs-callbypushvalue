@@ -23,11 +23,11 @@ fixpoint op = w 0
 mkProgram :: Unique.Stream -> Term (F Integer)
 mkProgram =
   Term.build $
-    Term.ApplyBuild
-      ( Term.LambdaBuild (ApplyType thunk int) $ \x ->
-          Term.ApplyBuild (Term.ApplyBuild (Term.GlobalBuild plus) x) x
+    Term.apply
+      ( Term.lambda (ApplyType thunk int) $ \x ->
+          Term.apply (Term.apply (Term.global plus) x) x
       )
-      (Term.ConstantBuild (IntegerConstant 5))
+      (Term.constant (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
@@ -49,8 +49,8 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term =
         let (left, right) = Unique.split s
             simplified = Term.build (Term.simplify t) left
             inlined = Term.build (Term.inline simplified) right
-            -- fixme.. get fixpoint working
-         in inlined
+         in -- fixme.. get fixpoint working
+            inlined
       optTerm = optimizeTerm a term
       cbpv = toCallByPushValue optTerm
       optCbpv = fixpoint optimizeCbpv cbpv
