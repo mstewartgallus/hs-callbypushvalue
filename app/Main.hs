@@ -1,61 +1,65 @@
 module Main where
 
-import Lib
+import qualified Callcc
+import qualified Cbpv
 import Control.Monad.State
-import TextShow
+import qualified Cps
 import qualified Data.Text as T
+import Lib
 import Term
 import Term (Term)
 import qualified Term
-import qualified Cbpv
-import qualified Callcc
-import qualified Cps
+import TextShow
 import Unique
 
 fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
-fixpoint op = w 0 where
-  w 5000 term = error ("term did not terminate:\n" <> toString (showb term))
-  w tick term = let
-    newTerm = op term
-    in if newTerm == term then term else w (tick + 1) newTerm
+fixpoint op = w 0
+  where
+    w 5000 term = error ("term did not terminate:\n" <> toString (showb term))
+    w tick term =
+      let newTerm = op term
+       in if newTerm == term then term else w (tick + 1) newTerm
 
 mkProgram :: Unique.Stream -> Term (F Integer)
-mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (ApplyType thunk int) $ \x ->
-          Term.ApplyBuild (Term.ApplyBuild (Term.GlobalBuild plus)  x) x) (Term.ConstantBuild (IntegerConstant 5))
+mkProgram =
+  Term.build $
+    Term.ApplyBuild
+      ( Term.LambdaBuild (ApplyType thunk int) $ \x ->
+          Term.ApplyBuild (Term.ApplyBuild (Term.GlobalBuild plus) x) x
+      )
+      (Term.ConstantBuild (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
-phases :: Unique.Stream -> Term a -> (Term a,
-                                      Cbpv.Code a,
-                                      Cbpv.Code a,
-                                      Cbpv.Code a,
-                                      Cbpv.Code a,
-                                      Callcc.Code a,
-                                      Callcc.Code a,
-                                      Cps.Code a)
-phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term = let
-  optimizeTerm :: Unique.Stream -> Term a -> Term a
-  optimizeTerm s t = let
-      (left, right) = Unique.split s
-      simplified = Term.build (Term.simplify t) left
-      inlined = Term.build (Term.inline simplified) right
-      -- fixme.. get fixpoint working
-      in inlined
-
-  optTerm = optimizeTerm a term
-
-  cbpv = toCallByPushValue optTerm
-
-  optCbpv = fixpoint optimizeCbpv cbpv
-  intrinsified = Cbpv.build (intrinsify optCbpv) c
-  optIntrinsified = fixpoint optimizeCbpv intrinsified
-
-  catchThrow = toCallcc intrinsified b
-  optCatchThrow = fixpoint simplifyCallcc catchThrow
-
-  cps = Cps.build (toContinuationPassingStyle catchThrow) d
-
-  in (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
+phases ::
+  Unique.Stream ->
+  Term a ->
+  ( Term a,
+    Cbpv.Code a,
+    Cbpv.Code a,
+    Cbpv.Code a,
+    Cbpv.Code a,
+    Callcc.Code a,
+    Callcc.Code a,
+    Cps.Code a
+  )
+phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term =
+  let optimizeTerm :: Unique.Stream -> Term a -> Term a
+      optimizeTerm s t =
+        let (left, right) = Unique.split s
+            simplified = Term.build (Term.simplify t) left
+            inlined = Term.build (Term.inline simplified) right
+            -- fixme.. get fixpoint working
+         in inlined
+      optTerm = optimizeTerm a term
+      cbpv = toCallByPushValue optTerm
+      optCbpv = fixpoint optimizeCbpv cbpv
+      intrinsified = Cbpv.build (intrinsify optCbpv) c
+      optIntrinsified = fixpoint optimizeCbpv intrinsified
+      catchThrow = toCallcc intrinsified b
+      optCatchThrow = fixpoint simplifyCallcc catchThrow
+      cps = Cps.build (toContinuationPassingStyle catchThrow) d
+   in (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
 
 main :: IO ()
 main = do

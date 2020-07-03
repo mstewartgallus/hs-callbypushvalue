@@ -1,17 +1,18 @@
 {-# LANGUAGE GADTs #-}
+
 module GlobalMap where
+
+import Common
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Text(Text)
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable
-import Common
 
 data Dyn t where
   Dyn :: Type a -> t a -> Dyn t
 
 newtype GlobalMap t = GlobalMap (Map (Text, Text) (Dyn t))
-
 
 -- fixme... verify types ?
 lookup :: Global a -> GlobalMap t -> Maybe (t a)

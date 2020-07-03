@@ -1,14 +1,17 @@
-{-# LANGUAGE GADTs, TypeOperators #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, evaluate, typeOf) where
+
 import Common
 import Core
-import TextShow
 import qualified Data.Text as T
-import VarMap (VarMap)
-import qualified VarMap
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import TextShow
 import Unique
+import VarMap (VarMap)
+import qualified VarMap
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -34,40 +37,40 @@ instance TextShow (Code a) where
   showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
 
 instance TextShow (Data a) where
- showb (ConstantData k) = showb k
- showb (VariableData v) = showb v
- showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
+  showb (ConstantData k) = showb k
+  showb (VariableData v) = showb v
+  showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
 
 buildData :: DataBuilder a -> Unique.Stream -> Data a
 buildData (VariableBuilder v) _ = VariableData v
 buildData (ConstantBuilder v) _ = ConstantData v
-buildData (LetToStackBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t head
-  body' = build (body (VariableBuilder x)) tail
-  in LetToStackData x body'
+buildData (LetToStackBuilder t body) (Unique.Pick head tail) =
+  let x = Variable t head
+      body' = build (body (VariableBuilder x)) tail
+   in LetToStackData x body'
 
 build :: CodeBuilder a -> Unique.Stream -> Code a
 build (GlobalBuilder v) _ = GlobalCode v
 build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
 build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
-build (LambdaBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t head
-  body' = build (body (VariableBuilder x)) tail
-  in LambdaCode x body'
-build (LetBeBuilder value body) (Unique.Pick head (Unique.Split l r)) = let
-  value' = buildData value l
-  t = typeOfData value'
-  x = Variable t head
-  body' = build (body (VariableBuilder x)) r
-  in LetBeCode value' x body'
-build (KontBuilder t body) (Unique.Pick head tail) = let
-  x = Variable (ApplyType stack t) head
-  body' = build (body (VariableBuilder x)) tail
-  in KontCode x body'
-build (JumpBuilder x f) (Unique.Split l r) = let
-  x' = build x l
-  f' = buildData f l
-  in JumpEffect x' f'
+build (LambdaBuilder t body) (Unique.Pick head tail) =
+  let x = Variable t head
+      body' = build (body (VariableBuilder x)) tail
+   in LambdaCode x body'
+build (LetBeBuilder value body) (Unique.Pick head (Unique.Split l r)) =
+  let value' = buildData value l
+      t = typeOfData value'
+      x = Variable t head
+      body' = build (body (VariableBuilder x)) r
+   in LetBeCode value' x body'
+build (KontBuilder t body) (Unique.Pick head tail) =
+  let x = Variable (ApplyType stack t) head
+      body' = build (body (VariableBuilder x)) tail
+   in KontCode x body'
+build (JumpBuilder x f) (Unique.Split l r) =
+  let x' = build x l
+      f' = buildData f l
+   in JumpEffect x' f'
 
 data CodeBuilder a where
   GlobalBuilder :: Global a -> CodeBuilder a
@@ -82,7 +85,6 @@ data DataBuilder a where
   ConstantBuilder :: Constant a -> DataBuilder a
   VariableBuilder :: Variable a -> DataBuilder a
   LetToStackBuilder :: Type a -> (DataBuilder a -> CodeBuilder R) -> DataBuilder (Stack (F a))
-
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -104,36 +106,39 @@ interpretData env (LetToStackData binder body) = PopStack $ \value ->
   interpretEffect (VarMap.insert binder (Id value) env) body
 
 interpret :: VarMap Id -> Code a -> Stack a -> IO ()
-interpret values (ReturnCode value) (PopStack k) = let
-  value' = interpretData values value
-  in k value'
+interpret values (ReturnCode value) (PopStack k) =
+  let value' = interpretData values value
+   in k value'
 interpret values (ApplyCode f x) k = interpret values f (PushStack (interpretData values x) k)
-interpret env (LetBeCode value binder body) k = let
-  value' = interpretData env value
-  env' = VarMap.insert binder (Id value') env
-  in interpret env' body k
-interpret values (KontCode variable body) k = let
-  values' = VarMap.insert variable (Id k) values
-  in interpretEffect values' body
-interpret values (LambdaCode variable body) (PushStack head tail) = let
-  values' = VarMap.insert variable (Id head) values
-  in interpret values' body tail
-interpret values (GlobalCode global) k = let
-  Just (X g) = GlobalMap.lookup global globals
-  in g k
+interpret env (LetBeCode value binder body) k =
+  let value' = interpretData env value
+      env' = VarMap.insert binder (Id value') env
+   in interpret env' body k
+interpret values (KontCode variable body) k =
+  let values' = VarMap.insert variable (Id k) values
+   in interpretEffect values' body
+interpret values (LambdaCode variable body) (PushStack head tail) =
+  let values' = VarMap.insert variable (Id head) values
+   in interpret values' body tail
+interpret values (GlobalCode global) k =
+  let Just (X g) = GlobalMap.lookup global globals
+   in g k
 
 data X a = X (Stack a -> IO ())
+
 globals :: GlobalMap X
-globals = GlobalMap.fromList [
-  GlobalMap.Entry strictPlus (X strictPlusImpl)
-                             ]
+globals =
+  GlobalMap.fromList
+    [ GlobalMap.Entry strictPlus (X strictPlusImpl)
+    ]
+
 strictPlusImpl :: Stack (Integer -> Integer -> F Integer) -> IO ()
 strictPlusImpl (PushStack x (PushStack y (PopStack k))) = k (x + y)
 
 interpretEffect :: VarMap Id -> Code R -> IO ()
-interpretEffect values (JumpEffect ip stack) = let
-  stack' = interpretData values stack
-  in interpret values ip stack'
+interpretEffect values (JumpEffect ip stack) =
+  let stack' = interpretData values stack
+   in interpret values ip stack'
 
 interpretConstant :: Constant a -> a
 interpretConstant (IntegerConstant x) = x

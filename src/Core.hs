@@ -1,12 +1,27 @@
-{-# LANGUAGE GADTs, TypeOperators, RankNTypes, ViewPatterns, PatternSynonyms #-}
-module Core (
-  fn, thunk, stack, pattern (:=>), (-=>), pattern StackType, pattern ThunkType,
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
-  returns,
-  int, intRaw, plus, strictPlus
-  ) where
-import qualified Data.Text as T
+module Core
+  ( fn,
+    thunk,
+    stack,
+    pattern (:=>),
+    (-=>),
+    pattern StackType,
+    pattern ThunkType,
+    returns,
+    int,
+    intRaw,
+    plus,
+    strictPlus,
+  )
+where
+
 import Common
+import qualified Data.Text as T
 import Data.Typeable
 import Unsafe.Coerce
 
@@ -46,30 +61,31 @@ strictPlus = Global (intRaw -=> intRaw -=> int) (T.pack "core") (T.pack "+!")
 u :: Type a -> Type (U a)
 u x = ApplyType thunk x
 
-infixr -=>
+infixr 9 -=>
 
-(-=>) ::  Type a -> Type b -> Type (a -> b)
+(-=>) :: Type a -> Type b -> Type (a -> b)
 a -=> b = ApplyType (ApplyType fnRaw a) b
 
 decompose :: Type (a -> b) -> (Type a, Type b)
-decompose (ApplyType (ApplyType f x) y) = let
-  Just Refl = equalType f fnRaw
+decompose (ApplyType (ApplyType f x) y) =
+  let Just Refl = equalType f fnRaw
   -- fixme... wtf?
-  in (unsafeCoerce x, unsafeCoerce y)
+   in (unsafeCoerce x, unsafeCoerce y)
 
 pattern head :=> tail <- (decompose -> (head, tail))
 
 getstacktype :: Type (Stack a) -> Type a
-getstacktype (ApplyType f x) = let
-  Just Refl = equalType f stack
+getstacktype (ApplyType f x) =
+  let Just Refl = equalType f stack
   -- fixme... wtf?
-  in unsafeCoerce x
+   in unsafeCoerce x
 
 getthunktype :: Type (U a) -> Type a
-getthunktype (ApplyType f x) = let
-  Just Refl = equalType f thunk
+getthunktype (ApplyType f x) =
+  let Just Refl = equalType f thunk
   -- fixme... wtf?
-  in unsafeCoerce x
+   in unsafeCoerce x
 
 pattern StackType x <- (getstacktype -> x)
+
 pattern ThunkType x <- (getthunktype -> x)

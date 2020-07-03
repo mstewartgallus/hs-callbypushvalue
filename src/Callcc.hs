@@ -1,5 +1,8 @@
-{-# LANGUAGE GADTs, TypeOperators #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, simplify) where
+
 import Common
 import Core
 import TextShow
@@ -27,29 +30,29 @@ build :: CodeBuilder a -> Unique.Stream -> Code a
 build (GlobalBuilder v) _ = GlobalCode v
 build (ReturnBuilder v) _ = ReturnCode (buildData v)
 build (ApplyBuilder f x) stream = ApplyCode (build f stream) (buildData x)
-build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
-  x = Variable t head
-  term' = build term left
-  body' = build (body (VariableBuilder x)) right
-  in LetToCode term' x body'
-build (LetBeBuilder term t body) (Unique.Pick head tail) = let
-  x = Variable t head
-  term' = buildData term
-  body' = build (body (VariableBuilder x)) tail
-  in LetBeCode term' x body'
-build (LambdaBuilder t body) (Unique.Pick head tail) = let
-  x = Variable t head
-  body' = build (body (VariableBuilder x)) tail
-  in LambdaCode x body'
-build (CatchBuilder t body) (Unique.Pick head tail) = let
-  -- fixme...
-  x = Variable (ApplyType stack t) head
-  body' = build (body (VariableBuilder x)) tail
-  in CatchCode x body'
-build (ThrowBuilder stack value) stream = let
-  stack' = buildData stack
-  value' = build value stream
-  in ThrowCode stack' value'
+build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) =
+  let x = Variable t head
+      term' = build term left
+      body' = build (body (VariableBuilder x)) right
+   in LetToCode term' x body'
+build (LetBeBuilder term t body) (Unique.Pick head tail) =
+  let x = Variable t head
+      term' = buildData term
+      body' = build (body (VariableBuilder x)) tail
+   in LetBeCode term' x body'
+build (LambdaBuilder t body) (Unique.Pick head tail) =
+  let x = Variable t head
+      body' = build (body (VariableBuilder x)) tail
+   in LambdaCode x body'
+build (CatchBuilder t body) (Unique.Pick head tail) =
+  let -- fixme...
+      x = Variable (ApplyType stack t) head
+      body' = build (body (VariableBuilder x)) tail
+   in CatchCode x body'
+build (ThrowBuilder stack value) stream =
+  let stack' = buildData stack
+      value' = build value stream
+   in ThrowCode stack' value'
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -58,9 +61,9 @@ typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (CatchCode (Variable (StackType x) _) _) = x
-typeOf (ApplyCode f _) = let
-  _ :=> result = typeOf f
-  in result
+typeOf (ApplyCode f _) =
+  let _ :=> result = typeOf f
+   in result
 typeOf (ThrowCode _ _) = undefined
 
 typeOfData :: Data a -> Type a
@@ -124,7 +127,6 @@ instance TextShow (Data a) where
 
 simplify :: Code a -> Code a
 simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
-
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)

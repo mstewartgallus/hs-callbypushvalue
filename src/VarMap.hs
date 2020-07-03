@@ -1,12 +1,15 @@
-{-# LANGUAGE GADTs, KindSignatures #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+
 module VarMap where
+
+import Common
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Text(Text)
-import Data.Typeable
+import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Typeable
 import Unique
-import Common
 
 newtype VarMap t = VarMap (Map Unique (Dyn t))
 
