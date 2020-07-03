@@ -3,7 +3,6 @@ module Cbpv (build, typeOf, CodeBuilder (..), DataBuilder (..), Code (..), Data 
 import Common
 import TextShow
 import qualified Data.Text as T
-import Compiler
 import Core
 import Unique
 import GlobalMap (GlobalMap)
@@ -50,6 +49,8 @@ buildData (ThunkBuilder code) stream = ThunkData (build code stream)
 
 build :: CodeBuilder a -> Unique.Stream -> Code a
 build (GlobalBuilder v) _ = GlobalCode v
+build (ForceBuilder v) stream = ForceCode (buildData v stream)
+build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
 build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
 build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) = let
   x = Variable t (toText (showb head))
@@ -186,41 +187,48 @@ inline' map = code where
   value (ThunkData c) = ThunkData (code c)
   value x = x
 
-
 
 -- Fixme... use a different file for this?
+intrinsify :: Code a -> CodeBuilder a
+intrinsify code = intrins VarMap.empty code
 
-intrinsify :: Code a -> Compiler (Code a)
-intrinsify global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
-  Nothing -> pure global
+newtype X a = X (DataBuilder a)
+
+intrins :: VarMap X -> Code a -> CodeBuilder a
+intrins env global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
+  Nothing -> GlobalBuilder g
   Just (Intrinsic intrinsic) -> intrinsic
-intrinsify (LambdaCode binder x) = pure (LambdaCode binder) <*> intrinsify x
-intrinsify (ApplyCode f x) = pure ApplyCode <*> intrinsify f <*> intrinsifyData x
-intrinsify (ForceCode x) = pure ForceCode <*> intrinsifyData x
-intrinsify (ReturnCode x) = pure ReturnCode <*> intrinsifyData x
-intrinsify (LetBeCode value binder body) = pure LetBeCode <*> intrinsifyData value <*> pure binder <*> intrinsify body
-intrinsify (LetToCode action binder body) = pure LetToCode <*> intrinsify action <*> pure binder <*> intrinsify body
+intrins env (ApplyCode f x) = ApplyBuilder (intrins env f) (intrinsData env x)
+intrins env (ForceCode x) = ForceBuilder (intrinsData env x)
+intrins env (ReturnCode x) = ReturnBuilder (intrinsData env x)
+intrins env (LambdaCode binder@(Variable t _) body) = LambdaBuilder t $ \value -> let
+  env' = VarMap.insert binder (X value) env
+  in intrins env' body
+intrins env (LetBeCode value binder@(Variable t _) body) = LetBeBuilder (intrinsData env value) t $ \value -> let
+  env' = VarMap.insert binder (X value) env
+  in intrins env' body
+intrins env (LetToCode action binder@(Variable t _) body) = LetToBuilder (intrins env action) t $ \value -> let
+  env' = VarMap.insert binder (X value) env
+  in intrins env' body
 
-intrinsifyData :: Data a -> Compiler (Data a)
-intrinsifyData (ThunkData code) = pure ThunkData <*> intrinsify code
-intrinsifyData x = pure x
+intrinsData :: VarMap X -> Data a -> DataBuilder a
+intrinsData env (ThunkData code) = ThunkBuilder (intrins env code)
+intrinsData env (VariableData binder) = let
+  Just (X x) = VarMap.lookup binder env
+  in x
+intrinsData env (ConstantData x) = ConstantBuilder x
 
-newtype Intrinsic a = Intrinsic (Compiler (Code a))
+newtype Intrinsic a = Intrinsic (CodeBuilder a)
 
 intrinsics :: GlobalMap Intrinsic
 intrinsics = GlobalMap.fromList [
      GlobalMap.Entry plus (Intrinsic plusIntrinsic)
   ]
 
-plusIntrinsic :: Compiler (Code (F Integer :-> F Integer :-> F Integer))
-plusIntrinsic = do
-  x' <- getVariable (ApplyType thunk int)
-  y' <- getVariable (ApplyType thunk int)
-  x'' <- getVariable intRaw
-  y'' <- getVariable intRaw
-  pure $
-    LambdaCode x' $
-    LambdaCode y' $
-    LetToCode (ForceCode (VariableData x')) x'' $
-    LetToCode (ForceCode (VariableData y')) y'' $
-    ApplyCode (ApplyCode (GlobalCode strictPlus) (VariableData x'')) (VariableData y'')
+plusIntrinsic :: CodeBuilder (F Integer :-> F Integer :-> F Integer)
+plusIntrinsic =
+    LambdaBuilder (ApplyType thunk int) $ \x' ->
+    LambdaBuilder (ApplyType thunk int) $ \y' ->
+    LetToBuilder (ForceBuilder x') intRaw $ \x'' ->
+    LetToBuilder (ForceBuilder y') intRaw $ \y'' ->
+    ApplyBuilder (ApplyBuilder (GlobalBuilder strictPlus) x'') y''
