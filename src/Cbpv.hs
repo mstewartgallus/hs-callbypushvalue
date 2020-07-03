@@ -18,7 +18,7 @@ typeOf (GlobalCode (Global t _ _)) = t
 typeOf (ForceCode thunk) =
   let ThunkType x = typeOfData thunk
    in x
-typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
+typeOf (ReturnCode value) = ApplyType returnsType (typeOfData value)
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
@@ -31,46 +31,55 @@ typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (ThunkData code) = ApplyType thunk (typeOf code)
 
-data CodeBuilder a where
-  GlobalBuilder :: Global a -> CodeBuilder a
-  ForceBuilder :: DataBuilder (U a) -> CodeBuilder a
-  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
-  LetToBuilder :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  LetBeBuilder :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
 
-data DataBuilder a where
-  VariableBuilder :: Variable a -> DataBuilder a
-  ConstantBuilder :: Constant a -> DataBuilder a
-  ThunkBuilder :: CodeBuilder a -> DataBuilder (U a)
+newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
 
-buildData :: DataBuilder a -> Unique.Stream -> Data a
-buildData (VariableBuilder v) _ = VariableData v
-buildData (ConstantBuilder v) _ = ConstantData v
-buildData (ThunkBuilder code) stream = ThunkData (build code stream)
+global :: Global a -> CodeBuilder a
+global g = (CodeBuilder . const) $ GlobalCode g
 
-build :: CodeBuilder a -> Unique.Stream -> Code a
-build (GlobalBuilder v) _ = GlobalCode v
-build (ForceBuilder v) stream = ForceCode (buildData v stream)
-build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
-build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
-build (LetToBuilder term body) (Unique.Pick head (Unique.Split left right)) =
-  let term' = build term left
-      ReturnsType t = typeOf term'
-      x = Variable t head
-      body' = build (body (VariableBuilder x)) right
-   in LetToCode term' x body'
-build (LetBeBuilder term body) (Unique.Pick head (Unique.Split left right)) =
-  let term' = buildData term left
-      t = typeOfData term'
-      x = Variable t head
-      body' = build (body (VariableBuilder x)) right
-   in LetBeCode term' x body'
-build (LambdaBuilder t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      body' = build (body (VariableBuilder x)) tail
-   in LambdaCode x body'
+force :: DataBuilder (U a) -> CodeBuilder a
+force thunk = CodeBuilder $ \stream ->
+  ForceCode (buildData thunk stream)
+
+returns :: DataBuilder a -> CodeBuilder (F a)
+returns value = CodeBuilder $ \stream ->
+  ReturnCode (buildData value stream)
+
+letTo :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letTo x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = build x l
+      ReturnsType t = typeOf x'
+      v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetToCode x' v body
+
+letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = buildData x l
+      t = typeOfData x'
+      v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetBeCode x' v body
+
+lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
+  let v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) stream
+   in LambdaCode v body
+
+apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+apply f x = CodeBuilder $ \(Unique.Split l r) ->
+  let f' = build f l
+      x' = buildData x r
+   in ApplyCode f' x'
+
+constant :: Constant a -> DataBuilder a
+constant k = (DataBuilder . const) $ ConstantData k
+
+delay :: CodeBuilder a -> DataBuilder (U a)
+delay code = DataBuilder $ \stream ->
+  ThunkData (build code stream)
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -205,28 +214,28 @@ intrinsify code = intrins VarMap.empty code
 newtype X a = X (DataBuilder a)
 
 intrins :: VarMap X -> Code a -> CodeBuilder a
-intrins env global@(GlobalCode g) = case GlobalMap.lookup g intrinsics of
-  Nothing -> GlobalBuilder g
+intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
+  Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
-intrins env (ApplyCode f x) = ApplyBuilder (intrins env f) (intrinsData env x)
-intrins env (ForceCode x) = ForceBuilder (intrinsData env x)
-intrins env (ReturnCode x) = ReturnBuilder (intrinsData env x)
-intrins env (LambdaCode binder@(Variable t _) body) = LambdaBuilder t $ \value ->
+intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
+intrins env (ForceCode x) = force (intrinsData env x)
+intrins env (ReturnCode x) = returns (intrinsData env x)
+intrins env (LambdaCode binder@(Variable t _) body) = lambda t $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
-intrins env (LetBeCode value binder body) = LetBeBuilder (intrinsData env value) $ \value ->
+intrins env (LetBeCode value binder body) = letBe (intrinsData env value) $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
-intrins env (LetToCode action binder body) = LetToBuilder (intrins env action) $ \value ->
+intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value ->
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
 
 intrinsData :: VarMap X -> Data a -> DataBuilder a
-intrinsData env (ThunkData code) = ThunkBuilder (intrins env code)
+intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just (X x) = VarMap.lookup binder env
    in x
-intrinsData env (ConstantData x) = ConstantBuilder x
+intrinsData env (ConstantData x) = constant x
 
 newtype Intrinsic a = Intrinsic (CodeBuilder a)
 
@@ -238,8 +247,8 @@ intrinsics =
 
 plusIntrinsic :: CodeBuilder (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
-  LambdaBuilder (ApplyType thunk int) $ \x' ->
-    LambdaBuilder (ApplyType thunk int) $ \y' ->
-      LetToBuilder (ForceBuilder x') $ \x'' ->
-        LetToBuilder (ForceBuilder y') $ \y'' ->
-          ApplyBuilder (ApplyBuilder (GlobalBuilder strictPlus) x'') y''
+  lambda (ApplyType thunk int) $ \x' ->
+    lambda (ApplyType thunk int) $ \y' ->
+      letTo (force x') $ \x'' ->
+        letTo (force y') $ \y'' ->
+          apply (apply (global strictPlus) x'') y''

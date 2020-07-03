@@ -108,7 +108,7 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k =
    in -- fixme...
       Callcc.CatchBuilder kt $ \returner ->
         Callcc.LetToBuilder
-          ( Callcc.CatchBuilder (ApplyType returns (ApplyType stack t)) $ \label ->
+          ( Callcc.CatchBuilder (ApplyType returnsType (ApplyType stack t)) $ \label ->
               Callcc.ThrowBuilder returner (k label)
           )
           (ApplyType stack t)

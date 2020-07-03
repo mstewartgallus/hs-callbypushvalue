@@ -57,7 +57,7 @@ build (ThrowBuilder stack value) stream =
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
 typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
-typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
+typeOf (ReturnCode value) = ApplyType returnsType (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (CatchCode (Variable (StackType x) _) _) = x

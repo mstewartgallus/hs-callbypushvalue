@@ -13,7 +13,7 @@ module Core
     pattern ReturnsType,
     pattern StackType,
     pattern ThunkType,
-    returns,
+    returnsType,
     int,
     intRaw,
     plus,
@@ -40,11 +40,11 @@ thunk = NominalType (T.pack "core") (T.pack "U")
 fnRaw :: Type (V a (V b (a -> b)))
 fnRaw = NominalType (T.pack "core") (T.pack "fnRaw")
 
-returns :: Type (V a (F a))
-returns = NominalType (T.pack "core") (T.pack "F")
+returnsType :: Type (V a (F a))
+returnsType = NominalType (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
-int = ApplyType returns intRaw
+int = ApplyType returnsType intRaw
 
 intRaw :: Type Integer
 intRaw = NominalType (T.pack "core") (T.pack "int")
@@ -89,7 +89,7 @@ getthunktype (ApplyType f x) =
 
 getreturntype :: Type (F a) -> Type a
 getreturntype (ApplyType f x) =
-  let Just Refl = equalType f returns
+  let Just Refl = equalType f returnsType
    in -- fixme... wtf?
       unsafeCoerce x
 
