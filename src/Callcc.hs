@@ -12,8 +12,8 @@ data CodeBuilder a where
   LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
   LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
   ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-  CatchBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder a) -> CodeBuilder a
-  ThrowBuilder :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder b
+  CatchBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+  ThrowBuilder :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder R
 
 data DataBuilder a where
   VariableBuilder :: Variable a -> DataBuilder a
@@ -43,7 +43,7 @@ build (LambdaBuilder t body) (Unique.Pick head tail) = let
   in LambdaCode x body'
 build (CatchBuilder t body) (Unique.Pick head tail) = let
   -- fixme...
-  x = Variable undefined (toText (showb head))
+  x = Variable (ApplyType stack t) (toText (showb head))
   body' = build (body (VariableBuilder x)) tail
   in CatchCode x body'
 build (ThrowBuilder stack value) stream = let
@@ -57,10 +57,11 @@ typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
 typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
-typeOf (CatchCode _ body) = typeOf body
+typeOf (CatchCode (Variable (StackType x) _) _) = x
 typeOf (ApplyCode f _) = let
   _ :=> result = typeOf f
   in result
+typeOf (ThrowCode _ _) = undefined
 
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData (IntegerConstant _)) = undefined
@@ -72,8 +73,8 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Variable (Stack a) -> Code a -> Code a
-  ThrowCode :: Data (Stack a) -> Code a -> Code b
+  CatchCode :: Variable (Stack a) -> Code R -> Code a
+  ThrowCode :: Data (Stack a) -> Code a -> Code R
 
 data Data a where
   ConstantData :: Constant a -> Data a

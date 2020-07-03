@@ -1,12 +1,14 @@
-{-# LANGUAGE GADTs, TypeOperators, ViewPatterns, PatternSynonyms #-}
+{-# LANGUAGE GADTs, TypeOperators, RankNTypes, ViewPatterns, PatternSynonyms #-}
 module Core (
-  fn, thunk, stack, pattern (:=>), (-=>),
+  fn, thunk, stack, pattern (:=>), (-=>), pattern StackType, pattern ThunkType,
 
   returns,
   int, intRaw, plus, strictPlus
   ) where
 import qualified Data.Text as T
 import Common
+import Data.Typeable
+import Unsafe.Coerce
 
 {-
 Define a standard library of call by push value types.
@@ -50,6 +52,24 @@ infixr -=>
 a -=> b = ApplyType (ApplyType fnRaw a) b
 
 decompose :: Type (a -> b) -> (Type a, Type b)
-decompose = undefined
+decompose (ApplyType (ApplyType f x) y) = let
+  Just Refl = equalType f fnRaw
+  -- fixme... wtf?
+  in (unsafeCoerce x, unsafeCoerce y)
 
 pattern head :=> tail <- (decompose -> (head, tail))
+
+getstacktype :: Type (Stack a) -> Type a
+getstacktype (ApplyType f x) = let
+  Just Refl = equalType f stack
+  -- fixme... wtf?
+  in unsafeCoerce x
+
+getthunktype :: Type (U a) -> Type a
+getthunktype (ApplyType f x) = let
+  Just Refl = equalType f thunk
+  -- fixme... wtf?
+  in unsafeCoerce x
+
+pattern StackType x <- (getstacktype -> x)
+pattern ThunkType x <- (getthunktype -> x)

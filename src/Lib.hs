@@ -73,42 +73,44 @@ toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.LambdaBuilder t $ \x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body
 toExplicitCatchThrow env (Cbpv.ApplyCode f x) = let
   f' = toExplicitCatchThrow env f
-  in toExplicitCatchThrowData env x (\x' -> Callcc.ApplyBuilder f' x')
+  in toExplicitCatchThrowData env x undefined (\x' -> Callcc.ApplyBuilder f' x')
 toExplicitCatchThrow env (Cbpv.LetToCode action binder@(Variable t _) body) = let
   action' = toExplicitCatchThrow env action
   in Callcc.LetToBuilder action' t (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
 toExplicitCatchThrow env (Cbpv.LetBeCode value binder@(Variable t _) body) =
-  toExplicitCatchThrowData env value $ \value' -> Callcc.LetBeBuilder value' t (\x ->  toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
-toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x $ \x' -> Callcc.ReturnBuilder x'
-toExplicitCatchThrow env (Cbpv.ForceCode thunk) =
+  toExplicitCatchThrowData env value (Cbpv.typeOf body) $ \value' -> Callcc.LetBeBuilder value' t (\x ->  toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
+toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x undefined Callcc.ReturnBuilder
+toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) = let
+  t = Cbpv.typeOf f
   -- fixme... get type
-  toExplicitCatchThrowData env thunk $ \thunk' -> Callcc.CatchBuilder undefined $ \v -> Callcc.ThrowBuilder thunk' (Callcc.ReturnBuilder v)
+  in toExplicitCatchThrowData env thunk t $ \thunk' ->
+  Callcc.CatchBuilder t $ \v ->
+  Callcc.ThrowBuilder thunk' (Callcc.ReturnBuilder v)
 
-toExplicitCatchThrowData :: VarMap X -> Cbpv.Data a -> (Callcc.DataBuilder a -> Callcc.CodeBuilder b) -> Callcc.CodeBuilder b
-toExplicitCatchThrowData _ (Cbpv.ConstantData x) k = k (Callcc.ConstantBuilder x)
-toExplicitCatchThrowData env (Cbpv.VariableData v) k = let
+toExplicitCatchThrowData :: VarMap X -> Cbpv.Data a -> Type b -> (Callcc.DataBuilder a -> Callcc.CodeBuilder b) -> Callcc.CodeBuilder b
+toExplicitCatchThrowData _ (Cbpv.ConstantData x) _ k = k (Callcc.ConstantBuilder x)
+toExplicitCatchThrowData env (Cbpv.VariableData v) _ k = let
   Just (X x) = VarMap.lookup v env
   in k x
-toExplicitCatchThrowData env (Cbpv.ThunkData code) k = let
+toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k = let
   code' = toExplicitCatchThrow env code
+  t = Cbpv.typeOf code
   -- fixme...
-  in Callcc.CatchBuilder undefined $ \returner ->
-  -- fixme...
-  Callcc.LetToBuilder (Callcc.CatchBuilder undefined $ \label ->
+  in Callcc.CatchBuilder kt $ \returner ->
+  Callcc.LetToBuilder (Callcc.CatchBuilder (ApplyType returns (ApplyType stack t)) $ \label ->
                           Callcc.ThrowBuilder returner (k label))
-    -- fixme...
-      undefined
-      $ \binder -> (Callcc.ThrowBuilder binder code')
+      (ApplyType stack t) $ \binder ->
+          (Callcc.ThrowBuilder binder code')
 
 
 
 toCps' :: Callcc.Code a -> Compiler (Cps.Code a)
 toCps' act = do
-  k <- getVariable undefined
+  k <- getVariable (ApplyType stack (Callcc.typeOf act))
   eff <- toCps act $ \a -> Cps.JumpEffect a (Cps.VariableData k)
   pure (Cps.KontCode k eff)
 
-toCps :: Callcc.Code a -> (Cps.Code a -> Effect) -> Compiler Effect
+toCps :: Callcc.Code a -> (Cps.Code a -> Cps.Code R) -> Compiler (Cps.Code R)
 toCps (Callcc.GlobalCode x) k = pure $ k $ Cps.GlobalCode x
 toCps (Callcc.ReturnCode value) k = pure $ k $ Cps.ReturnCode (toCpsData value)
 toCps (Callcc.LambdaCode binder body) k = do
@@ -122,11 +124,11 @@ toCps (Callcc.LetToCode action binder body) k = do
   toCps action $ \act -> Cps.JumpEffect act $ Cps.LetToStackData binder b
 
 toCps (Callcc.LetBeCode value binder body) k = do
-    t <- getVariable undefined
-    body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData t)
-    pure $ k $ Cps.LetBeCode (toCpsData value) binder (Cps.KontCode t body')
+    tail <- getVariable (ApplyType stack (Callcc.typeOf body))
+    body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData tail)
+    pure $ k $ Cps.LetBeCode (toCpsData value) binder (Cps.KontCode tail body')
 toCps (Callcc.CatchCode binder body) k = do
-  body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData binder)
+  body' <- toCps body $ \b -> b
   pure $ k $ Cps.KontCode binder body'
 toCps (Callcc.ThrowCode val body) _ = do
   toCps body $ \body' -> Cps.JumpEffect body' (toCpsData val)

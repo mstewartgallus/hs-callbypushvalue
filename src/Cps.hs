@@ -1,10 +1,13 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cps (Code (..), Data (..), Effect (..), evaluate) where
+module Cps (Code (..), Data (..), evaluate) where
 import Common
+import Core
 import TextShow
 import qualified Data.Text as T
 import VarMap (VarMap)
 import qualified VarMap
+import GlobalMap (GlobalMap)
+import qualified GlobalMap
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -12,15 +15,13 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
-  KontCode :: Variable (Stack a) -> Effect -> Code a
+  KontCode :: Variable (Stack a) -> Code R -> Code a
+  JumpEffect :: Code a -> Data (Stack a) -> Code R
 
 data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToStackData :: Variable a -> Effect -> Data (Stack (F a))
-
-data Effect where
-  JumpEffect :: Code a -> Data (Stack a) -> Effect
+  LetToStackData :: Variable a -> Code R -> Data (Stack (F a))
 
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
@@ -29,14 +30,15 @@ instance TextShow (Code a) where
   showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (KontCode k body) = fromString "κ " <> showb k <> fromString " →\n" <> showb body
+  showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
 
 instance TextShow (Data a) where
  showb (ConstantData k) = showb k
  showb (VariableData v) = showb v
  showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
 
-instance TextShow Effect where
- showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
+
+
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -68,11 +70,19 @@ interpret values (KontCode variable body) k = let
 interpret values (LambdaCode variable body) (PushStack head tail) = let
   values' = VarMap.insert variable (Id head) values
   in interpret values' body tail
--- interpret values (LetBeCode value binder body) k = let
---   values' = VarMap.insert variable (Id head) values
---   in interpret values' body tail
+interpret values (GlobalCode global) k = let
+  Just (X g) = GlobalMap.lookup global globals
+  in g k
 
-interpretEffect :: VarMap Id -> Effect -> IO ()
+data X a = X (Stack a -> IO ())
+globals :: GlobalMap X
+globals = GlobalMap.fromList [
+  GlobalMap.Entry strictPlus (X strictPlusImpl)
+                             ]
+strictPlusImpl :: Stack (Integer -> Integer -> F Integer) -> IO ()
+strictPlusImpl (PushStack x (PushStack y (PopStack k))) = k (x + y)
+
+interpretEffect :: VarMap Id -> Code R -> IO ()
 interpretEffect values (JumpEffect ip stack) = let
   stack' = interpretData values stack
   in interpret values ip stack'

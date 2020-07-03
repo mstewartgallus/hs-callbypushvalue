@@ -1,8 +1,7 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cbpv (build, CodeBuilder (..), DataBuilder (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (build, typeOf, CodeBuilder (..), DataBuilder (..), Code (..), Data (..), simplify, intrinsify, inline) where
 import Common
 import TextShow
-import Data.Typeable
 import qualified Data.Text as T
 import Compiler
 import Core
@@ -11,6 +10,24 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import VarMap (VarMap)
 import qualified VarMap as VarMap
+
+typeOf :: Code a -> Type a
+typeOf (GlobalCode (Global t _ _)) = t
+typeOf (ForceCode thunk) = let
+  ThunkType x = typeOfData thunk
+  in x
+typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
+typeOf (LetToCode _ _ body) = typeOf body
+typeOf (LetBeCode _ _ body) = typeOf body
+typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
+typeOf (ApplyCode f _) = let
+  _ :=> result = typeOf f
+  in result
+
+typeOfData :: Data a -> Type a
+typeOfData (VariableData (Variable t _)) = t
+typeOfData (ConstantData (IntegerConstant _)) = intRaw
+typeOfData (ThunkData code) = ApplyType thunk (typeOf code)
 
 data CodeBuilder a where
   GlobalBuilder :: Global a -> CodeBuilder a

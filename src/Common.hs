@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators, RankNTypes, FlexibleContexts #-}
-module Common (equalType, V, (:->), Type (..), F, U, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+module Common (equalType, V, (:->), Type (..), F, U,R, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
 import Data.Typeable
@@ -22,6 +22,7 @@ equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x 
   _ -> Nothing
 equalType _ _ = Nothing
 
+data R
 data F a
 type U a = Stack (F (Stack a))
 
