@@ -6,9 +6,8 @@ import Control.Monad.State
 import qualified Cps
 import qualified Data.Text as T
 import Lib
-import Term
-import Term (Term)
-import qualified Term
+import SystemF
+import qualified SystemF
 import TextShow
 import Unique
 
@@ -20,21 +19,21 @@ fixpoint op = w 0
       let newTerm = op term
        in if newTerm == term then term else w (tick + 1) newTerm
 
-mkProgram :: Unique.Stream -> Term (F Integer)
+mkProgram :: Unique.Stream -> SystemF.Term (F Integer)
 mkProgram =
-  Term.build $
-    Term.apply
-      ( Term.lambda (ApplyType thunk int) $ \x ->
-          Term.apply (Term.apply (Term.global plus) x) x
+  SystemF.build $
+    SystemF.apply
+      ( SystemF.lambda (ApplyType thunk int) $ \x ->
+          SystemF.apply (SystemF.apply (SystemF.global plus) x) x
       )
-      (Term.constant (IntegerConstant 5))
+      (SystemF.constant (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv
 
 phases ::
   Unique.Stream ->
-  Term a ->
-  ( Term a,
+  SystemF.Term a ->
+  ( SystemF.Term a,
     Cbpv.Code a,
     Cbpv.Code a,
     Cbpv.Code a,
@@ -47,8 +46,8 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term =
   let optimizeTerm :: Unique.Stream -> Term a -> Term a
       optimizeTerm s t =
         let (left, right) = Unique.split s
-            simplified = Term.build (Term.simplify t) left
-            inlined = Term.build (Term.inline simplified) right
+            simplified = SystemF.build (SystemF.simplify t) left
+            inlined = SystemF.build (SystemF.inline simplified) right
          in -- fixme.. get fixpoint working
             inlined
       optTerm = optimizeTerm a term

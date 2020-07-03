@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6296b93044a8aeebd4ded0f92ab9984dedaf1ce204864ec8d8130cd5f03ed34e
+-- hash: b5f8d2ba03e4214b3542e9b72817b5f0033976e800c74ac68e4e8aefc5571d73
 
 name:           cpbv
 version:        0.1.0.0
@@ -34,7 +34,7 @@ library
       Cps
       GlobalMap
       Lib
-      Term
+      SystemF
       Unique
       VarMap
   other-modules:

@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Term (simplify, inline, build, Builder, SystemF (..), Term (..)) where
+module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where
 
 import Common
 import TextShow (TextShow, fromString, showb)

@@ -37,16 +37,16 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Typeable
-import Term (Term (..))
-import qualified Term
+import SystemF (Term (..))
+import qualified SystemF
 import TextShow
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
 
-inlineTerm = Term.inline
+inlineTerm = SystemF.inline
 
-simplifyTerm = Term.simplify
+simplifyTerm = SystemF.simplify
 
 simplifyCbpv = Cbpv.simplify
 
@@ -56,7 +56,7 @@ simplifyCallcc = Callcc.simplify
 
 intrinsify = Cbpv.intrinsify
 
-toCallByPushValue :: Term a -> Cbpv.Code a
+toCallByPushValue :: SystemF.Term a -> Cbpv.Code a
 toCallByPushValue (VariableTerm x) = Cbpv.ForceCode (Cbpv.VariableData x)
 toCallByPushValue (ConstantTerm x) = Cbpv.ReturnCode (Cbpv.ConstantData x)
 toCallByPushValue (GlobalTerm x) = Cbpv.GlobalCode x
