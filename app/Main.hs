@@ -41,19 +41,24 @@ phases ::
   )
 phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d e)))) term =
   let optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
-      optimizeTerm s t =
-        let (left, right) = Unique.split s
-            simplified = SystemF.build (SystemF.simplify t) left
+      optimizeTerm = loop 50 where
+        loop :: Int -> Unique.Stream -> SystemF.Term a -> SystemF.Term a
+        loop 0 _ term = term
+        loop n (Unique.Split left (Unique.Split right strm)) term = let
+            simplified = SystemF.build (SystemF.simplify term) left
             inlined = SystemF.build (SystemF.inline simplified) right
-         in -- fixme.. get fixpoint working
-            inlined
+         in
+            loop (n - 1) strm inlined
+
       optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
-      optimizeCbpv s t =
-        let
-            simplified = Cbpv.simplify t
-            inlined = Cbpv.build (Cbpv.inline simplified) s
-         in -- fixme.. get fixpoint working
-            inlined
+      optimizeCbpv = loop 50 where
+        loop :: Int -> Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
+        loop 0 _ term = term
+        loop n (Unique.Split left (Unique.Split right strm)) term = let
+            simplified = Cbpv.simplify term
+            inlined = Cbpv.build (Cbpv.inline simplified) right
+         in
+            loop (n - 1) strm inlined
 
       optTerm = optimizeTerm a term
 
