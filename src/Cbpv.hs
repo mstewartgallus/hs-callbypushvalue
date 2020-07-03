@@ -185,27 +185,33 @@ count v = code
     value (ThunkData c) = code c
     value _ = 0
 
-inline :: Code a -> Code a
+inline :: Code a -> CodeBuilder a
 inline = inline' VarMap.empty
 
-inline' :: VarMap Data -> Code a -> Code a
+inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
 inline' map = code
   where
-    code :: Code x -> Code x
+    code :: Code x -> CodeBuilder x
     code (LetBeCode term binder body) =
       if count binder body <= 1
         then inline' (VarMap.insert binder (value term) map) body
-        else LetBeCode (value term) binder (inline' (VarMap.delete binder map) body)
-    code (LetToCode term binder body) = LetToCode (code term) binder (inline' (VarMap.delete binder map) body)
-    code (ApplyCode f x) = ApplyCode (code f) (value x)
-    code (LambdaCode binder body) = LambdaCode binder (inline' (VarMap.delete binder map) body)
-    code term = term
-    value :: Data x -> Data x
-    value v@(VariableData variable) = case VarMap.lookup variable map of
-      Nothing -> v
-      Just replacement -> replacement
-    value (ThunkData c) = ThunkData (code c)
-    value x = x
+        else letBe (value term) $ \x ->
+        inline' (VarMap.insert binder x map) body
+    code (LetToCode term binder body) = letTo (code term) $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (ApplyCode f x) = apply (code f) (value x)
+    code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (ForceCode th) = force (value th)
+    code (ReturnCode val) = returns (value val)
+    code (GlobalCode g) = global g
+
+    value :: Data x -> DataBuilder x
+    value (VariableData variable) = let
+      Just replacement = VarMap.lookup variable map
+      in replacement
+    value (ThunkData c) = delay (code c)
+    value (ConstantData k) = constant k
 
 -- Fixme... use a different file for this?
 intrinsify :: Code a -> CodeBuilder a

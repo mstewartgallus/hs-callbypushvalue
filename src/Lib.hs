@@ -81,9 +81,9 @@ toExplicitCatchThrow :: VarMap X -> Cbpv.Code a -> Callcc.CodeBuilder a
 toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.GlobalBuilder x
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.LambdaBuilder t $ \x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body
-toExplicitCatchThrow env (Cbpv.ApplyCode f x) =
+toExplicitCatchThrow env ap@(Cbpv.ApplyCode f x) =
   let f' = toExplicitCatchThrow env f
-   in toExplicitCatchThrowData env x undefined (\x' -> Callcc.ApplyBuilder f' x')
+   in toExplicitCatchThrowData env x (Cbpv.typeOf ap) (\x' -> Callcc.ApplyBuilder f' x')
 toExplicitCatchThrow env (Cbpv.LetToCode action binder@(Variable t _) body) =
   let action' = toExplicitCatchThrow env action
    in Callcc.LetToBuilder action' t (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)

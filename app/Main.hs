@@ -28,8 +28,6 @@ mkProgram =
       )
       (SystemF.constant (IntegerConstant 5))
 
-optimizeCbpv = inlineCbpv . simplifyCbpv
-
 phases ::
   Unique.Stream ->
   SystemF.Term a ->
@@ -37,28 +35,35 @@ phases ::
     Cbpv.Code a,
     Cbpv.Code a,
     Cbpv.Code a,
-    Cbpv.Code a,
     Callcc.Code a,
     Callcc.Code a,
     Cps.Code a
   )
-phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term =
-  let optimizeTerm :: Unique.Stream -> Term a -> Term a
+phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d e)))) term =
+  let optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
       optimizeTerm s t =
         let (left, right) = Unique.split s
             simplified = SystemF.build (SystemF.simplify t) left
             inlined = SystemF.build (SystemF.inline simplified) right
          in -- fixme.. get fixpoint working
             inlined
+      optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
+      optimizeCbpv s t =
+        let
+            simplified = Cbpv.simplify t
+            inlined = Cbpv.build (Cbpv.inline simplified) s
+         in -- fixme.. get fixpoint working
+            inlined
+
       optTerm = optimizeTerm a term
+
       cbpv = toCallByPushValue optTerm
-      optCbpv = fixpoint optimizeCbpv cbpv
-      intrinsified = Cbpv.build (intrinsify optCbpv) c
-      optIntrinsified = fixpoint optimizeCbpv intrinsified
-      catchThrow = toCallcc intrinsified b
+      intrinsified = Cbpv.build (intrinsify cbpv) b
+      optIntrinsified = optimizeCbpv c intrinsified
+      catchThrow = toCallcc intrinsified d
       optCatchThrow = fixpoint simplifyCallcc catchThrow
-      cps = Cps.build (toContinuationPassingStyle catchThrow) d
-   in (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
+      cps = Cps.build (toContinuationPassingStyle catchThrow) e
+   in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
 
 main :: IO ()
 main = do
@@ -69,16 +74,13 @@ main = do
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps) = phases stream program
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps) = phases stream program
 
   putStrLn "\nOptimized Term:"
   printT optTerm
 
   putStrLn "\nCall By Push Value:"
   printT cbpv
-
-  putStrLn "\nOptimized CBPV:"
-  printT optCbpv
 
   putStrLn "\nIntrinsified:"
   printT intrinsified
