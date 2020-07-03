@@ -2,25 +2,29 @@
 module VarMap where
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Dynamic
-import Data.Typeable
 import Data.Text(Text)
+import Data.Typeable
 import qualified Data.Text as Text
 
 import Common
 
-newtype VarMap (t :: * -> *) = VarMap (Map Text.Text Dynamic)
+newtype VarMap t = VarMap (Map Text.Text (Dyn t))
+
+data Dyn t where
+  Dyn :: Type a -> t a -> Dyn t
 
 empty :: VarMap t
 empty = VarMap Map.empty
 
-lookup :: Typeable t => Variable a -> VarMap t -> Maybe (t a)
-lookup (Variable (Type _) name) (VarMap map) = case Map.lookup name map of
+lookup :: Variable a -> VarMap t -> Maybe (t a)
+lookup (Variable t name) (VarMap map) = case Map.lookup name map of
   Nothing -> Nothing
-  Just x -> fromDynamic x
+  Just (Dyn t' x) -> case equalType t t' of
+    Nothing -> Nothing
+    Just Refl -> Just x
 
-insert :: Typeable t => Variable a -> t a -> VarMap t -> VarMap t
-insert (Variable (Type _) name) value (VarMap map) = VarMap (Map.insert name (toDyn value) map)
+insert :: Variable a -> t a -> VarMap t -> VarMap t
+insert (Variable t name) value (VarMap map) = VarMap (Map.insert name (Dyn t value) map)
 
 delete :: Variable a -> VarMap t -> VarMap t
 delete (Variable _ name) (VarMap map) = VarMap (Map.delete name map)

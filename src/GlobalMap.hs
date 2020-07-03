@@ -1,30 +1,34 @@
-{-# LANGUAGE GADTs, KindSignatures #-}
+{-# LANGUAGE GADTs #-}
 module GlobalMap where
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Dynamic
-import Data.Typeable
 import Data.Text(Text)
 import qualified Data.Text as Text
-
+import Data.Typeable
 import Common
 
-newtype GlobalMap (t :: * -> *) = GlobalMap (Map (Text, Text) Dynamic)
+data Dyn t where
+  Dyn :: Type a -> t a -> Dyn t
+
+newtype GlobalMap t = GlobalMap (Map (Text, Text) (Dyn t))
+
 
 -- fixme... verify types ?
-lookup :: Typeable t => Global a -> GlobalMap t -> Maybe (t a)
-lookup (Global (Type _) package name) (GlobalMap map) = case Map.lookup (package, name) map of
+lookup :: Global a -> GlobalMap t -> Maybe (t a)
+lookup (Global t package name) (GlobalMap map) = case Map.lookup (package, name) map of
   Nothing -> Nothing
-  Just x -> fromDynamic x
+  Just (Dyn t' x) -> case equalType t t' of
+    Nothing -> Nothing
+    Just Refl -> Just x
 
-insert :: Typeable t => Global a -> t a -> GlobalMap t -> GlobalMap t
-insert (Global (Type _) package name) value (GlobalMap map) = GlobalMap (Map.insert (package, name) (toDyn value) map)
+insert :: Global a -> t a -> GlobalMap t -> GlobalMap t
+insert (Global t package name) value (GlobalMap map) = GlobalMap (Map.insert (package, name) (Dyn t value) map)
 
 data Entry t where
-  Entry :: Typeable t => Global a -> t a -> Entry t
+  Entry :: Global a -> t a -> Entry t
 
 fromList :: [Entry t] -> GlobalMap t
-fromList entries = GlobalMap (Map.fromList (map entryToDynamic entries))
+fromList entries = GlobalMap (Map.fromList (map entryToDyn entries))
 
-entryToDynamic :: Entry t -> ((Text, Text), Dynamic)
-entryToDynamic (Entry (Global (Type _) package name) value) = ((package, name), toDyn value)
+entryToDyn :: Entry t -> ((Text, Text), Dyn t)
+entryToDyn (Entry (Global t package name) value) = ((package, name), Dyn t value)

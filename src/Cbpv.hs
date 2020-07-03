@@ -197,10 +197,8 @@ intrinsics = GlobalMap.fromList [
 
 plusIntrinsic :: Compiler (Code (F Integer :-> F Integer :-> F Integer))
 plusIntrinsic = do
-  let Type int' = int
-  let Type thunk' = thunk
-  x' <- getVariable (Type (ApplyName thunk' int'))
-  y' <- getVariable (Type (ApplyName thunk' int'))
+  x' <- getVariable (ApplyType thunk int)
+  y' <- getVariable (ApplyType thunk int)
   x'' <- getVariable intRaw
   y'' <- getVariable intRaw
   pure $

@@ -1,9 +1,9 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
-module Common (compareVariable, V, (:->), Type (..), Name (..), F, U, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+{-# LANGUAGE GADTs, TypeOperators, RankNTypes, FlexibleContexts #-}
+module Common (equalType, V, (:->), Type (..), F, U, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 import qualified Data.Text as T
 import TextShow
-import Data.Dynamic
 import Data.Typeable
+import Unsafe.Coerce
 
 data V a b
 
@@ -11,11 +11,16 @@ type a :-> b = U a -> b
 infixr 9 :->
 
 data Type a where
-  Type :: Typeable a => Name a -> Type a
+  NominalType :: T.Text -> T.Text -> Type a
+  ApplyType :: Type (V a b) -> Type a -> Type b
 
-data Name a where
-  NominalName :: T.Text -> T.Text -> Name a
-  ApplyName :: Name (V a b) -> Name a -> Name b
+-- fixme... is there a safer way?
+equalType :: Type a -> Type b -> Maybe (a :~: b)
+equalType (NominalType package name) (NominalType package' name') = if package == package' && name == name' then Just (unsafeCoerce Refl) else Nothing
+equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x x') of
+  (Just Refl, Just Refl) -> Just Refl
+  _ -> Nothing
+equalType _ _ = Nothing
 
 data F a
 type U a = Stack (F (Stack a))
@@ -37,12 +42,6 @@ instance Eq AnyVariable where
 
 instance Ord (Variable a) where
   compare (Variable _ x) (Variable _ y) = compare x y
-
-
-compareVariable :: Variable a -> Variable b -> a -> Maybe b
-compareVariable (Variable (Type _) x) (Variable (Type _) y) value = if x == y then fromDynamic (toDyn value) else Nothing
-
-
 
 data Label a = Label (Type a) T.Text
 

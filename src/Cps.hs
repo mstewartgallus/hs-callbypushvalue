@@ -5,8 +5,6 @@ import TextShow
 import qualified Data.Text as T
 import VarMap (VarMap)
 import qualified VarMap
-import LabelMap (LabelMap)
-import qualified LabelMap
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -40,6 +38,8 @@ instance TextShow (Data a) where
 instance TextShow Effect where
  showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
 
+typeOf :: Code a -> Type a
+typeOf (GlobalCode (Global t _ _)) = t
 
 evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
 evaluate code k = interpret VarMap.empty code (PopStack k)

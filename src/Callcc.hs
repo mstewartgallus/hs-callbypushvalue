@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), simplify) where
+module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, simplify) where
 import Common
+import Core
 import TextShow
 import Unique
 
@@ -49,6 +50,20 @@ build (ThrowBuilder stack value) stream = let
   stack' = buildData stack
   value' = build value stream
   in ThrowCode stack' value'
+
+typeOf :: Code a -> Type a
+typeOf (GlobalCode (Global t _ _)) = t
+typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
+typeOf (ReturnCode value) = ApplyType returns (typeOfData value)
+typeOf (LetBeCode _ _ body) = typeOf body
+typeOf (LetToCode _ _ body) = typeOf body
+typeOf (CatchCode _ body) = typeOf body
+typeOf (ApplyCode f _) = let
+  _ :=> result = typeOf f
+  in result
+
+typeOfData :: Data a -> Type a
+typeOfData (ConstantData (IntegerConstant _)) = undefined
 
 data Code a where
   GlobalCode :: Global a -> Code a

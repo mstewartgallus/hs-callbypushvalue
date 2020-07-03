@@ -20,7 +20,7 @@ fixpoint op = w 0 where
     in if newTerm == term then term else w (tick + 1) newTerm
 
 mkProgram :: Unique.Stream -> Term (F Integer)
-mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (Type undefined) $ \x ->
+mkProgram = Term.build $ Term.ApplyBuild (Term.LambdaBuild (ApplyType thunk int) $ \x ->
           Term.ApplyBuild (Term.ApplyBuild (Term.GlobalBuild plus)  x) x) (Term.ConstantBuild (IntegerConstant 5))
 
 optimizeCbpv = inlineCbpv . simplifyCbpv

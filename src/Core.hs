@@ -1,38 +1,55 @@
-{-# LANGUAGE GADTs, TypeOperators, StandaloneDeriving #-}
+{-# LANGUAGE GADTs, TypeOperators, ViewPatterns, PatternSynonyms #-}
 module Core (
-  fn, thunk,
+  fn, thunk, stack, pattern (:=>), (-=>),
 
+  returns,
   int, intRaw, plus, strictPlus
   ) where
 import qualified Data.Text as T
 import Common
-import Data.Typeable
+
 {-
 Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
+fn :: Type (V a (V b (a :-> b)))
+fn = NominalType (T.pack "core") (T.pack "fn")
 
-fn :: (Typeable a, Typeable b) => Type (V a (V b (a :-> b)))
-fn = Type $ NominalName (T.pack "core") (T.pack "fn")
+-- fixme implement in terms of stack...
+thunk :: Type (V a (U a))
+thunk = NominalType (T.pack "core") (T.pack "U")
 
-thunk :: Typeable a => Type (V a (U a))
-thunk = Type $ NominalName (T.pack "core") (T.pack "U")
+fnRaw :: Type (V a (V b (a -> b)))
+fnRaw = NominalType (T.pack "core") (T.pack "fnRaw")
 
-returns :: Typeable a => Type (V a (F a))
-returns = Type $ NominalName (T.pack "core") (T.pack "F")
+returns :: Type (V a (F a))
+returns = NominalType (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
-int = let
-  Type returns' = returns
-  Type intRaw' = intRaw
-  in Type $ ApplyName returns' intRaw'
+int = ApplyType returns intRaw
 
 intRaw :: Type Integer
-intRaw = Type $ NominalName (T.pack "core") (T.pack "int")
+intRaw = NominalType (T.pack "core") (T.pack "int")
+
+stack :: Type (V a (Stack a))
+stack = NominalType (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
-plus = Global (Type undefined) (T.pack "core") (T.pack "+")
+plus = Global (u int -=> u int -=> int) (T.pack "core") (T.pack "+")
 
 -- fixme...
 strictPlus :: Global (Integer -> Integer -> F Integer)
-strictPlus = Global (Type undefined) (T.pack "core") (T.pack "+!")
+strictPlus = Global (intRaw -=> intRaw -=> int) (T.pack "core") (T.pack "+!")
+
+u :: Type a -> Type (U a)
+u x = ApplyType thunk x
+
+infixr -=>
+
+(-=>) ::  Type a -> Type b -> Type (a -> b)
+a -=> b = ApplyType (ApplyType fnRaw a) b
+
+decompose :: Type (a -> b) -> (Type a, Type b)
+decompose = undefined
+
+pattern head :=> tail <- (decompose -> (head, tail))

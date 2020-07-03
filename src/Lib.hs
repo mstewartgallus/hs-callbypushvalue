@@ -44,11 +44,6 @@ inlineCbpv = Cbpv.inline
 simplifyCallcc = Callcc.simplify
 intrinsify = Cbpv.intrinsify
 
-thunkify :: Variable a -> Variable (U a)
-thunkify (Variable (Type t) name) = let
-  Type thunk' = thunk
-  in Variable (Type (ApplyName thunk' t)) name
-
 toCallByPushValue :: Term a -> Cbpv.Code a
 toCallByPushValue (VariableTerm x) = Cbpv.ForceCode (Cbpv.VariableData x)
 toCallByPushValue (ConstantTerm x) = Cbpv.ReturnCode (Cbpv.ConstantData x)
@@ -117,7 +112,7 @@ toCps :: Callcc.Code a -> (Cps.Code a -> Effect) -> Compiler Effect
 toCps (Callcc.GlobalCode x) k = pure $ k $ Cps.GlobalCode x
 toCps (Callcc.ReturnCode value) k = pure $ k $ Cps.ReturnCode (toCpsData value)
 toCps (Callcc.LambdaCode binder body) k = do
-  tail <- getVariable undefined
+  tail <- getVariable (ApplyType stack (Callcc.typeOf body))
   body' <- toCps body $ \b -> Cps.JumpEffect b (Cps.VariableData tail)
   pure $ k $ Cps.LambdaCode binder (Cps.KontCode tail body')
 toCps (Callcc.ApplyCode f x) k = do
