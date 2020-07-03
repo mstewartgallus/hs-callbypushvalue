@@ -8,8 +8,7 @@ module Lib
       Constant (..),
       Global (Global ),
       Type (..), Stack (), F (), U (), (:->) (),
-      CompilerState (..), Compiler,
-      inlineTerm, simplifyTerm, toCallByPushValue, toCallcc, toCps',
+      inlineTerm, simplifyTerm, toCallByPushValue, toCallcc, toContinuationPassingStyle,
       intrinsify, simplifyCbpv, inlineCbpv, simplifyCallcc
     ) where
 
@@ -27,7 +26,6 @@ import Data.Typeable
 
 import Core
 import Common
-import Compiler
 import Term (Build (..), Term (..))
 import qualified Term
 import qualified Cbpv
@@ -104,38 +102,52 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k = let
 
 
 
-toCps' :: Callcc.Code a -> Compiler (Cps.Code a)
-toCps' (Callcc.GlobalCode x) = pure $ Cps.GlobalCode x
-toCps' (Callcc.ReturnCode value) = pure $ Cps.ReturnCode (toCpsData value)
-toCps' (Callcc.LambdaCode binder body) = do
-  body' <- toCps' body
-  pure $ Cps.LambdaCode binder body'
-toCps' (Callcc.ApplyCode f x) = do
-  f' <- toCps' f
-  pure $ Cps.ApplyCode f' (toCpsData x)
-toCps' act = do
-  k <- getVariable (ApplyType stack (Callcc.typeOf act))
-  eff <- toCps act $ \a -> Cps.JumpEffect a (Cps.VariableData k)
-  pure (Cps.KontCode k eff)
+toContinuationPassingStyle :: Callcc.Code a -> Cps.CodeBuilder a
+toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps :: Callcc.Code a -> (Cps.Code a -> Cps.Code R) -> Compiler (Cps.Code R)
-toCps (Callcc.ApplyCode f x) k = do
-  toCps f $ \f' -> k $ Cps.ApplyCode f' (toCpsData x)
-toCps (Callcc.LetToCode action binder body) k = do
-  b <- toCps body k
-  toCps action $ \act -> Cps.JumpEffect act $ Cps.LetToStackData binder b
-toCps (Callcc.LetBeCode value binder body) k = do
-    body' <- toCps' body
-    pure $ k $ Cps.LetBeCode (toCpsData value) binder body'
-toCps (Callcc.CatchCode binder body) k = do
-  body' <- toCps body id
-  pure $ k $ Cps.KontCode binder body'
-toCps (Callcc.ThrowCode val body) _ = do
-  toCps body $ \body' -> Cps.JumpEffect body' (toCpsData val)
-toCps act k = do
-  val <- toCps' act
-  pure $ k $ val
+toCps' :: VarMap Y -> Callcc.Code a -> Cps.CodeBuilder a
+toCps' _ (Callcc.GlobalCode x) = Cps.GlobalBuilder x
+toCps' env (Callcc.ReturnCode value) = Cps.ReturnBuilder (toCpsData env value)
+toCps' env (Callcc.LambdaCode binder@(Variable t _) body) =
+  Cps.LambdaBuilder t $ \value -> let
+  env' = VarMap.insert binder (Y value) env
+  in toCps' env' body
+toCps' env (Callcc.ApplyCode f x) = let
+  f' = toCps' env f
+  in Cps.ApplyBuilder f' (toCpsData env x)
+toCps' env act = let
+  x = Callcc.typeOf act
+  in Cps.KontBuilder x $ \k ->
+  toCps env act $ \a ->
+  Cps.JumpBuilder a k
 
-toCpsData :: Callcc.Data a -> Cps.Data a
-toCpsData (Callcc.ConstantData x) = Cps.ConstantData x
-toCpsData (Callcc.VariableData x) = Cps.VariableData x
+toCps :: VarMap Y -> Callcc.Code a -> (Cps.CodeBuilder a -> Cps.CodeBuilder R) -> Cps.CodeBuilder R
+toCps env (Callcc.ApplyCode f x) k =
+  toCps env f $ \f' ->
+  k $ Cps.ApplyBuilder f' (toCpsData env x)
+toCps env (Callcc.LetBeCode value binder@(Variable t _)  body) k =
+  k $ Cps.LetBeBuilder (toCpsData env value) $ \value -> let
+  env' = VarMap.insert binder (Y value) env
+  in toCps' env' body
+toCps env (Callcc.ThrowCode val body) _ = do
+  toCps env body $ \body' ->
+    Cps.JumpBuilder body' (toCpsData env val)
+toCps env (Callcc.LetToCode action binder@(Variable t _)  body) k =
+  toCps env action $ \act ->
+  Cps.JumpBuilder act $ Cps.LetToStackBuilder t $ \value -> let
+  env' = VarMap.insert binder (Y value) env
+  in toCps env' body k
+toCps env (Callcc.CatchCode binder@(Variable (StackType t) _) body) k =
+  k $ Cps.KontBuilder t $ \value -> let
+  env' = VarMap.insert binder (Y value) env
+  in toCps env' body id
+toCps env act k = let
+  val = toCps' env act
+  in k $ val
+
+newtype Y a = Y (DataBuilder a)
+toCpsData :: VarMap Y -> Callcc.Data a -> Cps.DataBuilder a
+toCpsData _ (Callcc.ConstantData x) = Cps.ConstantBuilder x
+toCpsData env (Callcc.VariableData v) = let
+  Just (Y x) = VarMap.lookup v env
+  in x

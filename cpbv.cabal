@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7c3ab3ffd8fc9c714338ce5d57f11acd172a1f7bf8688dd5a958d02308920484
+-- hash: 6296b93044a8aeebd4ded0f92ab9984dedaf1ce204864ec8d8130cd5f03ed34e
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,7 +30,6 @@ library
       Callcc
       Cbpv
       Common
-      Compiler
       Core
       Cps
       GlobalMap

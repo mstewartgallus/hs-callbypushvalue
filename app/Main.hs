@@ -33,30 +33,29 @@ phases :: Unique.Stream -> Term a -> (Term a,
                                       Callcc.Code a,
                                       Callcc.Code a,
                                       Cps.Code a)
-phases (Unique.Split a (Unique.Split b c)) term = let
-    optimizeTerm :: Unique.Stream -> Term a -> Term a
-    optimizeTerm s t = let
+phases (Unique.Split a (Unique.Split b (Unique.Split c d))) term = let
+  optimizeTerm :: Unique.Stream -> Term a -> Term a
+  optimizeTerm s t = let
       (left, right) = Unique.split s
       simplified = Term.build (Term.simplify t) left
       inlined = Term.build (Term.inline simplified) right
       -- fixme.. get fixpoint working
       in inlined
-  in flip evalState (CompilerState 0 0) $ do
 
-  let optTerm = optimizeTerm a term
+  optTerm = optimizeTerm a term
 
-  let cbpv = toCallByPushValue optTerm
+  cbpv = toCallByPushValue optTerm
 
-  let optCbpv = fixpoint optimizeCbpv cbpv
-  let intrinsified = Cbpv.build (intrinsify optCbpv) c
-  let optIntrinsified = fixpoint optimizeCbpv intrinsified
+  optCbpv = fixpoint optimizeCbpv cbpv
+  intrinsified = Cbpv.build (intrinsify optCbpv) c
+  optIntrinsified = fixpoint optimizeCbpv intrinsified
 
-  let catchThrow = toCallcc intrinsified b
-  let optCatchThrow = fixpoint simplifyCallcc catchThrow
+  catchThrow = toCallcc intrinsified b
+  optCatchThrow = fixpoint simplifyCallcc catchThrow
 
-  cps <- toCps' catchThrow
+  cps = Cps.build (toContinuationPassingStyle catchThrow) d
 
-  return (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
+  in (optTerm, cbpv, optCbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
 
 main :: IO ()
 main = do

@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeOperators #-}
-module Cps (Code (..), Data (..), evaluate) where
+module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, evaluate, typeOf) where
 import Common
 import Core
 import TextShow
@@ -8,6 +8,7 @@ import VarMap (VarMap)
 import qualified VarMap
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import Unique
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -37,11 +38,58 @@ instance TextShow (Data a) where
  showb (VariableData v) = showb v
  showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
 
+buildData :: DataBuilder a -> Unique.Stream -> Data a
+buildData (VariableBuilder v) _ = VariableData v
+buildData (ConstantBuilder v) _ = ConstantData v
+buildData (LetToStackBuilder t body) (Unique.Pick head tail) = let
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in LetToStackData x body'
 
+build :: CodeBuilder a -> Unique.Stream -> Code a
+build (GlobalBuilder v) _ = GlobalCode v
+build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
+build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
+build (LambdaBuilder t body) (Unique.Pick head tail) = let
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in LambdaCode x body'
+build (LetBeBuilder value body) (Unique.Pick head (Unique.Split l r)) = let
+  value' = buildData value l
+  t = typeOfData value'
+  x = Variable t (toText (showb head))
+  body' = build (body (VariableBuilder x)) r
+  in LetBeCode value' x body'
+build (KontBuilder t body) (Unique.Pick head tail) = let
+  x = Variable (ApplyType stack t) (toText (showb head))
+  body' = build (body (VariableBuilder x)) tail
+  in KontCode x body'
+build (JumpBuilder x f) (Unique.Split l r) = let
+  x' = build x l
+  f' = buildData f l
+  in JumpEffect x' f'
+
+data CodeBuilder a where
+  GlobalBuilder :: Global a -> CodeBuilder a
+  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
+  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+  LetBeBuilder :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+  KontBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+  JumpBuilder :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder R
+
+data DataBuilder a where
+  ConstantBuilder :: Constant a -> DataBuilder a
+  VariableBuilder :: Variable a -> DataBuilder a
+  LetToStackBuilder :: Type a -> (DataBuilder a -> CodeBuilder R) -> DataBuilder (Stack (F a))
 
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
+
+typeOfData :: Data a -> Type a
+typeOfData (ConstantData (IntegerConstant _)) = intRaw
+typeOfData (VariableData (Variable t _)) = t
 
 evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
 evaluate code k = interpret VarMap.empty code (PopStack k)
