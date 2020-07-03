@@ -77,9 +77,9 @@ instance TextShow (Term a) where
   showb (VariableTerm v) = showb v
   showb (ConstantTerm k) = showb k
   showb (GlobalTerm g) = showb g
-  showb (LetTerm term binder body) = fromString "let " <> showb term <> fromString " = " <> showb binder <> fromString " in\n" <> showb body <> fromString ""
-  showb (LambdaTerm binder body) = fromString "(λ " <> showb binder <> fromString " → " <> showb body <> fromString ")"
-  showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
+  showb (LetTerm term binder body) = showb term <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+  showb (LambdaTerm binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
+  showb (ApplyTerm f x) = showb x <> fromString "\n" <> showb f
 
 simplify :: Term a -> Builder a
 simplify = simplify' VarMap.empty
