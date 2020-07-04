@@ -109,8 +109,10 @@ typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (VariableData (Variable t _)) = t
 
 simplify :: Code a -> Code a
+simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
+simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
 simplify (KontCode _ _) = undefined
 simplify (JumpEffect _ _) = undefined
@@ -146,6 +148,9 @@ count :: Variable a -> Code b -> Int
 count v = code
   where
     code :: Code x -> Int
+    code (KontCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (JumpEffect x f) = code x + value f
+    code (LetToCode x binder body) = code x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
