@@ -34,8 +34,8 @@ instance TextShow (Code a) where
   showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
   showb (LetToCode value binder body) = showb value <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (KontCode k body) = fromString "κ " <> showb k <> fromString " →\n" <> showb body
-  showb (JumpCode action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
+  showb (KontCode k body) = fromString "κ " <> showb k <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString " → {\n" <> showb body))) <> fromString "\n}"
+  showb (JumpCode action stack) = showb action <> fromString "\njump " <> showb stack
 
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
