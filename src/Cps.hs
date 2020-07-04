@@ -21,7 +21,7 @@ data Code a where
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   KontCode :: Variable (Stack a) -> Code Nil -> Code a
-  JumpEffect :: Code a -> Data (Stack a) -> Code Nil
+  JumpCode :: Code a -> Data (Stack a) -> Code Nil
 
 data Data a where
   ConstantData :: Constant a -> Data a
@@ -35,7 +35,7 @@ instance TextShow (Code a) where
   showb (LetToCode value binder body) = showb value <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (KontCode k body) = fromString "κ " <> showb k <> fromString " →\n" <> showb body
-  showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
+  showb (JumpCode action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
 
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
@@ -47,7 +47,7 @@ newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
 
 jump :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder Nil
 jump x f = CodeBuilder $ \(Unique.Split l r) ->
-  JumpEffect (build x l) (buildData f r)
+  JumpCode (build x l) (buildData f r)
 
 kont :: Type a -> (DataBuilder (Stack a) -> CodeBuilder Nil) -> CodeBuilder a
 kont t f = CodeBuilder $ \(Unique.Pick h stream) ->
@@ -115,7 +115,7 @@ simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
 simplify (KontCode _ _) = undefined
-simplify (JumpEffect _ _) = undefined
+simplify (JumpCode _ _) = undefined
 simplify x = x
 
 inline :: Code a -> CodeBuilder a
@@ -137,7 +137,7 @@ inline' map = code
     code (GlobalCode g) = global g
     code (KontCode binder@(Variable (StackType t) _) body) = kont t $ \x ->
       inline' (VarMap.insert binder x map) body
-    code (JumpEffect x f) = jump (code x) (value f)
+    code (JumpCode x f) = jump (code x) (value f)
     value :: Data x -> DataBuilder x
     value (VariableData variable) =
       let Just replacement = VarMap.lookup variable map
@@ -149,7 +149,7 @@ count v = code
   where
     code :: Code x -> Int
     code (KontCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
-    code (JumpEffect x f) = code x + value f
+    code (JumpCode x f) = code x + value f
     code (LetToCode x binder body) = code x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
@@ -198,7 +198,7 @@ interpret values (LambdaCode variable body) (PushStack head tail) =
 interpret values (GlobalCode global) k =
   let Just (X g) = GlobalMap.lookup global globals
    in g k
-interpret env (JumpEffect x f) NilStack =
+interpret env (JumpCode x f) NilStack =
   let stack = interpretData env f
    in interpret env x stack
 
