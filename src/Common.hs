@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalType, V, (:->), Type (..), F, U, R, Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
+module Common (equalType, V, (:->), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyGlobal (..), AnyConstant (..), AnyVariable (..), Variable (..)) where
 
 import qualified Data.Text as T
 import Data.Typeable
@@ -29,14 +29,17 @@ equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x 
   _ -> Nothing
 equalType _ _ = Nothing
 
-data R
+newtype R = R (IO ())
 
 data F a
 
 type U a = Stack (F (Stack a))
 
+data Nil
+
 data Stack a where
-  PopStack :: (a -> IO ()) -> Stack (F a)
+  NilStack :: Stack Nil
+  PopStack :: (a -> R) -> Stack (F a)
   PushStack :: a -> Stack b -> Stack (a -> b)
 
 data Variable a = Variable (Type a) Unique

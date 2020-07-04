@@ -133,7 +133,7 @@ toCps' env act =
         toCps env act $ \a ->
           Cps.jump a k
 
-toCps :: VarMap Y -> Callcc.Code a -> (Cps.CodeBuilder a -> Cps.CodeBuilder R) -> Cps.CodeBuilder R
+toCps :: VarMap Y -> Callcc.Code a -> (Cps.CodeBuilder a -> Cps.CodeBuilder Nil) -> Cps.CodeBuilder Nil
 toCps env (Callcc.ApplyCode f x) k =
   toCps env f $ \f' ->
     k $ Cps.apply f' (toCpsData env x)
@@ -146,7 +146,7 @@ toCps env (Callcc.ThrowCode val body) _ = do
     Cps.jump body' (toCpsData env val)
 toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps env action $ \act ->
-    Cps.jump act $ Cps.letTo t $ \value ->
+    Cps.letTo act $ \value ->
       let env' = VarMap.insert binder (Y value) env
        in toCps env' body k
 toCps env (Callcc.CatchCode binder@(Variable (StackType t) _) body) k =

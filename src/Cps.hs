@@ -19,19 +19,20 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
-  KontCode :: Variable (Stack a) -> Code R -> Code a
-  JumpEffect :: Code a -> Data (Stack a) -> Code R
+  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
+  KontCode :: Variable (Stack a) -> Code Nil -> Code a
+  JumpEffect :: Code a -> Data (Stack a) -> Code Nil
 
 data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToStackData :: Variable a -> Code R -> Data (Stack (F a))
 
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ReturnCode x) = fromString "return " <> showb x
   showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
+  showb (LetToCode value binder body) = showb value <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (KontCode k body) = fromString "κ " <> showb k <> fromString " →\n" <> showb body
   showb (JumpEffect action stack) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb action))) <> fromString "\n}\n" <> showb stack
@@ -39,17 +40,16 @@ instance TextShow (Code a) where
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
-  showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
 
 newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
 
 newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
 
-jump :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder R
+jump :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder Nil
 jump x f = CodeBuilder $ \(Unique.Split l r) ->
   JumpEffect (build x l) (buildData f r)
 
-kont :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+kont :: Type a -> (DataBuilder (Stack a) -> CodeBuilder Nil) -> CodeBuilder a
 kont t f = CodeBuilder $ \(Unique.Pick h stream) ->
   let v = Variable (ApplyType stack t) h
       body = build (f ((DataBuilder . const) $ VariableData v)) stream
@@ -62,11 +62,13 @@ returns :: DataBuilder a -> CodeBuilder (F a)
 returns value = CodeBuilder $ \stream ->
   ReturnCode (buildData value stream)
 
-letTo :: Type a -> (DataBuilder a -> CodeBuilder R) -> DataBuilder (Stack (F a))
-letTo t f = DataBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let v = Variable t h
+letTo :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letTo x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = build x l
+      ReturnsType t = typeOf x'
+      v = Variable t h
       body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetToStackData v body
+   in LetToCode x' v body
 
 letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
 letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
@@ -93,6 +95,14 @@ constant k = (DataBuilder . const) $ ConstantData k
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
+typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
+typeOf (ReturnCode value) = ApplyType returnsType (typeOfData value)
+typeOf (LetBeCode _ _ body) = typeOf body
+typeOf (LetToCode _ _ body) = typeOf body
+typeOf (ApplyCode f _) =
+  let _ :=> result = typeOf f
+   in result
+typeOf (KontCode (Variable (StackType t) _) _) = t
 
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
@@ -146,7 +156,9 @@ count v = code
     value _ = 0
 
 evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
-evaluate code k = interpret VarMap.empty code (PopStack k)
+evaluate code k =
+  let R eff = interpret VarMap.empty code (PopStack (\x -> R (k x)))
+   in eff
 
 newtype Id a = Id a
 
@@ -154,10 +166,8 @@ interpretData :: VarMap Id -> Data a -> a
 interpretData _ (ConstantData k) = interpretConstant k
 interpretData values (VariableData v) = case VarMap.lookup v values of
   Just (Id x) -> x
-interpretData env (LetToStackData binder body) = PopStack $ \value ->
-  interpretEffect (VarMap.insert binder (Id value) env) body
 
-interpret :: VarMap Id -> Code a -> Stack a -> IO ()
+interpret :: VarMap Id -> Code a -> Stack a -> R
 interpret values (ReturnCode value) (PopStack k) =
   let value' = interpretData values value
    in k value'
@@ -166,17 +176,28 @@ interpret env (LetBeCode value binder body) k =
   let value' = interpretData env value
       env' = VarMap.insert binder (Id value') env
    in interpret env' body k
+interpret env (LetToCode action binder body) k =
+  interpret
+    env
+    action
+    ( PopStack $ \value ->
+        let env' = VarMap.insert binder (Id value) env
+         in interpret env' body k
+    )
 interpret values (KontCode variable body) k =
   let values' = VarMap.insert variable (Id k) values
-   in interpretEffect values' body
+   in interpret values' body NilStack
 interpret values (LambdaCode variable body) (PushStack head tail) =
   let values' = VarMap.insert variable (Id head) values
    in interpret values' body tail
 interpret values (GlobalCode global) k =
   let Just (X g) = GlobalMap.lookup global globals
    in g k
+interpret env (JumpEffect x f) NilStack =
+  let stack = interpretData env f
+   in interpret env x stack
 
-data X a = X (Stack a -> IO ())
+data X a = X (Stack a -> R)
 
 globals :: GlobalMap X
 globals =
@@ -184,13 +205,8 @@ globals =
     [ GlobalMap.Entry strictPlus (X strictPlusImpl)
     ]
 
-strictPlusImpl :: Stack (Integer -> Integer -> F Integer) -> IO ()
+strictPlusImpl :: Stack (Integer -> Integer -> F Integer) -> R
 strictPlusImpl (PushStack x (PushStack y (PopStack k))) = k (x + y)
-
-interpretEffect :: VarMap Id -> Code R -> IO ()
-interpretEffect values (JumpEffect ip stack) =
-  let stack' = interpretData values stack
-   in interpret values ip stack'
 
 interpretConstant :: Constant a -> a
 interpretConstant (IntegerConstant x) = x

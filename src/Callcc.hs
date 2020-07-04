@@ -49,13 +49,13 @@ apply f x = CodeBuilder $ \(Unique.Split l r) ->
       x' = buildData x r
    in ApplyCode f' x'
 
-catch :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+catch :: Type a -> (DataBuilder (Stack a) -> CodeBuilder Nil) -> CodeBuilder a
 catch t f = CodeBuilder $ \(Unique.Pick h stream) ->
   let v = Variable (ApplyType stack t) h
       body = build (f ((DataBuilder . const) $ VariableData v)) stream
    in CatchCode v body
 
-throw :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder R
+throw :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder Nil
 throw x f = CodeBuilder $ \(Unique.Split l r) ->
   let x' = buildData x l
       f' = build f r
@@ -87,8 +87,8 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Variable (Stack a) -> Code R -> Code a
-  ThrowCode :: Data (Stack a) -> Code a -> Code R
+  CatchCode :: Variable (Stack a) -> Code Nil -> Code a
+  ThrowCode :: Data (Stack a) -> Code a -> Code Nil
 
 data Data a where
   ConstantData :: Constant a -> Data a
