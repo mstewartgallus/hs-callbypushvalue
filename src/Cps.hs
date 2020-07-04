@@ -111,6 +111,7 @@ typeOfData (VariableData (Variable t _)) = t
 simplify :: Code a -> Code a
 simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
 simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
+simplify (JumpCode (KontCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)

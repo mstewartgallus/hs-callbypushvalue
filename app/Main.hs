@@ -45,9 +45,9 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.S
       cbpv = toCallByPushValue optTerm
       intrinsified = Cbpv.build (intrinsify cbpv) b
       optIntrinsified = optimizeCbpv c intrinsified
-      catchThrow = toCallcc intrinsified d
+      catchThrow = toCallcc optIntrinsified d
       optCatchThrow = optimizeCallcc e catchThrow
-      cps = Cps.build (toContinuationPassingStyle catchThrow) f
+      cps = Cps.build (toContinuationPassingStyle optCatchThrow) f
       optCps = optimizeCps g cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
