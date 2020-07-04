@@ -110,6 +110,7 @@ instance TextShow (Data a) where
 
 simplify :: Code a -> Code a
 simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
+simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)

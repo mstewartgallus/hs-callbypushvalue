@@ -110,13 +110,15 @@ typeOfData (VariableData (Variable t _)) = t
 
 simplify :: Code a -> Code a
 simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
+simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
-simplify (KontCode _ _) = undefined
-simplify (JumpCode _ _) = undefined
-simplify x = x
+simplify (KontCode binder body) = KontCode binder (simplify body)
+simplify (JumpCode x f) = JumpCode (simplify x) f
+simplify g@(GlobalCode _) = g
+simplify r@(ReturnCode _) = r
 
 inline :: Code a -> CodeBuilder a
 inline = inline' VarMap.empty
@@ -130,7 +132,8 @@ inline' map = code
         then inline' (VarMap.insert binder (value term) map) body
         else letBe (value term) $ \x ->
           inline' (VarMap.insert binder x map) body
-    code (ApplyCode f x) = apply (code f) (value x)
+    code (LetToCode term binder body) = letTo (code term) $ \x ->
+      inline' (VarMap.insert binder x map) body
     code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
       inline' (VarMap.insert binder x map) body
     code (ReturnCode val) = returns (value val)
@@ -138,6 +141,7 @@ inline' map = code
     code (KontCode binder@(Variable (StackType t) _) body) = kont t $ \x ->
       inline' (VarMap.insert binder x map) body
     code (JumpCode x f) = jump (code x) (value f)
+    code (ApplyCode f x) = apply (code f) (value x)
     value :: Data x -> DataBuilder x
     value (VariableData variable) =
       let Just replacement = VarMap.lookup variable map

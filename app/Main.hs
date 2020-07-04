@@ -37,6 +37,7 @@ phases ::
     Cbpv.Code a,
     Callcc.Code a,
     Callcc.Code a,
+    Cps.Code a,
     Cps.Code a
   )
 phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f g)))))) term =
@@ -48,7 +49,7 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.S
       optCatchThrow = optimizeCallcc e catchThrow
       cps = Cps.build (toContinuationPassingStyle catchThrow) f
       optCps = optimizeCps g cps
-   in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
+   in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
 optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
 optimizeTerm = loop iterTerm
@@ -99,7 +100,7 @@ main = do
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps) = phases stream program
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases stream program
 
   putStrLn "\nOptimized Term:"
   printT optTerm
@@ -122,7 +123,10 @@ main = do
   putStrLn "\nCps:"
   printT cps
 
-  Cps.evaluate cps $ \result -> do
+  putStrLn "\nOptimized Cps:"
+  printT optCps
+
+  Cps.evaluate optCps $ \result -> do
     printT result
 
   return ()
