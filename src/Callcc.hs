@@ -1,12 +1,14 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, simplify, constant, throw, global, returns, letTo, letBe, lambda, apply, catch, throw) where
+module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, inline, simplify, constant, throw, global, returns, letTo, letBe, lambda, apply, catch, throw) where
 
 import Common
 import Core
 import TextShow
 import Unique
+import qualified VarMap
+import VarMap (VarMap)
 
 newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
 
@@ -115,3 +117,47 @@ simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify
 simplify (CatchCode binder body) = CatchCode binder (simplify body)
 simplify (ThrowCode stack act) = ThrowCode stack (simplify act)
 simplify x = x
+
+count :: Variable a -> Code b -> Int
+count v = code
+  where
+    code :: Code x -> Int
+    code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (ApplyCode f x) = code f + value x
+    code (ThrowCode x f) = value x + code f
+    code (CatchCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (ReturnCode x) = value x
+    code _ = 0
+    value :: Data x -> Int
+    value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+    value _ = 0
+
+inline :: Code a -> CodeBuilder a
+inline = inline' VarMap.empty
+
+inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
+inline' map = code
+  where
+    code :: Code x -> CodeBuilder x
+    code (LetBeCode term binder body) =
+      if count binder body <= 1
+        then inline' (VarMap.insert binder (value term) map) body
+        else letBe (value term) $ \x ->
+          inline' (VarMap.insert binder x map) body
+    code (LetToCode term binder body) = letTo (code term) $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (ApplyCode f x) = apply (code f) (value x)
+    code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (ReturnCode val) = returns (value val)
+    code (GlobalCode g) = global g
+    code (ThrowCode x f) = throw (value x) (code f)
+    code (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
+      inline' (VarMap.insert binder x map) body
+    value :: Data x -> DataBuilder x
+    value (VariableData variable) =
+      let Just replacement = VarMap.lookup variable map
+       in replacement
+    value (ConstantData k) = constant k
