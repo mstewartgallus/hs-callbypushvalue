@@ -5,6 +5,7 @@ module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), 
 
 import Common
 import Core
+import Data.Text as T
 import TextShow
 import Unique
 import qualified VarMap
@@ -101,7 +102,8 @@ instance TextShow (Code a) where
   showb (ReturnCode value) = fromString "return " <> showb value
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (CatchCode binder body) = fromString "catch " <> showb binder <> fromString ".\n" <> showb body
+  showb (CatchCode binder body) =
+    fromString "catch " <> showb binder <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
 instance TextShow (Data a) where
@@ -143,7 +145,7 @@ inline' map = code
   where
     code :: Code x -> CodeBuilder x
     code (LetBeCode term binder body) =
-      if count binder body <= 1
+      if Callcc.count binder body <= 1
         then inline' (VarMap.insert binder (value term) map) body
         else letBe (value term) $ \x ->
           inline' (VarMap.insert binder x map) body
