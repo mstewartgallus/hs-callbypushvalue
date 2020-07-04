@@ -78,27 +78,27 @@ toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
 data X a = X (Callcc.DataBuilder a)
 
 toExplicitCatchThrow :: VarMap X -> Cbpv.Code a -> Callcc.CodeBuilder a
-toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.GlobalBuilder x
+toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.global x
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
-  Callcc.LambdaBuilder t $ \x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body
+  Callcc.lambda t $ \x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body
 toExplicitCatchThrow env ap@(Cbpv.ApplyCode f x) =
   let f' = toExplicitCatchThrow env f
-   in toExplicitCatchThrowData env x (Cbpv.typeOf ap) (\x' -> Callcc.ApplyBuilder f' x')
-toExplicitCatchThrow env (Cbpv.LetToCode action binder@(Variable t _) body) =
+   in toExplicitCatchThrowData env x (Cbpv.typeOf ap) (\x' -> Callcc.apply f' x')
+toExplicitCatchThrow env (Cbpv.LetToCode action binder body) =
   let action' = toExplicitCatchThrow env action
-   in Callcc.LetToBuilder action' t (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
-toExplicitCatchThrow env (Cbpv.LetBeCode value binder@(Variable t _) body) =
-  toExplicitCatchThrowData env value (Cbpv.typeOf body) $ \value' -> Callcc.LetBeBuilder value' t (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
-toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x undefined Callcc.ReturnBuilder
+   in Callcc.letTo action' (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
+toExplicitCatchThrow env (Cbpv.LetBeCode value binder body) =
+  toExplicitCatchThrowData env value (Cbpv.typeOf body) $ \value' -> Callcc.letBe value' (\x -> toExplicitCatchThrow (VarMap.insert binder (X x) env) body)
+toExplicitCatchThrow env (Cbpv.ReturnCode x) = toExplicitCatchThrowData env x undefined Callcc.returns
 toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf f
    in -- fixme... get type
       toExplicitCatchThrowData env thunk t $ \thunk' ->
-        Callcc.CatchBuilder t $ \v ->
-          Callcc.ThrowBuilder thunk' (Callcc.ReturnBuilder v)
+        Callcc.catch t $ \v ->
+          Callcc.throw thunk' (Callcc.returns v)
 
 toExplicitCatchThrowData :: VarMap X -> Cbpv.Data a -> Type b -> (Callcc.DataBuilder a -> Callcc.CodeBuilder b) -> Callcc.CodeBuilder b
-toExplicitCatchThrowData _ (Cbpv.ConstantData x) _ k = k (Callcc.ConstantBuilder x)
+toExplicitCatchThrowData _ (Cbpv.ConstantData x) _ k = k (Callcc.constant x)
 toExplicitCatchThrowData env (Cbpv.VariableData v) _ k =
   let Just (X x) = VarMap.lookup v env
    in k x
@@ -106,14 +106,13 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) kt k =
   let code' = toExplicitCatchThrow env code
       t = Cbpv.typeOf code
    in -- fixme...
-      Callcc.CatchBuilder kt $ \returner ->
-        Callcc.LetToBuilder
-          ( Callcc.CatchBuilder (ApplyType returnsType (ApplyType stack t)) $ \label ->
-              Callcc.ThrowBuilder returner (k label)
+      Callcc.catch kt $ \returner ->
+        Callcc.letTo
+          ( Callcc.catch (ApplyType returnsType (ApplyType stack t)) $ \label ->
+              Callcc.throw returner (k label)
           )
-          (ApplyType stack t)
           $ \binder ->
-            (Callcc.ThrowBuilder binder code')
+            (Callcc.throw binder code')
 
 toContinuationPassingStyle :: Callcc.Code a -> Cps.CodeBuilder a
 toContinuationPassingStyle = toCps' VarMap.empty

@@ -1,58 +1,66 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, simplify) where
+module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, simplify, constant, throw, global, returns, letTo, letBe, lambda, apply, catch, throw) where
 
 import Common
 import Core
 import TextShow
 import Unique
 
-data CodeBuilder a where
-  GlobalBuilder :: Global a -> CodeBuilder a
-  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
-  LetToBuilder :: CodeBuilder (F a) -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  LetBeBuilder :: DataBuilder a -> Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-  CatchBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
-  ThrowBuilder :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder R
+newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
 
-data DataBuilder a where
-  VariableBuilder :: Variable a -> DataBuilder a
-  ConstantBuilder :: Constant a -> DataBuilder a
+newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
 
-buildData :: DataBuilder a -> Data a
-buildData (VariableBuilder v) = VariableData v
-buildData (ConstantBuilder v) = ConstantData v
+global :: Global a -> CodeBuilder a
+global g = (CodeBuilder . const) $ GlobalCode g
 
-build :: CodeBuilder a -> Unique.Stream -> Code a
-build (GlobalBuilder v) _ = GlobalCode v
-build (ReturnBuilder v) _ = ReturnCode (buildData v)
-build (ApplyBuilder f x) stream = ApplyCode (build f stream) (buildData x)
-build (LetToBuilder term t body) (Unique.Pick head (Unique.Split left right)) =
-  let x = Variable t head
-      term' = build term left
-      body' = build (body (VariableBuilder x)) right
-   in LetToCode term' x body'
-build (LetBeBuilder term t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      term' = buildData term
-      body' = build (body (VariableBuilder x)) tail
-   in LetBeCode term' x body'
-build (LambdaBuilder t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      body' = build (body (VariableBuilder x)) tail
-   in LambdaCode x body'
-build (CatchBuilder t body) (Unique.Pick head tail) =
-  let -- fixme...
-      x = Variable (ApplyType stack t) head
-      body' = build (body (VariableBuilder x)) tail
-   in CatchCode x body'
-build (ThrowBuilder stack value) stream =
-  let stack' = buildData stack
-      value' = build value stream
-   in ThrowCode stack' value'
+returns :: DataBuilder a -> CodeBuilder (F a)
+returns value = CodeBuilder $ \stream ->
+  ReturnCode (buildData value stream)
+
+letTo :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letTo x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = build x l
+      ReturnsType t = typeOf x'
+      v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetToCode x' v body
+
+letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = buildData x l
+      t = typeOfData x'
+      v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetBeCode x' v body
+
+lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
+  let v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) stream
+   in LambdaCode v body
+
+apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+apply f x = CodeBuilder $ \(Unique.Split l r) ->
+  let f' = build f l
+      x' = buildData x r
+   in ApplyCode f' x'
+
+catch :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+catch t f = CodeBuilder $ \(Unique.Pick h stream) ->
+  let v = Variable (ApplyType stack t) h
+      body = build (f ((DataBuilder . const) $ VariableData v)) stream
+   in CatchCode v body
+
+throw :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder R
+throw x f = CodeBuilder $ \(Unique.Split l r) ->
+  let x' = buildData x l
+      f' = build f r
+   in ThrowCode x' f'
+
+constant :: Constant a -> DataBuilder a
+constant k = (DataBuilder . const) $ ConstantData k
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -67,7 +75,8 @@ typeOf (ApplyCode f _) =
 typeOf (ThrowCode _ _) = undefined
 
 typeOfData :: Data a -> Type a
-typeOfData (ConstantData (IntegerConstant _)) = undefined
+typeOfData (VariableData (Variable t _)) = t
+typeOfData (ConstantData (IntegerConstant _)) = intRaw
 
 data Code a where
   GlobalCode :: Global a -> Code a
