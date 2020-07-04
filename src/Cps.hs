@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, evaluate, typeOf) where
+module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, evaluate, typeOf, jump, kont, global, apply, returns, lambda, letBe, constant, letTo) where
 
 import Common
 import Core
@@ -41,50 +41,55 @@ instance TextShow (Data a) where
   showb (VariableData v) = showb v
   showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
 
-buildData :: DataBuilder a -> Unique.Stream -> Data a
-buildData (VariableBuilder v) _ = VariableData v
-buildData (ConstantBuilder v) _ = ConstantData v
-buildData (LetToStackBuilder t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      body' = build (body (VariableBuilder x)) tail
-   in LetToStackData x body'
+newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
 
-build :: CodeBuilder a -> Unique.Stream -> Code a
-build (GlobalBuilder v) _ = GlobalCode v
-build (ReturnBuilder v) stream = ReturnCode (buildData v stream)
-build (ApplyBuilder f x) (Unique.Split left right) = ApplyCode (build f left) (buildData x right)
-build (LambdaBuilder t body) (Unique.Pick head tail) =
-  let x = Variable t head
-      body' = build (body (VariableBuilder x)) tail
-   in LambdaCode x body'
-build (LetBeBuilder value body) (Unique.Pick head (Unique.Split l r)) =
-  let value' = buildData value l
-      t = typeOfData value'
-      x = Variable t head
-      body' = build (body (VariableBuilder x)) r
-   in LetBeCode value' x body'
-build (KontBuilder t body) (Unique.Pick head tail) =
-  let x = Variable (ApplyType stack t) head
-      body' = build (body (VariableBuilder x)) tail
-   in KontCode x body'
-build (JumpBuilder x f) (Unique.Split l r) =
-  let x' = build x l
-      f' = buildData f l
-   in JumpEffect x' f'
+newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
 
-data CodeBuilder a where
-  GlobalBuilder :: Global a -> CodeBuilder a
-  ApplyBuilder :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-  ReturnBuilder :: DataBuilder a -> CodeBuilder (F a)
-  LambdaBuilder :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-  LetBeBuilder :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-  KontBuilder :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
-  JumpBuilder :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder R
+jump :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder R
+jump x f = CodeBuilder $ \(Unique.Split l r) ->
+  JumpEffect (build x l) (buildData f r)
 
-data DataBuilder a where
-  ConstantBuilder :: Constant a -> DataBuilder a
-  VariableBuilder :: Variable a -> DataBuilder a
-  LetToStackBuilder :: Type a -> (DataBuilder a -> CodeBuilder R) -> DataBuilder (Stack (F a))
+kont :: Type a -> (DataBuilder (Stack a) -> CodeBuilder R) -> CodeBuilder a
+kont t f = CodeBuilder $ \(Unique.Pick h stream) ->
+  let v = Variable (ApplyType stack t) h
+      body = build (f ((DataBuilder . const) $ VariableData v)) stream
+   in KontCode v body
+
+global :: Global a -> CodeBuilder a
+global g = (CodeBuilder . const) $ GlobalCode g
+
+returns :: DataBuilder a -> CodeBuilder (F a)
+returns value = CodeBuilder $ \stream ->
+  ReturnCode (buildData value stream)
+
+letTo :: Type a -> (DataBuilder a -> CodeBuilder R) -> DataBuilder (Stack (F a))
+letTo t f = DataBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetToStackData v body
+
+letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
+letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
+  let x' = buildData x l
+      t = typeOfData x'
+      v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) r
+   in LetBeCode x' v body
+
+lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
+lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
+  let v = Variable t h
+      body = build (f ((DataBuilder . const) $ VariableData v)) stream
+   in LambdaCode v body
+
+apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
+apply f x = CodeBuilder $ \(Unique.Split l r) ->
+  let f' = build f l
+      x' = buildData x r
+   in ApplyCode f' x'
+
+constant :: Constant a -> DataBuilder a
+constant k = (DataBuilder . const) $ ConstantData k
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t

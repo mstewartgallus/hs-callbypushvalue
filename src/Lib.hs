@@ -118,39 +118,39 @@ toContinuationPassingStyle :: Callcc.Code a -> Cps.CodeBuilder a
 toContinuationPassingStyle = toCps' VarMap.empty
 
 toCps' :: VarMap Y -> Callcc.Code a -> Cps.CodeBuilder a
-toCps' _ (Callcc.GlobalCode x) = Cps.GlobalBuilder x
-toCps' env (Callcc.ReturnCode value) = Cps.ReturnBuilder (toCpsData env value)
+toCps' _ (Callcc.GlobalCode x) = Cps.global x
+toCps' env (Callcc.ReturnCode value) = Cps.returns (toCpsData env value)
 toCps' env (Callcc.LambdaCode binder@(Variable t _) body) =
-  Cps.LambdaBuilder t $ \value ->
+  Cps.lambda t $ \value ->
     let env' = VarMap.insert binder (Y value) env
      in toCps' env' body
 toCps' env (Callcc.ApplyCode f x) =
   let f' = toCps' env f
-   in Cps.ApplyBuilder f' (toCpsData env x)
+   in Cps.apply f' (toCpsData env x)
 toCps' env act =
   let x = Callcc.typeOf act
-   in Cps.KontBuilder x $ \k ->
+   in Cps.kont x $ \k ->
         toCps env act $ \a ->
-          Cps.JumpBuilder a k
+          Cps.jump a k
 
 toCps :: VarMap Y -> Callcc.Code a -> (Cps.CodeBuilder a -> Cps.CodeBuilder R) -> Cps.CodeBuilder R
 toCps env (Callcc.ApplyCode f x) k =
   toCps env f $ \f' ->
-    k $ Cps.ApplyBuilder f' (toCpsData env x)
-toCps env (Callcc.LetBeCode value binder@(Variable t _) body) k =
-  k $ Cps.LetBeBuilder (toCpsData env value) $ \value ->
+    k $ Cps.apply f' (toCpsData env x)
+toCps env (Callcc.LetBeCode value binder body) k =
+  k $ Cps.letBe (toCpsData env value) $ \value ->
     let env' = VarMap.insert binder (Y value) env
      in toCps' env' body
 toCps env (Callcc.ThrowCode val body) _ = do
   toCps env body $ \body' ->
-    Cps.JumpBuilder body' (toCpsData env val)
+    Cps.jump body' (toCpsData env val)
 toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps env action $ \act ->
-    Cps.JumpBuilder act $ Cps.LetToStackBuilder t $ \value ->
+    Cps.jump act $ Cps.letTo t $ \value ->
       let env' = VarMap.insert binder (Y value) env
        in toCps env' body k
 toCps env (Callcc.CatchCode binder@(Variable (StackType t) _) body) k =
-  k $ Cps.KontBuilder t $ \value ->
+  k $ Cps.kont t $ \value ->
     let env' = VarMap.insert binder (Y value) env
      in toCps env' body id
 toCps env act k =
@@ -160,7 +160,7 @@ toCps env act k =
 newtype Y a = Y (DataBuilder a)
 
 toCpsData :: VarMap Y -> Callcc.Data a -> Cps.DataBuilder a
-toCpsData _ (Callcc.ConstantData x) = Cps.ConstantBuilder x
+toCpsData _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData env (Callcc.VariableData v) =
   let Just (Y x) = VarMap.lookup v env
    in x
