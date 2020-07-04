@@ -17,6 +17,8 @@ iterCbpv = 20
 
 iterCallcc = 20
 
+iterCps = 20
+
 mkProgram :: Unique.Stream -> SystemF.Term (F Integer)
 mkProgram =
   SystemF.build $
@@ -37,7 +39,7 @@ phases ::
     Callcc.Code a,
     Cps.Code a
   )
-phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e f))))) term =
+phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f g)))))) term =
   let optTerm = optimizeTerm a term
       cbpv = toCallByPushValue optTerm
       intrinsified = Cbpv.build (intrinsify cbpv) b
@@ -45,6 +47,7 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.S
       catchThrow = toCallcc intrinsified d
       optCatchThrow = optimizeCallcc e catchThrow
       cps = Cps.build (toContinuationPassingStyle catchThrow) f
+      optCps = optimizeCps g cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
 
 optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
@@ -75,6 +78,16 @@ optimizeCallcc = loop iterCallcc
     loop n (Unique.Split left (Unique.Split right strm)) term =
       let simplified = Callcc.simplify term
           inlined = Callcc.build (Callcc.inline simplified) right
+       in loop (n - 1) strm inlined
+
+optimizeCps :: Unique.Stream -> Cps.Code a -> Cps.Code a
+optimizeCps = loop iterCps
+  where
+    loop :: Int -> Unique.Stream -> Cps.Code a -> Cps.Code a
+    loop 0 _ term = term
+    loop n (Unique.Split left (Unique.Split right strm)) term =
+      let simplified = Cps.simplify term
+          inlined = Cps.build (Cps.inline simplified) right
        in loop (n - 1) strm inlined
 
 main :: IO ()

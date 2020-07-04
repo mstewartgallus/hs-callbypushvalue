@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, evaluate, typeOf, jump, kont, global, apply, returns, lambda, letBe, constant, letTo) where
+module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, simplify, inline, evaluate, typeOf, jump, kont, global, apply, returns, lambda, letBe, constant, letTo) where
 
 import Common
 import Core
@@ -97,6 +97,53 @@ typeOf (GlobalCode (Global t _ _)) = t
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (VariableData (Variable t _)) = t
+
+simplify :: Code a -> Code a
+simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
+simplify (ApplyCode f x) = ApplyCode (simplify f) x
+simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
+simplify (KontCode _ _) = undefined
+simplify (JumpEffect _ _) = undefined
+simplify x = x
+
+inline :: Code a -> CodeBuilder a
+inline = inline' VarMap.empty
+
+inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
+inline' map = code
+  where
+    code :: Code x -> CodeBuilder x
+    code (LetBeCode term binder body) =
+      if count binder body <= 1
+        then inline' (VarMap.insert binder (value term) map) body
+        else letBe (value term) $ \x ->
+          inline' (VarMap.insert binder x map) body
+    code (ApplyCode f x) = apply (code f) (value x)
+    code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (ReturnCode val) = returns (value val)
+    code (GlobalCode g) = global g
+    code (KontCode binder@(Variable (StackType t) _) body) = kont t $ \x ->
+      inline' (VarMap.insert binder x map) body
+    code (JumpEffect x f) = jump (code x) (value f)
+    value :: Data x -> DataBuilder x
+    value (VariableData variable) =
+      let Just replacement = VarMap.lookup variable map
+       in replacement
+    value (ConstantData k) = constant k
+
+count :: Variable a -> Code b -> Int
+count v = code
+  where
+    code :: Code x -> Int
+    code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (ApplyCode f x) = code f + value x
+    code (ReturnCode x) = value x
+    code _ = 0
+    value :: Data x -> Int
+    value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+    value _ = 0
 
 evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
 evaluate code k = interpret VarMap.empty code (PopStack k)
