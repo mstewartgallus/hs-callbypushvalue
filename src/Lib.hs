@@ -99,8 +99,8 @@ toExplicitCatchThrow env (Cbpv.ReturnCode x) =
 toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf f
       thunk' = toExplicitCatchThrowData env thunk
-   in Callcc.catch t $ \v ->
-        Callcc.letTo thunk' $ \val ->
+   in Callcc.letTo thunk' $ \val ->
+        Callcc.catch t $ \v ->
           Callcc.throw val (Callcc.returns v)
 
 toExplicitCatchThrowData :: VarMap X -> Cbpv.Data a -> Callcc.CodeBuilder (F a)
