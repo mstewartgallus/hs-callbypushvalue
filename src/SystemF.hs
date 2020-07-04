@@ -58,21 +58,6 @@ typeOf (ApplyTerm f _) =
   let _ :=> result = typeOf f
    in result
 
-instance Eq AnyTerm where
-  AnyTerm x == AnyTerm y = x `eq` y
-    where
-      eq :: Term a -> Term b -> Bool
-      VariableTerm v `eq` VariableTerm v' = AnyVariable v == AnyVariable v'
-      ConstantTerm k `eq` ConstantTerm k' = AnyConstant k == AnyConstant k'
-      GlobalTerm g `eq` GlobalTerm g' = AnyGlobal g == AnyGlobal g'
-      LetTerm term x f `eq` LetTerm term' x' f' = term `eq` term' && f `eq` f' && AnyVariable x == AnyVariable x'
-      LambdaTerm x f `eq` LambdaTerm x' f' = f `eq` f' && AnyVariable x == AnyVariable x'
-      ApplyTerm f x `eq` ApplyTerm f' x' = f `eq` f' && x `eq` x'
-      _ `eq` _ = False
-
-instance Eq (Term a) where
-  x == y = AnyTerm x == AnyTerm y
-
 instance TextShow (Term a) where
   showb (VariableTerm v) = showb v
   showb (ConstantTerm k) = showb k

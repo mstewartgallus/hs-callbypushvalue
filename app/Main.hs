@@ -11,13 +11,11 @@ import qualified SystemF
 import TextShow
 import Unique
 
-fixpoint :: (TextShow a, Eq a) => (a -> a) -> a -> a
-fixpoint op = w 0
-  where
-    w 5000 term = error ("term did not terminate:\n" <> toString (showb term))
-    w tick term =
-      let newTerm = op term
-       in if newTerm == term then term else w (tick + 1) newTerm
+iterTerm = 20
+
+iterCbpv = 20
+
+iterCallcc = 20
 
 mkProgram :: Unique.Stream -> SystemF.Term (F Integer)
 mkProgram =
@@ -40,32 +38,43 @@ phases ::
     Cps.Code a
   )
 phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d e)))) term =
-  let optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
-      optimizeTerm = loop 50
-        where
-          loop :: Int -> Unique.Stream -> SystemF.Term a -> SystemF.Term a
-          loop 0 _ term = term
-          loop n (Unique.Split left (Unique.Split right strm)) term =
-            let simplified = SystemF.build (SystemF.simplify term) left
-                inlined = SystemF.build (SystemF.inline simplified) right
-             in loop (n - 1) strm inlined
-      optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
-      optimizeCbpv = loop 50
-        where
-          loop :: Int -> Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
-          loop 0 _ term = term
-          loop n (Unique.Split left (Unique.Split right strm)) term =
-            let simplified = Cbpv.simplify term
-                inlined = Cbpv.build (Cbpv.inline simplified) right
-             in loop (n - 1) strm inlined
-      optTerm = optimizeTerm a term
+  let optTerm = optimizeTerm a term
       cbpv = toCallByPushValue optTerm
       intrinsified = Cbpv.build (intrinsify cbpv) b
       optIntrinsified = optimizeCbpv c intrinsified
       catchThrow = toCallcc intrinsified d
-      optCatchThrow = fixpoint simplifyCallcc catchThrow
+      optCatchThrow = optimizeCallcc catchThrow
       cps = Cps.build (toContinuationPassingStyle catchThrow) e
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps)
+
+optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
+optimizeTerm = loop iterTerm
+  where
+    loop :: Int -> Unique.Stream -> SystemF.Term a -> SystemF.Term a
+    loop 0 _ term = term
+    loop n (Unique.Split left (Unique.Split right strm)) term =
+      let simplified = SystemF.build (SystemF.simplify term) left
+          inlined = SystemF.build (SystemF.inline simplified) right
+       in loop (n - 1) strm inlined
+
+optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
+optimizeCbpv = loop iterCbpv
+  where
+    loop :: Int -> Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
+    loop 0 _ term = term
+    loop n (Unique.Split left (Unique.Split right strm)) term =
+      let simplified = Cbpv.simplify term
+          inlined = Cbpv.build (Cbpv.inline simplified) right
+       in loop (n - 1) strm inlined
+
+optimizeCallcc :: Callcc.Code a -> Callcc.Code a
+optimizeCallcc = loop iterCallcc
+  where
+    loop :: Int -> Callcc.Code a -> Callcc.Code a
+    loop 0 term = term
+    loop n term =
+      let simplified = Callcc.simplify term
+       in loop (n - 1) simplified
 
 main :: IO ()
 main = do

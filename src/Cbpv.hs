@@ -98,37 +98,6 @@ data Data a where
 data AnyCode where
   AnyCode :: Code a -> AnyCode
 
-eqCode :: Code a -> Code b -> Bool
-(GlobalCode g) `eqCode` (GlobalCode g') = AnyGlobal g == AnyGlobal g'
-(LambdaCode binder body) `eqCode` (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && body `eqCode` body'
-(LetBeCode value binder body) `eqCode` (LetBeCode value' binder' body') = value `eqData` value' && AnyVariable binder' == AnyVariable binder' && body `eqCode` body'
-(LetToCode act binder body) `eqCode` (LetToCode act' binder' body') = act `eqCode` act' && AnyVariable binder' == AnyVariable binder' && body `eqCode` body'
-(ApplyCode f x) `eqCode` (ApplyCode f' x') = f `eqCode` f' && x `eqData` x'
-(ForceCode x) `eqCode` (ForceCode x') = x `eqData` x'
-(ReturnCode x) `eqCode` (ReturnCode x') = x `eqData` x'
-_ `eqCode` _ = False
-
-eqData :: Data a -> Data b -> Bool
-(ConstantData k) `eqData` (ConstantData k') = AnyConstant k == AnyConstant k'
-(VariableData v) `eqData` (VariableData v') = AnyVariable v == AnyVariable v'
-(ThunkData code) `eqData` (ThunkData code') = code `eqCode` code'
-_ `eqData` _ = False
-
-instance Eq AnyCode where
-  AnyCode x == AnyCode y = x `eqCode` y
-
-instance Eq (Code a) where
-  x == y = x `eqCode` y
-
-data AnyData where
-  AnyData :: Data a -> AnyData
-
-instance Eq AnyData where
-  AnyData x == AnyData y = x `eqData` y
-
-instance Eq (Data a) where
-  x == y = AnyData x == AnyData y
-
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
   showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body

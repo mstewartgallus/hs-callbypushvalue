@@ -83,34 +83,6 @@ data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
 
-data AnyCode where
-  AnyCode :: Code a -> AnyCode
-
-data AnyData where
-  AnyData :: Data a -> AnyData
-
-instance Eq AnyCode where
-  AnyCode (GlobalCode g) == AnyCode (GlobalCode g') = AnyGlobal g == AnyGlobal g'
-  AnyCode (LambdaCode binder body) == AnyCode (LambdaCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (LetBeCode value binder body) == AnyCode (LetBeCode value' binder' body') = AnyData value == AnyData value' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (LetToCode act binder body) == AnyCode (LetToCode act' binder' body') = AnyCode act == AnyCode act' && AnyVariable binder' == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (ApplyCode f x) == AnyCode (ApplyCode f' x') = AnyCode f == AnyCode f' && AnyData x == AnyData x'
-  AnyCode (ReturnCode x) == AnyCode (ReturnCode x') = AnyData x == AnyData x'
-  AnyCode (CatchCode binder body) == AnyCode (CatchCode binder' body') = AnyVariable binder == AnyVariable binder' && AnyCode body == AnyCode body'
-  AnyCode (ThrowCode stack body) == AnyCode (ThrowCode stack' body') = AnyData stack == AnyData stack' && AnyCode body == AnyCode body'
-  _ == _ = False
-
-instance Eq AnyData where
-  AnyData (ConstantData k) == AnyData (ConstantData k') = AnyConstant k == AnyConstant k'
-  AnyData (VariableData v) == AnyData (VariableData v') = AnyVariable v == AnyVariable v'
-  _ == _ = False
-
-instance Eq (Code a) where
-  x == y = AnyCode x == AnyCode y
-
-instance Eq (Data a) where
-  x == y = AnyData x == AnyData y
-
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
   showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
