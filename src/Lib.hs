@@ -126,48 +126,35 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) =
           $ \binder ->
             (Callcc.throw binder code')
 
-toContinuationPassingStyle :: Callcc.Code a -> Cps.Builder Cps.Code a
+toContinuationPassingStyle :: Callcc.Code a -> Cps.Builder Cps.Data (Stack (F (Stack a)))
 toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps' :: VarMap Y -> Callcc.Code a -> Cps.Builder Cps.Code a
-toCps' _ (Callcc.GlobalCode x) = Cps.global x
-toCps' env (Callcc.ReturnCode value) = Cps.returns (toCpsData env value)
-toCps' env (Callcc.LambdaCode binder@(Variable t _) body) =
-  Cps.lambda t $ \value ->
-    let env' = VarMap.insert binder (Y value) env
-     in toCps' env' body
-toCps' env (Callcc.ApplyCode f x) =
-  let f' = toCps' env f
-   in Cps.apply f' (toCpsData env x)
+toCps' :: VarMap Y -> Callcc.Code a -> Cps.Builder Cps.Data (Stack (F (Stack a)))
 toCps' env act =
-  let x = Callcc.typeOf act
-   in Cps.kont x $ \k ->
-        toCps env act $ \a ->
-          Cps.jump a k
+  let t = Callcc.typeOf act
+   in Cps.letTo (ApplyType stack t) $ \k ->
+        toCps env act k
 
-toCps :: VarMap Y -> Callcc.Code a -> (Cps.Builder Cps.Code a -> Cps.Builder Cps.Code Nil) -> Cps.Builder Cps.Code Nil
+toCps :: VarMap Y -> Callcc.Code a -> Cps.Builder Cps.Data (Stack a) -> Cps.Builder Cps.Code Nil
 toCps env (Callcc.ApplyCode f x) k =
-  toCps env f $ \f' ->
-    k $ Cps.apply f' (toCpsData env x)
+  toCps env f (Cps.push (toCpsData env x) k)
 toCps env (Callcc.LetBeCode value binder body) k =
-  k $ Cps.letBe (toCpsData env value) $ \value ->
+  Cps.letBe (toCpsData env value) $ \value ->
     let env' = VarMap.insert binder (Y value) env
-     in toCps' env' body
-toCps env (Callcc.ThrowCode val body) _ = do
-  toCps env body $ \body' ->
-    Cps.jump body' (toCpsData env val)
+     in toCps env' body k
+toCps env (Callcc.ThrowCode val body) _ =
+  toCps env body (toCpsData env val)
 toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
-  toCps env action $ \act ->
-    Cps.letTo act $ \value ->
-      let env' = VarMap.insert binder (Y value) env
-       in toCps env' body k
-toCps env (Callcc.CatchCode binder@(Variable (StackType t) _) body) k =
-  k $ Cps.kont t $ \value ->
-    let env' = VarMap.insert binder (Y value) env
-     in toCps env' body id
-toCps env act k =
-  let val = toCps' env act
-   in k $ val
+  let ReturnsType t = Callcc.typeOf action
+   in toCps env action $ Cps.letTo t $ \value ->
+        let env' = VarMap.insert binder (Y value) env
+         in toCps env' body k
+toCps env (Callcc.CatchCode binder@(Variable t _) body) k =
+  Cps.letBe k $ \k' ->
+    let env' = VarMap.insert binder (Y k') env
+     in toCps env' body Cps.nilStack
+toCps _ (Callcc.GlobalCode x) k = Cps.jump (Cps.global x) k
+toCps env (Callcc.ReturnCode value) k = Cps.jump (Cps.returns (toCpsData env value)) k
 
 newtype Y a = Y (Cps.Builder Cps.Data a)
 

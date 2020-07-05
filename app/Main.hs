@@ -36,8 +36,8 @@ phases ::
     Cbpv.Code a,
     Callcc.Code a,
     Callcc.Code a,
-    Cps.Code a,
-    Cps.Code a
+    Cps.Data (Stack (F (Stack a))),
+    Cps.Data (Stack (F (Stack a)))
   )
 phases term =
   let optTerm = optimizeTerm term
@@ -80,10 +80,10 @@ optimizeCallcc = loop iterCallcc
           inlined = Callcc.build (Callcc.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCps :: Cps.Code a -> Cps.Code a
+optimizeCps :: Cps.Data a -> Cps.Data a
 optimizeCps = loop iterCps
   where
-    loop :: Int -> Cps.Code a -> Cps.Code a
+    loop :: Int -> Cps.Data a -> Cps.Data a
     loop 0 term = term
     loop n term =
       let simplified = Cps.simplify term
@@ -123,7 +123,7 @@ main = do
   putStrLn "\nOptimized Cps:"
   printT optCps
 
-  Cps.evaluate optCps $ \result -> do
-    printT result
+  -- Cps.evaluate optCps $ \result -> do
+  --   printT result
 
   return ()
