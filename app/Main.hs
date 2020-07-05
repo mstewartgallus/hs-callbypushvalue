@@ -29,7 +29,6 @@ mkProgram =
       (SystemF.constant (IntegerConstant 5))
 
 phases ::
-  Unique.Stream ->
   SystemF.Term a ->
   ( SystemF.Term a,
     Cbpv.Code a,
@@ -40,15 +39,15 @@ phases ::
     Cps.Code a,
     Cps.Code a
   )
-phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f (Unique.Split k g))))))) term =
+phases term =
   let optTerm = optimizeTerm term
       cbpv = Cbpv.build (toCallByPushValue optTerm)
       intrinsified = Cbpv.build (intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
       optCatchThrow = optimizeCallcc catchThrow
-      cps = Cps.build (toContinuationPassingStyle optCatchThrow) f
-      optCps = optimizeCps g cps
+      cps = Cps.build (toContinuationPassingStyle optCatchThrow)
+      optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
 optimizeTerm :: SystemF.Term a -> SystemF.Term a
@@ -81,26 +80,24 @@ optimizeCallcc = loop iterCallcc
           inlined = Callcc.build (Callcc.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCps :: Unique.Stream -> Cps.Code a -> Cps.Code a
+optimizeCps :: Cps.Code a -> Cps.Code a
 optimizeCps = loop iterCps
   where
-    loop :: Int -> Unique.Stream -> Cps.Code a -> Cps.Code a
-    loop 0 _ term = term
-    loop n (Unique.Split left (Unique.Split right strm)) term =
+    loop :: Int -> Cps.Code a -> Cps.Code a
+    loop 0 term = term
+    loop n term =
       let simplified = Cps.simplify term
-          inlined = Cps.build (Cps.inline simplified) right
-       in loop (n - 1) strm inlined
+          inlined = Cps.build (Cps.inline simplified)
+       in loop (n - 1) inlined
 
 main :: IO ()
 main = do
-  stream <- Unique.streamIO
-  let (left, right) = Unique.split stream
   let program = mkProgram
 
   putStrLn "Lambda Calculus:"
   printT program
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases stream program
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases program
 
   putStrLn "\nOptimized Term:"
   printT optTerm

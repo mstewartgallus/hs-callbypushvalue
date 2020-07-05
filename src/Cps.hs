@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (Cps (..), Code (..), Data (..), Builder (..), simplify, inline, evaluate, typeOf) where
+module Cps (build, Cps (..), Code (..), Data (..), Builder (..), simplify, inline, evaluate, typeOf) where
 
 import Common
 import Core
@@ -41,37 +41,41 @@ class Cps t where
   jump :: t Code a -> t Data (Stack a) -> t Code Nil
 
 instance Cps Builder where
-  global g = (Builder . const) $ GlobalCode g
-  returns value = Builder $ \stream ->
-    ReturnCode (build value stream)
-  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
-    let x' = build x l
-        t = typeOfData x'
-        v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetBeCode x' v body
-  lambda t f = Builder $ \(Unique.Pick h stream) ->
+  global g = (Builder . pure) $ GlobalCode g
+  returns value =
+    Builder $
+      pure ReturnCode <*> builder value
+  letBe x f = Builder $ do
+    x' <- builder x
+    let t = typeOfData x'
+    h <- Unique.uniqueId
     let v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) stream
-     in LambdaCode v body
-  apply f x = Builder $ \(Unique.Split l r) ->
-    let f' = build f l
-        x' = build x r
-     in ApplyCode f' x'
-  constant k = (Builder . const) $ ConstantData k
-
-  jump x f = Builder $ \(Unique.Split l r) ->
-    JumpCode (build x l) (build f r)
-
-  kont t f = Builder $ \(Unique.Pick h stream) ->
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LetBeCode x' v body
+  lambda t f = Builder $ do
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LambdaCode v body
+  apply f x = Builder $ do
+    f' <- builder f
+    x' <- builder x
+    pure $ ApplyCode f' x'
+  constant k = (Builder . pure) $ ConstantData k
+  jump x f = Builder $ do
+    x' <- builder x
+    f' <- builder f
+    pure $ JumpCode x' f'
+  kont t f = Builder $ do
+    h <- Unique.uniqueId
     let v = Variable (ApplyType stack t) h
-        body = build (f ((Builder . const) $ VariableData v)) stream
-     in KontCode v body
-
-  letTo t f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ KontCode v body
+  letTo t f = Builder $ do
+    h <- Unique.uniqueId
     let v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetToStackData v body
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LetToStackData v body
 
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
@@ -88,7 +92,10 @@ instance TextShow (Data a) where
   showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PushStackData h t) = fromString "push " <> showb h <> fromString ".\n" <> showb t
 
-newtype Builder t a = Builder {build :: Unique.Stream -> t a}
+build :: Builder t a -> t a
+build (Builder s) = Unique.run s
+
+newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
