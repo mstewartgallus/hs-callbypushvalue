@@ -113,7 +113,7 @@ inline' map = w
     w :: Term x -> Builder x
     w (LetTerm term binder@(Variable t _) body) =
       let term' = w term
-       in if count binder body <= 1
+       in if count binder body <= 1 || isSimple term
             then inline' (VarMap.insert binder (X term') map) body
             else letBe term' $ \value ->
               inline' (VarMap.insert binder (X value) map) body
@@ -123,3 +123,7 @@ inline' map = w
     w (LambdaTerm binder@(Variable t _) body) = lambda t $ \value -> inline' (VarMap.insert binder (X value) map) body
     w (ConstantTerm c) = constant c
     w (GlobalTerm g) = global g
+
+isSimple :: Term a -> Bool
+isSimple (ConstantTerm _) = True
+isSimple _ = False
