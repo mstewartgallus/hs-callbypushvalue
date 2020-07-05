@@ -56,21 +56,29 @@ simplifyCallcc = Callcc.simplify
 
 intrinsify = Cbpv.intrinsify
 
-toCallByPushValue :: SystemF.Term a -> Cbpv.Code a
-toCallByPushValue (VariableTerm x) = Cbpv.ForceCode (Cbpv.VariableData x)
-toCallByPushValue (ConstantTerm x) = Cbpv.ReturnCode (Cbpv.ConstantData x)
-toCallByPushValue (GlobalTerm x) = Cbpv.GlobalCode x
-toCallByPushValue (LetTerm term binder body) =
-  let term' = toCallByPushValue term
-      body' = toCallByPushValue body
-   in Cbpv.LetBeCode (Cbpv.ThunkData term') binder body'
-toCallByPushValue (LambdaTerm binder body) =
-  let body' = toCallByPushValue body
-   in Cbpv.LambdaCode binder body'
-toCallByPushValue (ApplyTerm f x) =
-  let f' = toCallByPushValue f
-      x' = toCallByPushValue x
-   in Cbpv.ApplyCode f' (Cbpv.ThunkData x')
+toCallByPushValue :: SystemF.Term a -> Cbpv.Builder Cbpv.Code a
+toCallByPushValue = toCbpv VarMap.empty
+
+newtype C a = C (Cbpv.Builder Cbpv.Code a)
+toCbpv :: VarMap C -> SystemF.Term a -> Cbpv.Builder Cbpv.Code a
+toCbpv env (VariableTerm x) = let
+  Just (C replacement) = VarMap.lookup x env
+  in replacement
+toCbpv _ (ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
+toCbpv _ (GlobalTerm x) = Cbpv.global x
+toCbpv env (LetTerm term binder body) =
+  let term' = toCbpv env term
+   in Cbpv.letBe (Cbpv.delay term') $ \value -> let
+      env' = VarMap.insert binder (C (Cbpv.force value)) env
+      in toCbpv env' body
+toCbpv env (LambdaTerm binder@(Variable t _) body) =
+  Cbpv.lambda (ApplyType thunk t) $ \value ->let
+      env' = VarMap.insert binder (C (Cbpv.force value)) env
+      in toCbpv env' body
+toCbpv env (ApplyTerm f x) =
+  let f' = toCbpv env f
+      x' = toCbpv env x
+   in Cbpv.apply f' (Cbpv.delay x')
 
 toCallcc :: Cbpv.Code a -> Unique.Stream -> Callcc.Code a
 toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x

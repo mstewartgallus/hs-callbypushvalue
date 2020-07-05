@@ -23,7 +23,7 @@ mkProgram :: Unique.Stream -> SystemF.Term (F Integer)
 mkProgram =
   SystemF.build $
     SystemF.apply
-      ( SystemF.lambda (ApplyType thunk int) $ \x ->
+      ( SystemF.lambda int $ \x ->
           SystemF.apply (SystemF.apply (SystemF.global plus) x) x
       )
       (SystemF.constant (IntegerConstant 5))
@@ -40,9 +40,9 @@ phases ::
     Cps.Code a,
     Cps.Code a
   )
-phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f g)))))) term =
+phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f (Unique.Split k g))))))) term =
   let optTerm = optimizeTerm a term
-      cbpv = toCallByPushValue optTerm
+      cbpv = Cbpv.build (toCallByPushValue optTerm) k
       intrinsified = Cbpv.build (intrinsify cbpv) b
       optIntrinsified = optimizeCbpv c intrinsified
       catchThrow = toCallcc optIntrinsified d

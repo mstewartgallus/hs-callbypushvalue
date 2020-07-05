@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (build, typeOf, Builder (..), Cpbv, Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (build, typeOf, Builder (..), Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Core

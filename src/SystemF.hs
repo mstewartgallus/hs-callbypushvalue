@@ -13,7 +13,7 @@ import qualified VarMap
 class SystemF t where
   constant :: Constant a -> t (F a)
   global :: Global a -> t a
-  lambda :: Type (U a) -> (t a -> t b) -> t (a :-> b)
+  lambda :: Type a -> (t a -> t b) -> t (a :-> b)
   apply :: t (a :-> b) -> t a -> t b
   letBe :: t a -> (t a -> t b) -> t b
 
@@ -25,7 +25,7 @@ instance SystemF Builder where
   letBe value f = Builder $ \(Unique.Pick head (Unique.Split l r)) ->
     let value' = build value l
         t = typeOf value'
-        binder = Variable (ApplyType thunk t) head
+        binder = Variable t head
         body = build (f (Builder $ const $ VariableTerm binder)) r
      in LetTerm value' binder body
   lambda t f = Builder $ \(Unique.Pick h stream) ->
@@ -38,22 +38,19 @@ instance SystemF Builder where
      in ApplyTerm f' x'
 
 data Term a where
-  VariableTerm :: Variable (U a) -> Term a
+  VariableTerm :: Variable a -> Term a
   ConstantTerm :: Constant a -> Term (F a)
   GlobalTerm :: Global a -> Term a
-  LetTerm :: Term a -> Variable (U a) -> Term b -> Term b
-  LambdaTerm :: Variable (U a) -> Term b -> Term (a :-> b)
+  LetTerm :: Term a -> Variable a -> Term b -> Term b
+  LambdaTerm :: Variable a -> Term b -> Term (a :-> b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
 
-data AnyTerm where
-  AnyTerm :: Term a -> AnyTerm
-
 typeOf :: Term a -> Type a
-typeOf (VariableTerm (Variable (ThunkType t) _)) = t
+typeOf (VariableTerm (Variable t _)) = t
 typeOf (ConstantTerm (IntegerConstant _)) = int
 typeOf (GlobalTerm (Global t _ _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
-typeOf (LambdaTerm (Variable t _) body) = t -=> typeOf body
+typeOf (LambdaTerm (Variable t _) body) = ApplyType thunk t -=> typeOf body
 typeOf (ApplyTerm f _) =
   let _ :=> result = typeOf f
    in result
@@ -102,7 +99,7 @@ inline :: Term a -> Builder a
 inline = inline' VarMap.empty
 
 data X a where
-  X :: Builder a -> X (U a)
+  X :: Builder a -> X a
 
 inline' :: VarMap X -> Term a -> Builder a
 inline' map = w
