@@ -1,7 +1,10 @@
+{-# LANGUAGE GADTs #-}
+
 module Main where
 
 import qualified Callcc
 import qualified Cbpv
+import Common
 import Control.Monad.State
 import qualified Cps
 import qualified Data.Text as T
@@ -123,7 +126,10 @@ main = do
   putStrLn "\nOptimized Cps:"
   printT optCps
 
-  -- Cps.evaluate optCps $ \result -> do
-  --   printT result
+  let cpsData = Cps.evaluate optCps
+
+  let PopStack k = cpsData
+  let R eff = k $ PopStack $ \value -> R $ printT value
+  eff
 
   return ()

@@ -24,7 +24,7 @@ data Code a where
 data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToCode :: Variable a -> Code Nil -> Data (Stack (F a))
+  LetToData :: Variable a -> Code Nil -> Data (Stack (F a))
   PushData :: Data a -> Data (Stack b) -> Data (Stack (a -> b))
   NilStackData :: Data (Stack Nil)
 
@@ -64,7 +64,7 @@ instance Cps Builder where
     h <- Unique.uniqueId
     let v = Variable t h
     body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ LetToCode v body
+    pure $ LetToData v body
 
   jump x f = Builder $ do
     x' <- builder x
@@ -87,7 +87,7 @@ instance TextShow (Code a) where
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
-  showb (LetToCode binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
+  showb (LetToData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PushData x f) = showb x <> fromString " :: " <> showb f
 
 build :: Builder t a -> t a
@@ -104,13 +104,13 @@ typeOf (LetBeCode _ _ body) = typeOf body
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (VariableData (Variable t _)) = t
-typeOfData (LetToCode (Variable t _) _) = ApplyType stack $ ApplyType returnsType t
+typeOfData (LetToData (Variable t _) _) = ApplyType stack $ ApplyType returnsType t
 
 simplify :: Data a -> Data a
 simplify = simpData
 
 simpData :: Data a -> Data a
-simpData (LetToCode binder body) = LetToCode binder (simpCode body)
+simpData (LetToData binder body) = LetToData binder (simpCode body)
 simpData (PushData head tail) = PushData (simpData head) (simpData tail)
 simpData x = x
 
@@ -130,7 +130,7 @@ inlineData :: VarMap Y -> Data a -> Builder Data a
 inlineData env (VariableData variable) =
   let Just (Y replacement) = VarMap.lookup variable env
    in replacement
-inlineData env (LetToCode binder@(Variable t _) body) = Cps.letTo t $ \value ->
+inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
   let env' = VarMap.insert binder (Y value) env
    in inlineCode env' body
 inlineData env (PushData head tail) = Cps.push (inlineData env head) (inlineData env tail)
@@ -158,22 +158,27 @@ count v = code
     code (ReturnCode x) = value x
     code _ = 0
     value :: Data x -> Int
-    value (LetToCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    value (LetToData binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     value (PushData head tail) = value head + value tail
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
     value _ = 0
 
-evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
-evaluate code k =
-  let R eff = interpret VarMap.empty code (PopStack (\x -> R (k x)))
-   in eff
+evaluate :: Data a -> a
+evaluate = interpretData VarMap.empty
 
 newtype Id a = Id a
 
 interpretData :: VarMap Id -> Data a -> a
 interpretData _ (ConstantData k) = interpretConstant k
-interpretData values (VariableData v) = case VarMap.lookup v values of
+interpretData env (VariableData v) = case VarMap.lookup v env of
   Just (Id x) -> x
+interpretData env (LetToData binder body) = PopStack $ \value ->
+  let env' = VarMap.insert binder (Id value) env
+   in interpret env' body NilStack
+interpretData env (PushData h t) =
+  let h' = interpretData env h
+      t' = interpretData env t
+   in PushStack h' t'
 
 interpret :: VarMap Id -> Code a -> Stack a -> R
 interpret values (ReturnCode value) (PopStack k) =
@@ -183,10 +188,6 @@ interpret env (LetBeCode value binder body) k =
   let value' = interpretData env value
       env' = VarMap.insert binder (Id value') env
    in interpret env' body k
--- interpret env (LetToCode act binder body) k =
---   interpret env act $ PopStack $ \value ->
---     let env' = VarMap.insert binder (Id value) env
---      in interpret env' body k
 interpret values (LambdaCode variable body) (PushStack head tail) =
   let values' = VarMap.insert variable (Id head) values
    in interpret values' body tail
