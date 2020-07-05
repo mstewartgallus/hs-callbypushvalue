@@ -33,8 +33,6 @@ import Control.Monad.ST
 import Control.Monad.State
 import Core
 import Cps
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Typeable
 import SystemF (Term (..))

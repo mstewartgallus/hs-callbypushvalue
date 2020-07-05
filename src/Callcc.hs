@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Callcc (Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where

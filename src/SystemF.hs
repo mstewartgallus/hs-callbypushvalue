@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where

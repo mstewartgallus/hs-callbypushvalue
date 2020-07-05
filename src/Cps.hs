@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cps (Cps (..), Code (..), Data (..), Builder (..), simplify, inline, evaluate, typeOf) where

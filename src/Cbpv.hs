@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cbpv (typeOf, Builder (..), Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
