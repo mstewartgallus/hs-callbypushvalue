@@ -1,69 +1,17 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (CodeBuilder (..), DataBuilder (..), build, Code (..), Data (..), typeOf, inline, simplify, constant, throw, global, returns, letTo, letBe, lambda, apply, catch, throw) where
+module Callcc (Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
 
 import Common
 import Core
 import Data.Text as T
-import TextShow
+import TextShow (TextShow, fromString, fromText, showb, toText)
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
 
-newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
-
-newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
-
-global :: Global a -> CodeBuilder a
-global g = (CodeBuilder . const) $ GlobalCode g
-
-returns :: DataBuilder a -> CodeBuilder (F a)
-returns value = CodeBuilder $ \stream ->
-  ReturnCode (buildData value stream)
-
-letTo :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-letTo x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let x' = build x l
-      ReturnsType t = typeOf x'
-      v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetToCode x' v body
-
-letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let x' = buildData x l
-      t = typeOfData x'
-      v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetBeCode x' v body
-
-lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
-  let v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) stream
-   in LambdaCode v body
-
-apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-apply f x = CodeBuilder $ \(Unique.Split l r) ->
-  let f' = build f l
-      x' = buildData x r
-   in ApplyCode f' x'
-
-catch :: Type a -> (DataBuilder (Stack a) -> CodeBuilder Nil) -> CodeBuilder a
-catch t f = CodeBuilder $ \(Unique.Pick h stream) ->
-  let v = Variable (ApplyType stack t) h
-      body = build (f ((DataBuilder . const) $ VariableData v)) stream
-   in CatchCode v body
-
-throw :: DataBuilder (Stack a) -> CodeBuilder a -> CodeBuilder Nil
-throw x f = CodeBuilder $ \(Unique.Split l r) ->
-  let x' = buildData x l
-      f' = build f r
-   in ThrowCode x' f'
-
-constant :: Constant a -> DataBuilder a
-constant k = (DataBuilder . const) $ ConstantData k
+newtype Builder t a = Builder {build :: Unique.Stream -> t a}
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -80,6 +28,52 @@ typeOf (ThrowCode _ _) = undefined
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
+
+class Callcc t where
+  constant :: Constant a -> t Data a
+  global :: Global a -> t Code a
+  returns :: t Data a -> t Code (F a)
+  letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
+  letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
+  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
+  apply :: t Code (a -> b) -> t Data a -> t Code b
+  catch :: Type a -> (t Data (Stack a) -> t Code Nil) -> t Code a
+  throw :: t Data (Stack a) -> t Code a -> t Code Nil
+
+instance Callcc Builder where
+  global g = (Builder . const) $ GlobalCode g
+  returns value = Builder $ \stream ->
+    ReturnCode (build value stream)
+  letTo x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let x' = build x l
+        ReturnsType t = typeOf x'
+        v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetToCode x' v body
+  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let x' = build x l
+        t = typeOfData x'
+        v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetBeCode x' v body
+  lambda t f = Builder $ \(Unique.Pick h stream) ->
+    let v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) stream
+     in LambdaCode v body
+  apply f x = Builder $ \(Unique.Split l r) ->
+    let f' = build f l
+        x' = build x r
+     in ApplyCode f' x'
+  constant k = (Builder . const) $ ConstantData k
+
+  catch t f = Builder $ \(Unique.Pick h stream) ->
+    let v = Variable (ApplyType stack t) h
+        body = build (f ((Builder . const) $ VariableData v)) stream
+     in CatchCode v body
+  throw x f = Builder $ \(Unique.Split l r) ->
+    let x' = build x l
+        f' = build f r
+     in ThrowCode x' f'
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -137,30 +131,32 @@ count v = code
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
     value _ = 0
 
-inline :: Code a -> CodeBuilder a
+inline :: Code a -> Builder Code a
 inline = inline' VarMap.empty
 
-inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
+newtype X a = X (Builder Data a)
+
+inline' :: VarMap X -> Code a -> Builder Code a
 inline' map = code
   where
-    code :: Code x -> CodeBuilder x
+    code :: Code x -> Builder Code x
     code (LetBeCode term binder body) =
       if Callcc.count binder body <= 1
-        then inline' (VarMap.insert binder (value term) map) body
+        then inline' (VarMap.insert binder (X (value term)) map) body
         else letBe (value term) $ \x ->
-          inline' (VarMap.insert binder x map) body
+          inline' (VarMap.insert binder (X x) map) body
     code (LetToCode term binder body) = letTo (code term) $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (X x) map) body
     code (ApplyCode f x) = apply (code f) (value x)
     code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (X x) map) body
     code (ReturnCode val) = returns (value val)
     code (GlobalCode g) = global g
     code (ThrowCode x f) = throw (value x) (code f)
     code (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
-      inline' (VarMap.insert binder x map) body
-    value :: Data x -> DataBuilder x
+      inline' (VarMap.insert binder (X x) map) body
+    value :: Data x -> Builder Data x
     value (VariableData variable) =
-      let Just replacement = VarMap.lookup variable map
+      let Just (X replacement) = VarMap.lookup variable map
        in replacement
     value (ConstantData k) = constant k
