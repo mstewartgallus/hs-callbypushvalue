@@ -82,13 +82,13 @@ instance TextShow (Code a) where
   showb (ReturnCode x) = fromString "return " <> showb x
   showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (JumpCode action stack) = showb action <> fromString "\n" <> showb stack
+  showb (JumpCode action stack) = showb action <> fromString " , " <> showb stack
 
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
   showb (LetToCode binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
-  showb (PushData x f) = fromString "push " <> showb x <> fromString ".\n" <> showb f
+  showb (PushData x f) = showb x <> fromString " :: " <> showb f
 
 build :: Builder t a -> t a
 build (Builder s) = Unique.run s
