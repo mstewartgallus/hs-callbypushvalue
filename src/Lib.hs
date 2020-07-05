@@ -128,10 +128,10 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) =
           $ \binder ->
             (Callcc.throw binder code')
 
-toContinuationPassingStyle :: Callcc.Code a -> Cps.CodeBuilder a
+toContinuationPassingStyle :: Callcc.Code a -> Cps.Builder Cps.Code a
 toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps' :: VarMap Y -> Callcc.Code a -> Cps.CodeBuilder a
+toCps' :: VarMap Y -> Callcc.Code a -> Cps.Builder Cps.Code a
 toCps' _ (Callcc.GlobalCode x) = Cps.global x
 toCps' env (Callcc.ReturnCode value) = Cps.returns (toCpsData env value)
 toCps' env (Callcc.LambdaCode binder@(Variable t _) body) =
@@ -147,7 +147,7 @@ toCps' env act =
         toCps env act $ \a ->
           Cps.jump a k
 
-toCps :: VarMap Y -> Callcc.Code a -> (Cps.CodeBuilder a -> Cps.CodeBuilder Nil) -> Cps.CodeBuilder Nil
+toCps :: VarMap Y -> Callcc.Code a -> (Cps.Builder Cps.Code a -> Cps.Builder Cps.Code Nil) -> Cps.Builder Cps.Code Nil
 toCps env (Callcc.ApplyCode f x) k =
   toCps env f $ \f' ->
     k $ Cps.apply f' (toCpsData env x)
@@ -171,9 +171,9 @@ toCps env act k =
   let val = toCps' env act
    in k $ val
 
-newtype Y a = Y (DataBuilder a)
+newtype Y a = Y (Cps.Builder Cps.Data a)
 
-toCpsData :: VarMap Y -> Callcc.Data a -> Cps.DataBuilder a
+toCpsData :: VarMap Y -> Callcc.Data a -> Cps.Builder Data a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData env (Callcc.VariableData v) =
   let Just (Y x) = VarMap.lookup v env

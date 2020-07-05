@@ -1,14 +1,14 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (Code (..), Data (..), CodeBuilder (..), DataBuilder (..), build, simplify, inline, evaluate, typeOf, push, jump, kont, global, apply, returns, lambda, letBe, constant, letTo) where
+module Cps (Cps (..), Code (..), Data (..), Builder (..), simplify, inline, evaluate, typeOf) where
 
 import Common
 import Core
 import qualified Data.Text as T
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
-import TextShow
+import TextShow (TextShow, fromString, fromText, showb, toText)
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -28,6 +28,50 @@ data Data a where
   LetToStackData :: Variable a -> Code Nil -> Data (Stack (F a))
   PushStackData :: Data a -> Data (Stack b) -> Data (Stack (a -> b))
 
+class Cps t where
+  constant :: Constant a -> t Data a
+  global :: Global a -> t Code a
+  returns :: t Data a -> t Code (F a)
+  letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
+  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
+  apply :: t Code (a -> b) -> t Data a -> t Code b
+  letTo :: Type a -> (t Data a -> t Code Nil) -> t Data (Stack (F a))
+  kont :: Type a -> (t Data (Stack a) -> t Code Nil) -> t Code a
+  jump :: t Code a -> t Data (Stack a) -> t Code Nil
+
+instance Cps Builder where
+  global g = (Builder . const) $ GlobalCode g
+  returns value = Builder $ \stream ->
+    ReturnCode (build value stream)
+  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let x' = build x l
+        t = typeOfData x'
+        v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetBeCode x' v body
+  lambda t f = Builder $ \(Unique.Pick h stream) ->
+    let v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) stream
+     in LambdaCode v body
+  apply f x = Builder $ \(Unique.Split l r) ->
+    let f' = build f l
+        x' = build x r
+     in ApplyCode f' x'
+  constant k = (Builder . const) $ ConstantData k
+
+  jump x f = Builder $ \(Unique.Split l r) ->
+    JumpCode (build x l) (build f r)
+
+  kont t f = Builder $ \(Unique.Pick h stream) ->
+    let v = Variable (ApplyType stack t) h
+        body = build (f ((Builder . const) $ VariableData v)) stream
+     in KontCode v body
+
+  letTo t f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetToStackData v body
+
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
@@ -43,59 +87,7 @@ instance TextShow (Data a) where
   showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PushStackData h t) = fromString "push " <> showb h <> fromString ".\n" <> showb t
 
-newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
-
-newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
-
-jump :: CodeBuilder a -> DataBuilder (Stack a) -> CodeBuilder Nil
-jump x f = CodeBuilder $ \(Unique.Split l r) ->
-  JumpCode (build x l) (buildData f r)
-
-kont :: Type a -> (DataBuilder (Stack a) -> CodeBuilder Nil) -> CodeBuilder a
-kont t f = CodeBuilder $ \(Unique.Pick h stream) ->
-  let v = Variable (ApplyType stack t) h
-      body = build (f ((DataBuilder . const) $ VariableData v)) stream
-   in KontCode v body
-
-global :: Global a -> CodeBuilder a
-global g = (CodeBuilder . const) $ GlobalCode g
-
-returns :: DataBuilder a -> CodeBuilder (F a)
-returns value = CodeBuilder $ \stream ->
-  ReturnCode (buildData value stream)
-
-letTo :: Type a -> (DataBuilder a -> CodeBuilder Nil) -> DataBuilder (Stack (F a))
-letTo t f = DataBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetToStackData v body
-
-push :: DataBuilder a -> DataBuilder (Stack b) -> DataBuilder (Stack (a -> b))
-push h t = DataBuilder $ \(Unique.Split l r) ->
-  PushStackData (buildData h l) (buildData t r)
-
-letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let x' = buildData x l
-      t = typeOfData x'
-      v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetBeCode x' v body
-
-lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
-  let v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) stream
-   in LambdaCode v body
-
-apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-apply f x = CodeBuilder $ \(Unique.Split l r) ->
-  let f' = build f l
-      x' = buildData x r
-   in ApplyCode f' x'
-
-constant :: Constant a -> DataBuilder a
-constant k = (DataBuilder . const) $ ConstantData k
+newtype Builder t a = Builder {build :: Unique.Stream -> t a}
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -122,33 +114,35 @@ simplify (JumpCode x f) = JumpCode (simplify x) f
 simplify g@(GlobalCode _) = g
 simplify r@(ReturnCode _) = r
 
-inline :: Code a -> CodeBuilder a
+inline :: Code a -> Builder Code a
 inline = inline' VarMap.empty
 
-inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
+newtype Y a = Y (Builder Data a)
+
+inline' :: VarMap Y -> Code a -> Builder Code a
 inline' map = code
   where
-    code :: Code x -> CodeBuilder x
+    code :: Code x -> Builder Code x
     code (LetBeCode term binder body) =
       if count binder body <= 1
-        then inline' (VarMap.insert binder (value term) map) body
+        then inline' (VarMap.insert binder (Y (value term)) map) body
         else letBe (value term) $ \x ->
-          inline' (VarMap.insert binder x map) body
+          inline' (VarMap.insert binder (Y x) map) body
     code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (Y x) map) body
     code (ReturnCode val) = returns (value val)
     code (GlobalCode g) = global g
     code (KontCode binder@(Variable (StackType t) _) body) = kont t $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (Y x) map) body
     code (JumpCode x f) = jump (code x) (value f)
     code (ApplyCode f x) = apply (code f) (value x)
-    value :: Data x -> DataBuilder x
+    value :: Data x -> Builder Data x
     value (VariableData variable) =
-      let Just replacement = VarMap.lookup variable map
+      let Just (Y replacement) = VarMap.lookup variable map
        in replacement
     value (ConstantData k) = constant k
     value (LetToStackData binder@(Variable t _) body) = letTo t $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (Y x) map) body
 
 count :: Variable a -> Code b -> Int
 count v = code
