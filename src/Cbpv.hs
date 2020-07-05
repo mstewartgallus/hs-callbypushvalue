@@ -120,9 +120,10 @@ So far we handle:
 - thunk (force X) reduces to X
 -}
 simplify :: Code a -> Code a
+simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
+simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (ForceCode (ThunkData x)) = simplify x
 simplify (ForceCode x) = ForceCode (simplifyData x)
-simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) =
   let body' = simplify body
    in LambdaCode binder body'
