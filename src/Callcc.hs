@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
+module Callcc (build, Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
 
 import Common
 import Core
@@ -12,7 +12,10 @@ import Unique
 import qualified VarMap
 import VarMap (VarMap)
 
-newtype Builder t a = Builder {build :: Unique.Stream -> t a}
+newtype Builder t a = Builder {builder :: Unique.State (t a)}
+
+build :: Builder t a -> t a
+build (Builder s) = Unique.run s
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _ _)) = t
@@ -42,39 +45,44 @@ class Callcc t where
   throw :: t Data (Stack a) -> t Code a -> t Code Nil
 
 instance Callcc Builder where
-  global g = (Builder . const) $ GlobalCode g
-  returns value = Builder $ \stream ->
-    ReturnCode (build value stream)
-  letTo x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
-    let x' = build x l
-        ReturnsType t = typeOf x'
-        v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetToCode x' v body
-  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
-    let x' = build x l
-        t = typeOfData x'
-        v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetBeCode x' v body
-  lambda t f = Builder $ \(Unique.Pick h stream) ->
+  global g = (Builder . pure) $ GlobalCode g
+  returns value =
+    Builder $
+      pure ReturnCode <*> builder value
+  letTo x f = Builder $ do
+    x' <- builder x
+    let ReturnsType t = typeOf x'
+    h <- Unique.uniqueId
     let v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) stream
-     in LambdaCode v body
-  apply f x = Builder $ \(Unique.Split l r) ->
-    let f' = build f l
-        x' = build x r
-     in ApplyCode f' x'
-  constant k = (Builder . const) $ ConstantData k
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LetToCode x' v body
+  letBe x f = Builder $ do
+    x' <- builder x
+    let t = typeOfData x'
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LetBeCode x' v body
+  lambda t f = Builder $ do
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ LambdaCode v body
+  apply f x = Builder $ do
+    f' <- builder f
+    x' <- builder x
+    pure $ ApplyCode f' x'
+  constant k = (Builder . pure) $ ConstantData k
 
-  catch t f = Builder $ \(Unique.Pick h stream) ->
+  catch t f = Builder $ do
+    h <- Unique.uniqueId
     let v = Variable (ApplyType stack t) h
-        body = build (f ((Builder . const) $ VariableData v)) stream
-     in CatchCode v body
-  throw x f = Builder $ \(Unique.Split l r) ->
-    let x' = build x l
-        f' = build f r
-     in ThrowCode x' f'
+    body <- builder $ f ((Builder . pure) $ VariableData v)
+    pure $ CatchCode v body
+  throw x f = Builder $ do
+    x' <- builder x
+    f' <- builder f
+    pure $ ThrowCode x' f'
 
 data Code a where
   GlobalCode :: Global a -> Code a

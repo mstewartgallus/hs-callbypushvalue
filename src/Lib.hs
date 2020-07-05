@@ -79,7 +79,7 @@ toCbpv env (ApplyTerm f x) =
       x' = toCbpv env x
    in Cbpv.apply f' (Cbpv.delay x')
 
-toCallcc :: Cbpv.Code a -> Unique.Stream -> Callcc.Code a
+toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
 
 data X a = X (Callcc.Builder Callcc.Data a)
