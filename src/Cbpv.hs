@@ -1,14 +1,14 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (build, typeOf, CodeBuilder (..), DataBuilder (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (build, typeOf, Builder (..), Cpbv, Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Core
 import qualified Data.Text as T
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
-import TextShow
+import TextShow (TextShow, fromString, fromText, showb, toText)
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
@@ -31,55 +31,48 @@ typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (ThunkData code) = ApplyType thunk (typeOf code)
 
-newtype CodeBuilder a = CodeBuilder {build :: Unique.Stream -> Code a}
+newtype Builder t a = Builder {build :: Unique.Stream -> t a}
 
-newtype DataBuilder a = DataBuilder {buildData :: Unique.Stream -> Data a}
+class Cpbv t where
+  global :: Global a -> t Code a
+  force :: t Data (U a) -> t Code a
+  returns :: t Data a -> t Code (F a)
+  letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
+  letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
+  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
+  apply :: t Code (a -> b) -> t Data a -> t Code b
+  constant :: Constant a -> t Data a
+  delay :: t Code a -> t Data (U a)
 
-global :: Global a -> CodeBuilder a
-global g = (CodeBuilder . const) $ GlobalCode g
-
-force :: DataBuilder (U a) -> CodeBuilder a
-force thunk = CodeBuilder $ \stream ->
-  ForceCode (buildData thunk stream)
-
-returns :: DataBuilder a -> CodeBuilder (F a)
-returns value = CodeBuilder $ \stream ->
-  ReturnCode (buildData value stream)
-
-letTo :: CodeBuilder (F a) -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-letTo x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let x' = build x l
-      ReturnsType t = typeOf x'
-      v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetToCode x' v body
-
-letBe :: DataBuilder a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder b
-letBe x f = CodeBuilder $ \(Unique.Pick h (Unique.Split l r)) ->
-  let x' = buildData x l
-      t = typeOfData x'
-      v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) r
-   in LetBeCode x' v body
-
-lambda :: Type a -> (DataBuilder a -> CodeBuilder b) -> CodeBuilder (a -> b)
-lambda t f = CodeBuilder $ \(Unique.Pick h stream) ->
-  let v = Variable t h
-      body = build (f ((DataBuilder . const) $ VariableData v)) stream
-   in LambdaCode v body
-
-apply :: CodeBuilder (a -> b) -> DataBuilder a -> CodeBuilder b
-apply f x = CodeBuilder $ \(Unique.Split l r) ->
-  let f' = build f l
-      x' = buildData x r
-   in ApplyCode f' x'
-
-constant :: Constant a -> DataBuilder a
-constant k = (DataBuilder . const) $ ConstantData k
-
-delay :: CodeBuilder a -> DataBuilder (U a)
-delay code = DataBuilder $ \stream ->
-  ThunkData (build code stream)
+instance Cpbv Builder where
+  global g = (Builder . const) $ GlobalCode g
+  force thunk = Builder $ \stream ->
+    ForceCode (build thunk stream)
+  returns value = Builder $ \stream ->
+    ReturnCode (build value stream)
+  letTo x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let x' = build x l
+        ReturnsType t = typeOf x'
+        v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetToCode x' v body
+  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
+    let x' = build x l
+        t = typeOfData x'
+        v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) r
+     in LetBeCode x' v body
+  lambda t f = Builder $ \(Unique.Pick h stream) ->
+    let v = Variable t h
+        body = build (f ((Builder . const) $ VariableData v)) stream
+     in LambdaCode v body
+  apply f x = Builder $ \(Unique.Split l r) ->
+    let f' = build f l
+        x' = build x r
+     in ApplyCode f' x'
+  constant k = (Builder . const) $ ConstantData k
+  delay code = Builder $ \stream ->
+    ThunkData (build code stream)
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -94,9 +87,6 @@ data Data a where
   VariableData :: Variable a -> Data a
   ConstantData :: Constant a -> Data a
   ThunkData :: Code a -> Data (U a)
-
-data AnyCode where
-  AnyCode :: Code a -> AnyCode
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
@@ -117,8 +107,8 @@ Simplify Call By Push Data Inverses
 
 So far we handle:
 
-- force (thunk X) to X
-- thunk (force X) to X
+- force (thunk X) reduces to X
+- thunk (force X) reduces to X
 -}
 simplify :: Code a -> Code a
 simplify (ForceCode (ThunkData x)) = simplify x
@@ -154,40 +144,40 @@ count v = code
     value (ThunkData c) = code c
     value _ = 0
 
-inline :: Code a -> CodeBuilder a
+inline :: Code a -> Builder Code a
 inline = inline' VarMap.empty
 
-inline' :: VarMap DataBuilder -> Code a -> CodeBuilder a
+inline' :: VarMap X -> Code a -> Builder Code a
 inline' map = code
   where
-    code :: Code x -> CodeBuilder x
+    code :: Code x -> Builder Code x
     code (LetBeCode term binder body) =
       if count binder body <= 1
-        then inline' (VarMap.insert binder (value term) map) body
+        then inline' (VarMap.insert binder (X (value term)) map) body
         else letBe (value term) $ \x ->
-          inline' (VarMap.insert binder x map) body
+          inline' (VarMap.insert binder (X x) map) body
     code (LetToCode term binder body) = letTo (code term) $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (X x) map) body
     code (ApplyCode f x) = apply (code f) (value x)
     code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-      inline' (VarMap.insert binder x map) body
+      inline' (VarMap.insert binder (X x) map) body
     code (ForceCode th) = force (value th)
     code (ReturnCode val) = returns (value val)
     code (GlobalCode g) = global g
-    value :: Data x -> DataBuilder x
+    value :: Data x -> Builder Data x
     value (VariableData variable) =
-      let Just replacement = VarMap.lookup variable map
+      let Just (X replacement) = VarMap.lookup variable map
        in replacement
     value (ThunkData c) = delay (code c)
     value (ConstantData k) = constant k
 
 -- Fixme... use a different file for this?
-intrinsify :: Code a -> CodeBuilder a
+intrinsify :: Code a -> Builder Code a
 intrinsify code = intrins VarMap.empty code
 
-newtype X a = X (DataBuilder a)
+newtype X a = X (Builder Data a)
 
-intrins :: VarMap X -> Code a -> CodeBuilder a
+intrins :: VarMap X -> Code a -> Builder Code a
 intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
@@ -204,14 +194,14 @@ intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value
   let env' = VarMap.insert binder (X value) env
    in intrins env' body
 
-intrinsData :: VarMap X -> Data a -> DataBuilder a
+intrinsData :: VarMap X -> Data a -> Builder Data a
 intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just (X x) = VarMap.lookup binder env
    in x
 intrinsData env (ConstantData x) = constant x
 
-newtype Intrinsic a = Intrinsic (CodeBuilder a)
+newtype Intrinsic a = Intrinsic (Builder Code a)
 
 intrinsics :: GlobalMap Intrinsic
 intrinsics =
@@ -219,7 +209,7 @@ intrinsics =
     [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
     ]
 
-plusIntrinsic :: CodeBuilder (F Integer :-> F Integer :-> F Integer)
+plusIntrinsic :: Builder Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
   lambda (ApplyType thunk int) $ \x' ->
     lambda (ApplyType thunk int) $ \y' ->
