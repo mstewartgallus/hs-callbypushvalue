@@ -19,6 +19,7 @@ data Code a where
   ApplyCode :: Code (a -> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
+  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   KontCode :: Variable (Stack a) -> Code Nil -> Code a
   JumpCode :: Code a -> Data (Stack a) -> Code Nil
@@ -26,17 +27,17 @@ data Code a where
 data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToStackData :: Variable a -> Code Nil -> Data (Stack (F a))
-  PushStackData :: Data a -> Data (Stack b) -> Data (Stack (a -> b))
 
 class Cps t where
   constant :: Constant a -> t Data a
   global :: Global a -> t Code a
   returns :: t Data a -> t Code (F a)
+  letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
   apply :: t Code (a -> b) -> t Data a -> t Code b
-  letTo :: Type a -> (t Data a -> t Code Nil) -> t Data (Stack (F a))
+
+  -- fixme... combine kont and jump ?
   kont :: Type a -> (t Data (Stack a) -> t Code Nil) -> t Code a
   jump :: t Code a -> t Data (Stack a) -> t Code Nil
 
@@ -62,26 +63,32 @@ instance Cps Builder where
     x' <- builder x
     pure $ ApplyCode f' x'
   constant k = (Builder . pure) $ ConstantData k
+
+  letTo x f = Builder $ do
+    x' <- builder x
+    let ReturnsType t = typeOf x'
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder (f ((Builder . pure) $ VariableData v))
+    pure $ LetToCode x' v body
+
   jump x f = Builder $ do
     x' <- builder x
     f' <- builder f
     pure $ JumpCode x' f'
+
   kont t f = Builder $ do
     h <- Unique.uniqueId
     let v = Variable (ApplyType stack t) h
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ KontCode v body
-  letTo t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable t h
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LetToStackData v body
 
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ReturnCode x) = fromString "return " <> showb x
   showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
+  showb (LetToCode act binder body) = showb act <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (KontCode k body) = fromString "κ " <> showb k <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString " → {\n" <> showb body))) <> fromString "\n}"
   showb (JumpCode action stack) = showb action <> fromString "\n" <> showb stack
@@ -89,8 +96,6 @@ instance TextShow (Code a) where
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
-  showb (LetToStackData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
-  showb (PushStackData h t) = fromString "push " <> showb h <> fromString ".\n" <> showb t
 
 build :: Builder t a -> t a
 build (Builder s) = Unique.run s
@@ -112,10 +117,12 @@ typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (VariableData (Variable t _)) = t
 
 simplify :: Code a -> Code a
+simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
 simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (JumpCode (KontCode binder body) value) = simplify (LetBeCode value binder body)
 simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
 simplify (ApplyCode f x) = ApplyCode (simplify f) x
+simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
 simplify (KontCode binder body) = KontCode binder (simplify body)
 simplify (JumpCode x f) = JumpCode (simplify x) f
@@ -136,6 +143,8 @@ inline' map = code
         then inline' (VarMap.insert binder (Y (value term)) map) body
         else letBe (value term) $ \x ->
           inline' (VarMap.insert binder (Y x) map) body
+    code (LetToCode term binder body) = letTo (code term) $ \x ->
+      inline' (VarMap.insert binder (Y x) map) body
     code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
       inline' (VarMap.insert binder (Y x) map) body
     code (ReturnCode val) = returns (value val)
@@ -149,8 +158,6 @@ inline' map = code
       let Just (Y replacement) = VarMap.lookup variable map
        in replacement
     value (ConstantData k) = constant k
-    value (LetToStackData binder@(Variable t _) body) = letTo t $ \x ->
-      inline' (VarMap.insert binder (Y x) map) body
 
 count :: Variable a -> Code b -> Int
 count v = code
@@ -158,6 +165,7 @@ count v = code
     code :: Code x -> Int
     code (KontCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (JumpCode x f) = code x + value f
+    code (LetToCode x binder body) = code x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
@@ -165,7 +173,6 @@ count v = code
     code _ = 0
     value :: Data x -> Int
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-    value (LetToStackData binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     value _ = 0
 
 evaluate :: Code (F a) -> (a -> IO ()) -> IO ()
@@ -177,8 +184,6 @@ newtype Id a = Id a
 
 interpretData :: VarMap Id -> Data a -> a
 interpretData _ (ConstantData k) = interpretConstant k
-interpretData env (LetToStackData binder body) = PopStack $ \value ->
-  interpret (VarMap.insert binder (Id value) env) body NilStack
 interpretData values (VariableData v) = case VarMap.lookup v values of
   Just (Id x) -> x
 
@@ -191,6 +196,10 @@ interpret env (LetBeCode value binder body) k =
   let value' = interpretData env value
       env' = VarMap.insert binder (Id value') env
    in interpret env' body k
+interpret env (LetToCode act binder body) k =
+  interpret env act $ PopStack $ \value ->
+    let env' = VarMap.insert binder (Id value) env
+     in interpret env' body k
 interpret values (KontCode variable body) k =
   let values' = VarMap.insert variable (Id k) values
    in interpret values' body NilStack

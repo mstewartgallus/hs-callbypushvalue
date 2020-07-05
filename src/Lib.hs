@@ -158,7 +158,7 @@ toCps env (Callcc.ThrowCode val body) _ = do
     Cps.jump body' (toCpsData env val)
 toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps env action $ \act ->
-    Cps.jump act $ Cps.letTo t $ \value ->
+    Cps.letTo act $ \value ->
       let env' = VarMap.insert binder (Y value) env
        in toCps env' body k
 toCps env (Callcc.CatchCode binder@(Variable (StackType t) _) body) k =

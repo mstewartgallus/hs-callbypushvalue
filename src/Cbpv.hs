@@ -75,14 +75,13 @@ instance Cpbv Builder where
     let v = Variable t h
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LambdaCode v body
-  apply f x = Builder $ do
-    f' <- builder f
-    x' <- builder x
-    pure $ ApplyCode f' x'
+  apply f x =
+    Builder $
+      pure ApplyCode <*> builder f <*> builder x
   constant k = (Builder . pure) $ ConstantData k
-  delay code = Builder $ do
-    c <- builder code
-    pure $ ThunkData c
+  delay code =
+    Builder $
+      pure ThunkData <*> builder code
 
 data Code a where
   GlobalCode :: Global a -> Code a
