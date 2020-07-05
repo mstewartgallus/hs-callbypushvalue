@@ -1,13 +1,46 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unique (Unique, Stream, pattern Pick, pattern Split, split, pick, stream, streamIO) where
+module Unique (Unique, run, uniqueId, Stream, pattern Pick, pattern Split, State, split, pick, stream, streamIO) where
 
 import Data.Atomics.Counter
+import GHC.Exts ((+#), Int (I#), Int#)
 import System.IO.Unsafe
 import TextShow
+
+newtype State a = State (Int# -> (# Int#, a #))
+
+run :: State a -> a
+run (State f) =
+  let (# _, x #) = f 0#
+   in x
+
+instance Functor State where
+  fmap f (State g) = State $ \s ->
+    let (# s', x #) = g s
+        y = f x
+     in (# s', y #)
+
+instance Applicative State where
+  pure x = State $ \s -> (# s, x #)
+  State f <*> State x = State $ \s0 ->
+    let (# s1, f' #) = f s0
+        (# s2, x' #) = x s1
+        y = f' x'
+     in (# s2, y #)
+
+instance Monad State where
+  (State x) >>= f = State $ \s0 ->
+    let (# s1, x' #) = x s0
+        State y = f x'
+     in y s1
+
+uniqueId :: State Unique
+uniqueId = State $ \ids -> (# ids +# 1#, Unique (I# ids) #)
 
 newtype Unique = Unique Int deriving (Eq, Ord)
 

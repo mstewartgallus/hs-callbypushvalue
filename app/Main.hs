@@ -19,7 +19,7 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: Unique.Stream -> SystemF.Term (F Integer)
+mkProgram :: SystemF.Term (F Integer)
 mkProgram =
   SystemF.build $
     SystemF.apply
@@ -41,7 +41,7 @@ phases ::
     Cps.Code a
   )
 phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f (Unique.Split k g))))))) term =
-  let optTerm = optimizeTerm a term
+  let optTerm = optimizeTerm term
       cbpv = Cbpv.build (toCallByPushValue optTerm) k
       intrinsified = Cbpv.build (intrinsify cbpv) b
       optIntrinsified = optimizeCbpv c intrinsified
@@ -51,15 +51,15 @@ phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.S
       optCps = optimizeCps g cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
-optimizeTerm :: Unique.Stream -> SystemF.Term a -> SystemF.Term a
+optimizeTerm :: SystemF.Term a -> SystemF.Term a
 optimizeTerm = loop iterTerm
   where
-    loop :: Int -> Unique.Stream -> SystemF.Term a -> SystemF.Term a
-    loop 0 _ term = term
-    loop n (Unique.Split left (Unique.Split right strm)) term =
-      let simplified = SystemF.build (SystemF.simplify term) left
-          inlined = SystemF.build (SystemF.inline simplified) right
-       in loop (n - 1) strm inlined
+    loop :: Int -> SystemF.Term a -> SystemF.Term a
+    loop 0 term = term
+    loop n term =
+      let simplified = SystemF.build (SystemF.simplify term)
+          inlined = SystemF.build (SystemF.inline simplified)
+       in loop (n - 1) inlined
 
 optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
@@ -95,7 +95,7 @@ main :: IO ()
 main = do
   stream <- Unique.streamIO
   let (left, right) = Unique.split stream
-  let program = mkProgram left
+  let program = mkProgram
 
   putStrLn "Lambda Calculus:"
   printT program

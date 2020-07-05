@@ -18,25 +18,30 @@ class SystemF t where
   apply :: t (a :-> b) -> t a -> t b
   letBe :: t a -> (t a -> t b) -> t b
 
-newtype Builder a = Builder {build :: Unique.Stream -> Term a}
+newtype Builder a = Builder {builder :: Unique.State (Term a)}
+
+build :: Builder a -> Term a
+build (Builder s) = Unique.run s
 
 instance SystemF Builder where
-  constant k = (Builder . const) $ ConstantTerm k
-  global g = (Builder . const) $ GlobalTerm g
-  letBe value f = Builder $ \(Unique.Pick head (Unique.Split l r)) ->
-    let value' = build value l
-        t = typeOf value'
-        binder = Variable t head
-        body = build (f (Builder $ const $ VariableTerm binder)) r
-     in LetTerm value' binder body
-  lambda t f = Builder $ \(Unique.Pick h stream) ->
+  constant k = (Builder . pure) $ ConstantTerm k
+  global g = (Builder . pure) $ GlobalTerm g
+  letBe value f = Builder $ do
+    value' <- builder value
+    let t = typeOf value'
+    head <- Unique.uniqueId
+    let binder = Variable t head
+    body <- builder $ f (Builder $ pure $ VariableTerm binder)
+    pure (LetTerm value' binder body)
+  lambda t f = Builder $ do
+    h <- Unique.uniqueId
     let binder = Variable t h
-        body = build (f (Builder $ const $ VariableTerm binder)) stream
-     in LambdaTerm binder body
-  apply f x = Builder $ \(Unique.Split l r) ->
-    let f' = build f l
-        x' = build x r
-     in ApplyTerm f' x'
+    body <- builder $ f (Builder $ pure $ VariableTerm binder)
+    pure (LambdaTerm binder body)
+  apply f x = Builder $ do
+    f' <- builder f
+    x' <- builder x
+    pure (ApplyTerm f' x')
 
 data Term a where
   VariableTerm :: Variable a -> Term a
