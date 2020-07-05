@@ -12,15 +12,15 @@ import VarMap (VarMap)
 import qualified VarMap
 
 class SystemF t where
-  constant :: Constant a -> t (F a)
-  global :: Global a -> t a
-  lambda :: Type a -> (t a -> t b) -> t (a :-> b)
-  apply :: t (a :-> b) -> t a -> t b
-  letBe :: t a -> (t a -> t b) -> t b
+  constant :: Constant a -> t Term (F a)
+  global :: Global a -> t Term a
+  lambda :: Type a -> (t Term a -> t Term b) -> t Term (a :-> b)
+  apply :: t Term (a :-> b) -> t Term a -> t Term b
+  letBe :: t Term a -> (t Term a -> t Term b) -> t Term b
 
-newtype Builder a = Builder {builder :: Unique.State (Term a)}
+newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
-build :: Builder a -> Term a
+build :: Builder t a -> t a
 build (Builder s) = Unique.run s
 
 instance SystemF Builder where
@@ -69,13 +69,13 @@ instance TextShow (Term a) where
   showb (LambdaTerm binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
   showb (ApplyTerm f x) = showb x <> fromString "\n" <> showb f
 
-simplify :: Term a -> Builder a
+simplify :: Term a -> Builder Term a
 simplify = simplify' VarMap.empty
 
-simplify' :: VarMap X -> Term a -> Builder a
+simplify' :: VarMap X -> Term a -> Builder Term a
 simplify' map = loop
   where
-    loop :: Term x -> Builder x
+    loop :: Term x -> Builder Term x
     loop (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
       let term' = loop term
        in letBe term' $ \value -> simplify' (VarMap.insert binder (X value) map) body
@@ -101,16 +101,16 @@ count v = w
     w (ApplyTerm f x) = w f + w x
     w _ = 0
 
-inline :: Term a -> Builder a
+inline :: Term a -> Builder Term a
 inline = inline' VarMap.empty
 
 data X a where
-  X :: Builder a -> X a
+  X :: Builder Term a -> X a
 
-inline' :: VarMap X -> Term a -> Builder a
+inline' :: VarMap X -> Term a -> Builder Term a
 inline' map = w
   where
-    w :: Term x -> Builder x
+    w :: Term x -> Builder Term x
     w (LetTerm term binder@(Variable t _) body) =
       let term' = w term
        in if count binder body <= 1 || isSimple term

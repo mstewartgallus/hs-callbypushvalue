@@ -27,7 +27,7 @@ mkProgram =
   SystemF.build $
     SystemF.apply
       ( SystemF.lambda int $ \x ->
-          SystemF.apply (SystemF.apply (SystemF.global plus) x) x
+          SystemF.apply (SystemF.apply (SystemF.global plus) x) (SystemF.apply (SystemF.apply (SystemF.global plus) x) x)
       )
       (SystemF.constant (IntegerConstant 5))
 
