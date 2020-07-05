@@ -42,9 +42,9 @@ phases ::
   )
 phases (Unique.Split a (Unique.Split b (Unique.Split c (Unique.Split d (Unique.Split e (Unique.Split f (Unique.Split k g))))))) term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (toCallByPushValue optTerm) k
-      intrinsified = Cbpv.build (intrinsify cbpv) b
-      optIntrinsified = optimizeCbpv c intrinsified
+      cbpv = Cbpv.build (toCallByPushValue optTerm)
+      intrinsified = Cbpv.build (intrinsify cbpv)
+      optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified d
       optCatchThrow = optimizeCallcc e catchThrow
       cps = Cps.build (toContinuationPassingStyle optCatchThrow) f
@@ -61,15 +61,15 @@ optimizeTerm = loop iterTerm
           inlined = SystemF.build (SystemF.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCbpv :: Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
+optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
   where
-    loop :: Int -> Unique.Stream -> Cbpv.Code a -> Cbpv.Code a
-    loop 0 _ term = term
-    loop n (Unique.Split left (Unique.Split right strm)) term =
+    loop :: Int -> Cbpv.Code a -> Cbpv.Code a
+    loop 0 term = term
+    loop n term =
       let simplified = Cbpv.simplify term
-          inlined = Cbpv.build (Cbpv.inline simplified) right
-       in loop (n - 1) strm inlined
+          inlined = Cbpv.build (Cbpv.inline simplified)
+       in loop (n - 1) inlined
 
 optimizeCallcc :: Unique.Stream -> Callcc.Code a -> Callcc.Code a
 optimizeCallcc = loop iterCallcc

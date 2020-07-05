@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (typeOf, Builder (..), Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (typeOf, build, Builder, Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Core
@@ -32,7 +32,10 @@ typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (ThunkData code) = ApplyType thunk (typeOf code)
 
-newtype Builder t a = Builder {build :: Unique.Stream -> t a}
+newtype Builder t a = Builder {builder :: Unique.State (t a)}
+
+build :: Builder t a -> t a
+build (Builder s) = Unique.run s
 
 class Cpbv t where
   global :: Global a -> t Code a
@@ -46,34 +49,40 @@ class Cpbv t where
   delay :: t Code a -> t Data (U a)
 
 instance Cpbv Builder where
-  global g = (Builder . const) $ GlobalCode g
-  force thunk = Builder $ \stream ->
-    ForceCode (build thunk stream)
-  returns value = Builder $ \stream ->
-    ReturnCode (build value stream)
-  letTo x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
-    let x' = build x l
-        ReturnsType t = typeOf x'
-        v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetToCode x' v body
-  letBe x f = Builder $ \(Unique.Pick h (Unique.Split l r)) ->
-    let x' = build x l
-        t = typeOfData x'
-        v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) r
-     in LetBeCode x' v body
-  lambda t f = Builder $ \(Unique.Pick h stream) ->
+  global g = (Builder . pure) $ GlobalCode g
+  force thunk =
+    Builder $
+      pure ForceCode <*> builder thunk
+  returns value =
+    Builder $
+      pure ReturnCode <*> builder value
+  letTo x f = Builder $ do
+    x' <- builder x
+    let ReturnsType t = typeOf x'
+    h <- Unique.uniqueId
     let v = Variable t h
-        body = build (f ((Builder . const) $ VariableData v)) stream
-     in LambdaCode v body
-  apply f x = Builder $ \(Unique.Split l r) ->
-    let f' = build f l
-        x' = build x r
-     in ApplyCode f' x'
-  constant k = (Builder . const) $ ConstantData k
-  delay code = Builder $ \stream ->
-    ThunkData (build code stream)
+    body <- builder (f ((Builder . pure) $ VariableData v))
+    pure $ LetToCode x' v body
+  letBe x f = Builder $ do
+    x' <- builder x
+    let t = typeOfData x'
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder (f ((Builder . pure) $ VariableData v))
+    pure $ LetBeCode x' v body
+  lambda t f = Builder $ do
+    h <- Unique.uniqueId
+    let v = Variable t h
+    body <- builder (f ((Builder . pure) $ VariableData v))
+    pure $ LambdaCode v body
+  apply f x = Builder $ do
+    f' <- builder f
+    x' <- builder x
+    pure $ ApplyCode f' x'
+  constant k = (Builder . pure) $ ConstantData k
+  delay code = Builder $ do
+    c <- builder code
+    pure $ ThunkData c
 
 data Code a where
   GlobalCode :: Global a -> Code a
