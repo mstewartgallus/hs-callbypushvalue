@@ -39,7 +39,7 @@ fn = LambdaType $ \x ->
     NominalType $ TypeApp (TypeApp fn' x) y
 
 fn' :: TypeName (V a (V b (a :-> b)))
-fn' = TypeName (T.pack "core") (T.pack "fn")
+fn' = TypeName $ Name (T.pack "core") (T.pack "fn")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
@@ -47,10 +47,10 @@ thunk = LambdaType $ \x ->
   NominalType $ TypeApp thunk' x
 
 thunk' :: TypeName (V a (U a))
-thunk' = TypeName (T.pack "core") (T.pack "U")
+thunk' = TypeName $ Name (T.pack "core") (T.pack "U")
 
 fnRaw' :: TypeName (V a (V b (a -> b)))
-fnRaw' = TypeName (T.pack "core") (T.pack "fnRaw")
+fnRaw' = TypeName $ Name (T.pack "core") (T.pack "fnRaw")
 
 fnRaw :: Type (V a (V b (a -> b)))
 fnRaw = LambdaType $ \x ->
@@ -62,20 +62,20 @@ returnsType = LambdaType $ \x ->
   NominalType $ TypeApp returnsType' x
 
 returnsType' :: TypeName (V a (F a))
-returnsType' = TypeName (T.pack "core") (T.pack "F")
+returnsType' = TypeName $ Name (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
 int = applyType returnsType intRaw
 
 intRaw :: Type Integer
-intRaw = NominalType $ TypeName (T.pack "core") (T.pack "int")
+intRaw = NominalType $ TypeName $ Name (T.pack "core") (T.pack "int")
 
 stack :: Type (V a (Stack a))
 stack = LambdaType $ \x ->
   NominalType $ TypeApp stack' x
 
 stack' :: TypeName (V a (Stack a))
-stack' = TypeName (T.pack "core") (T.pack "stack")
+stack' = TypeName $ Name (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (u int -=> u int -=> int) $ Name (T.pack "core") (T.pack "+")

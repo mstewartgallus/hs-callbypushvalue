@@ -2,7 +2,6 @@
 
 module Name (Name (..)) where
 
-import Common
 import Data.Text (Text)
 import TextShow
 

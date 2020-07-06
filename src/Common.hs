@@ -1,13 +1,11 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), AnyVariable (..), Variable (..)) where
 
-import qualified Data.Text as T
 import Data.Typeable
+import Name
 import TextShow
 import Unique
 import Unsafe.Coerce
@@ -19,7 +17,7 @@ type a :-> b = U a -> b
 infixr 9 :->
 
 data TypeName a where
-  TypeName :: T.Text -> T.Text -> TypeName a
+  TypeName :: Name -> TypeName a
   TypeApp :: TypeName (V a b) -> Type a -> TypeName b
 
 data Type a where
@@ -31,8 +29,8 @@ applyType (LambdaType f) = f
 
 -- fixme... is there a safer way?
 equalName :: TypeName a -> TypeName b -> Maybe (a :~: b)
-equalName (TypeName package name) (TypeName package' name')
-  | package == package' && name == name' = Just (unsafeCoerce Refl)
+equalName (TypeName name) (TypeName name')
+  | name == name' = Just (unsafeCoerce Refl)
   | otherwise = Nothing
 equalName (TypeApp f x) (TypeApp f' x') = case (equalName f f', equalType x x') of
   (Just Refl, Just Refl) -> Just Refl
@@ -73,11 +71,11 @@ instance TextShow (Variable a) where
   showb (Variable _ name) = showb name
 
 instance TextShow (TypeName a) where
-  showb (TypeName package name) = fromText package <> fromString "/" <> fromText name
+  showb (TypeName name) = showb name
   showb (TypeApp f x) = fromString "(" <> loop f x <> fromString ")"
     where
       loop :: TypeName (V a b) -> Type a -> Builder
-      loop t@(TypeName _ _) x = showb t <> fromString " " <> showb x
+      loop t@(TypeName _) x = showb t <> fromString " " <> showb x
       loop (TypeApp f x) y = loop f x <> fromString " " <> showb y
 
 instance TextShow (Type a) where
