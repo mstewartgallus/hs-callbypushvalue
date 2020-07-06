@@ -3,12 +3,12 @@
 
 module GlobalMap where
 
-import Common
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 import Global
-import Name
+import Name (Name)
+import Type
 
 data Dyn t where
   Dyn :: Type a -> t a -> Dyn t

@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 
 module VarMap where
@@ -10,7 +9,9 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable
+import Type
 import Unique
+import Variable
 
 newtype VarMap t = VarMap (Map Unique (Dyn t))
 

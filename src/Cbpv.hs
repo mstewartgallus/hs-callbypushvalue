@@ -12,9 +12,11 @@ import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
+import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
+import Variable
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _)) = t

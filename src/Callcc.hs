@@ -10,9 +10,11 @@ import Core
 import Data.Text as T
 import Global
 import TextShow (TextShow, fromString, fromText, showb, toText)
+import Type
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
+import Variable
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 

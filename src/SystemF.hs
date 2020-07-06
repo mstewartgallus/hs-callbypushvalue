@@ -9,9 +9,11 @@ import Constant
 import Core
 import Global
 import TextShow (TextShow, fromString, showb)
+import Type
 import qualified Unique
 import VarMap (VarMap)
 import qualified VarMap
+import Variable
 
 class SystemF t where
   constant :: Constant a -> t Term (F a)

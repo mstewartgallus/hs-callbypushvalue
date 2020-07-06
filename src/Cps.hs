@@ -12,9 +12,11 @@ import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
+import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
+import Variable
 
 data Code a where
   GlobalCode :: Global a -> Code a

@@ -3,9 +3,9 @@
 module Global (Global (..)) where
 
 import Common
-import Data.Text (Text)
 import Name (Name)
 import TextShow
+import Type (Type)
 
 data Global a = Global (Type a) Name
 

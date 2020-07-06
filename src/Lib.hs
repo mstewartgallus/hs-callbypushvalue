@@ -16,9 +16,11 @@ import qualified Cps
 import qualified Data.Text as T
 import qualified SystemF
 import TextShow
+import Type
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
+import Variable
 
 toCallByPushValue :: SystemF.Term a -> Cbpv.Builder Cbpv.Code a
 toCallByPushValue = toCbpv VarMap.empty

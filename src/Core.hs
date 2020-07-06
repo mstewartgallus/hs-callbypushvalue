@@ -27,6 +27,7 @@ import qualified Data.Text as T
 import Data.Typeable
 import Global
 import Name
+import Type
 import Unsafe.Coerce
 
 {-
