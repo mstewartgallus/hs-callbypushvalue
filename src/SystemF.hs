@@ -8,8 +8,10 @@ import Common
 import Constant
 import Core
 import Global
+import Kind
 import TextShow (TextShow, fromString, showb)
 import Type
+import TypeVariable
 import qualified Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -21,6 +23,9 @@ class SystemF t where
   lambda :: Type a -> (t Term a -> t Term b) -> t Term (a :-> b)
   apply :: t Term (a :-> b) -> t Term a -> t Term b
   letBe :: t Term a -> (t Term a -> t Term b) -> t Term b
+
+  forall :: Kind a -> (Type a -> t Term b) -> t Term (V a b)
+  applyType :: t Term (V a b) -> Type a -> t Term b
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
@@ -42,10 +47,18 @@ instance SystemF Builder where
     let binder = Variable t h
     body <- builder $ f (Builder $ pure $ VariableTerm binder)
     pure (LambdaTerm binder body)
+  forall t f = Builder $ do
+    h <- Unique.uniqueId
+    let binder = TypeVariable t h
+    body <- builder $ f (VariableType binder)
+    pure (ForallTerm binder body)
   apply f x = Builder $ do
     f' <- builder f
     x' <- builder x
     pure (ApplyTerm f' x')
+  applyType f x = Builder $ do
+    f' <- builder f
+    pure (ApplyTypeTerm f' x)
 
 data Term a where
   VariableTerm :: Variable a -> Term a
@@ -53,7 +66,9 @@ data Term a where
   GlobalTerm :: Global a -> Term a
   LetTerm :: Term a -> Variable a -> Term b -> Term b
   LambdaTerm :: Variable a -> Term b -> Term (a :-> b)
+  ForallTerm :: TypeVariable a -> Term b -> Term (V a b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
+  ApplyTypeTerm :: Term (V a b) -> Type a -> Term b
 
 typeOf :: Term a -> Type a
 typeOf (VariableTerm (Variable t _)) = t

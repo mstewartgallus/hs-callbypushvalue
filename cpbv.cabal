@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 26332a68a437bd902bb80e4972ec1999d242ac0f13bec777e1e9ae0881d5492c
+-- hash: 92bb35cb497e9b14864dd8615290b33dca048842ee88d70ca94cc7d8202dd6c0
 
 name:           cpbv
 version:        0.1.0.0
@@ -40,6 +40,7 @@ library
       Name
       SystemF
       Type
+      TypeVariable
       Unique
       Variable
       VarMap

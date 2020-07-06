@@ -39,4 +39,4 @@ uniqueId = State $ \ids -> (# ids +# 1#, Unique (I# ids) #)
 newtype Unique = Unique Int deriving (Eq, Ord)
 
 instance TextShow Unique where
-  showb (Unique n) = fromString "v" <> showb n
+  showb (Unique n) = showb n

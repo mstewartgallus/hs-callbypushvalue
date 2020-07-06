@@ -23,4 +23,4 @@ instance Ord (Variable a) where
   compare (Variable _ x) (Variable _ y) = compare x y
 
 instance TextShow (Variable a) where
-  showb (Variable _ name) = showb name
+  showb (Variable _ name) = fromString "v" <> showb name
