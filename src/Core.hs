@@ -32,17 +32,35 @@ Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
 fn :: Type (V a (V b (a :-> b)))
-fn = NominalType $ TypeName (T.pack "core") (T.pack "fn")
+fn = LambdaType $ \x ->
+  LambdaType $ \y ->
+    NominalType $ TypeApp (TypeApp fn' x) y
+
+fn' :: TypeName (V a (V b (a :-> b)))
+fn' = TypeName (T.pack "core") (T.pack "fn")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
-thunk = NominalType $ TypeName (T.pack "core") (T.pack "U")
+thunk = LambdaType $ \x ->
+  NominalType $ TypeApp thunk' x
+
+thunk' :: TypeName (V a (U a))
+thunk' = TypeName (T.pack "core") (T.pack "U")
+
+fnRaw' :: TypeName (V a (V b (a -> b)))
+fnRaw' = TypeName (T.pack "core") (T.pack "fnRaw")
 
 fnRaw :: Type (V a (V b (a -> b)))
-fnRaw = NominalType $ TypeName (T.pack "core") (T.pack "fnRaw")
+fnRaw = LambdaType $ \x ->
+  LambdaType $ \y ->
+    NominalType $ TypeApp (TypeApp fnRaw' x) y
 
 returnsType :: Type (V a (F a))
-returnsType = NominalType $ TypeName (T.pack "core") (T.pack "F")
+returnsType = LambdaType $ \x ->
+  NominalType $ TypeApp returnsType' x
+
+returnsType' :: TypeName (V a (F a))
+returnsType' = TypeName (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
 int = applyType returnsType intRaw
@@ -51,7 +69,11 @@ intRaw :: Type Integer
 intRaw = NominalType $ TypeName (T.pack "core") (T.pack "int")
 
 stack :: Type (V a (Stack a))
-stack = NominalType $ TypeName (T.pack "core") (T.pack "stack")
+stack = LambdaType $ \x ->
+  NominalType $ TypeApp stack' x
+
+stack' :: TypeName (V a (Stack a))
+stack' = TypeName (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (u int -=> u int -=> int) (T.pack "core") (T.pack "+")
@@ -74,28 +96,28 @@ infixr 9 -#->
 a -#-> b = applyType (applyType fnRaw (applyType thunk a)) b
 
 decompose :: Type (a -> b) -> (Type a, Type b)
-decompose (ApplyType (ApplyType f x) y) =
-  let Just Refl = equalType f fnRaw
+decompose (NominalType (TypeApp (TypeApp f x) y)) =
+  let Just Refl = equalName f fnRaw'
    in -- fixme... wtf?
       (unsafeCoerce x, unsafeCoerce y)
 
 pattern head :=> tail <- (decompose -> (head, tail))
 
 getstacktype :: Type (Stack a) -> Type a
-getstacktype (ApplyType f x) =
-  let Just Refl = equalType f stack
+getstacktype (NominalType (TypeApp f x)) =
+  let Just Refl = equalName f stack'
    in -- fixme... wtf?
       unsafeCoerce x
 
 getthunktype :: Type (U a) -> Type a
-getthunktype (ApplyType f x) =
-  let Just Refl = equalType f thunk
+getthunktype (NominalType (TypeApp f x)) =
+  let Just Refl = equalName f thunk'
    in -- fixme... wtf?
       unsafeCoerce x
 
 getreturntype :: Type (F a) -> Type a
-getreturntype (ApplyType f x) =
-  let Just Refl = equalType f returnsType
+getreturntype (NominalType (TypeApp f x)) =
+  let Just Refl = equalName f returnsType'
    in -- fixme... wtf?
       unsafeCoerce x
 

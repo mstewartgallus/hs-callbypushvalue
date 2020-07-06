@@ -76,7 +76,7 @@ instance Callcc Builder where
 
   catch t f = Builder $ do
     h <- Unique.uniqueId
-    let v = Variable (ApplyType stack t) h
+    let v = Variable (applyType stack t) h
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ CatchCode v body
   throw x f = Builder $ do

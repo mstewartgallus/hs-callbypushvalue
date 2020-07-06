@@ -19,7 +19,7 @@ typeOf (GlobalCode (Global t _ _)) = t
 typeOf (ForceCode thunk) =
   let ThunkType x = typeOfData thunk
    in x
-typeOf (ReturnCode value) = ApplyType returnsType (typeOfData value)
+typeOf (ReturnCode value) = applyType returnsType (typeOfData value)
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
@@ -30,7 +30,7 @@ typeOf (ApplyCode f _) =
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
-typeOfData (ThunkData code) = ApplyType thunk (typeOf code)
+typeOfData (ThunkData code) = applyType thunk (typeOf code)
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
@@ -221,8 +221,8 @@ intrinsics =
 
 plusIntrinsic :: Builder Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
-  lambda (ApplyType thunk int) $ \x' ->
-    lambda (ApplyType thunk int) $ \y' ->
+  lambda (applyType thunk int) $ \x' ->
+    lambda (applyType thunk int) $ \y' ->
       letTo (force x') $ \x'' ->
         letTo (force y') $ \y'' ->
           apply (apply (global strictPlus) x'') y''

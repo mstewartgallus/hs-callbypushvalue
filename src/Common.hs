@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (applyType, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyVariable (..), Variable (..)) where
+module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyVariable (..), Variable (..)) where
 
 import qualified Data.Text as T
 import Data.Typeable
@@ -18,28 +18,30 @@ type a :-> b = U a -> b
 
 infixr 9 :->
 
-data TypeName a = TypeName T.Text T.Text
+data TypeName a where
+  TypeName :: T.Text -> T.Text -> TypeName a
+  TypeApp :: TypeName (V a b) -> Type a -> TypeName b
 
 data Global a = Global (Type a) T.Text T.Text
 
 data Type a where
   NominalType :: TypeName a -> Type a
-  ApplyType :: Type (V a b) -> Type a -> Type b
+  LambdaType :: (Type a -> Type b) -> Type (V a b)
 
 applyType :: Type (V a b) -> Type a -> Type b
-applyType f x = ApplyType f x
+applyType (LambdaType f) = f
 
 -- fixme... is there a safer way?
 equalName :: TypeName a -> TypeName b -> Maybe (a :~: b)
 equalName (TypeName package name) (TypeName package' name')
   | package == package' && name == name' = Just (unsafeCoerce Refl)
   | otherwise = Nothing
+equalName (TypeApp f x) (TypeApp f' x') = case (equalName f f', equalType x x') of
+  (Just Refl, Just Refl) -> Just Refl
+  _ -> Nothing
 
 equalType :: Type a -> Type b -> Maybe (a :~: b)
 equalType (NominalType name) (NominalType name') = equalName name name'
-equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x x') of
-  (Just Refl, Just Refl) -> Just Refl
-  _ -> Nothing
 equalType _ _ = Nothing
 
 newtype R = R (IO ())
@@ -88,10 +90,14 @@ instance TextShow (Label a) where
 
 instance TextShow (TypeName a) where
   showb (TypeName package name) = fromText package <> fromString "/" <> fromText name
+  showb (TypeApp f x) = fromString "(" <> loop f x <> fromString ")"
+    where
+      loop :: TypeName (V a b) -> Type a -> Builder
+      loop t@(TypeName _ _) x = showb t <> fromString " " <> showb x
+      loop (TypeApp f x) y = loop f x <> fromString " " <> showb y
 
 instance TextShow (Type a) where
   showb (NominalType name) = showb name
-  showb (ApplyType f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
 instance TextShow (Constant a) where
   showb (IntegerConstant n) = showb n
