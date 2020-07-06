@@ -31,26 +31,26 @@ Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
 fn :: Type (V a (V b (a :-> b)))
-fn = NominalType (T.pack "core") (T.pack "fn")
+fn = NominalType $ TypeName (T.pack "core") (T.pack "fn")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
-thunk = NominalType (T.pack "core") (T.pack "U")
+thunk = NominalType $ TypeName (T.pack "core") (T.pack "U")
 
 fnRaw :: Type (V a (V b (a -> b)))
-fnRaw = NominalType (T.pack "core") (T.pack "fnRaw")
+fnRaw = NominalType $ TypeName (T.pack "core") (T.pack "fnRaw")
 
 returnsType :: Type (V a (F a))
-returnsType = NominalType (T.pack "core") (T.pack "F")
+returnsType = NominalType $ TypeName (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
 int = ApplyType returnsType intRaw
 
 intRaw :: Type Integer
-intRaw = NominalType (T.pack "core") (T.pack "int")
+intRaw = NominalType $ TypeName (T.pack "core") (T.pack "int")
 
 stack :: Type (V a (Stack a))
-stack = NominalType (T.pack "core") (T.pack "stack")
+stack = NominalType $ TypeName (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (u int -=> u int -=> int) (T.pack "core") (T.pack "+")

@@ -100,13 +100,13 @@ data Data a where
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
-  showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
+  showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ReturnCode value) = fromString "return " <> showb value
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (CatchCode binder body) =
-    fromString "catch " <> showb binder <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
+  showb (CatchCode binder@(Variable t _) body) =
+    fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
 instance TextShow (Data a) where

@@ -99,7 +99,7 @@ data Data a where
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
-  showb (LambdaCode binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
+  showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ForceCode thunk) = fromString "! " <> showb thunk
   showb (ReturnCode value) = fromString "return " <> showb value

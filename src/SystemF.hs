@@ -66,7 +66,7 @@ instance TextShow (Term a) where
   showb (ConstantTerm k) = showb k
   showb (GlobalTerm g) = showb g
   showb (LetTerm term binder body) = showb term <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (LambdaTerm binder body) = fromString "λ " <> showb binder <> fromString " →\n" <> showb body
+  showb (LambdaTerm binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyTerm f x) = showb x <> fromString "\n" <> showb f
 
 simplify :: Term a -> Builder Term a
