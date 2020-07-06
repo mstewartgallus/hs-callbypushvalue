@@ -17,10 +17,6 @@ module Lib
     toCallByPushValue,
     toCallcc,
     toContinuationPassingStyle,
-    intrinsify,
-    simplifyCbpv,
-    inlineCbpv,
-    simplifyCallcc,
   )
 where
 
@@ -39,14 +35,6 @@ import TextShow
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
-
-simplifyCbpv = Cbpv.simplify
-
-inlineCbpv = Cbpv.inline
-
-simplifyCallcc = Callcc.simplify
-
-intrinsify = Cbpv.intrinsify
 
 toCallByPushValue :: SystemF.Term a -> Cbpv.Builder Cbpv.Code a
 toCallByPushValue = toCbpv VarMap.empty

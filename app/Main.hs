@@ -44,7 +44,7 @@ phases ::
 phases term =
   let optTerm = optimizeTerm term
       cbpv = Cbpv.build (toCallByPushValue optTerm)
-      intrinsified = Cbpv.build (intrinsify cbpv)
+      intrinsified = Cbpv.build (Cbpv.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
       optCatchThrow = optimizeCallcc catchThrow
