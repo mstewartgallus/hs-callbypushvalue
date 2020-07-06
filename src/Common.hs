@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), AnyVariable (..), Variable (..)) where
+module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), AnyVariable (..), Variable (..)) where
 
 import qualified Data.Text as T
 import Data.Typeable
@@ -69,13 +69,8 @@ instance Eq AnyVariable where
 instance Ord (Variable a) where
   compare (Variable _ x) (Variable _ y) = compare x y
 
-data Label a = Label (Type a) T.Text
-
 instance TextShow (Variable a) where
   showb (Variable _ name) = showb name
-
-instance TextShow (Label a) where
-  showb (Label _ name) = fromText name
 
 instance TextShow (TypeName a) where
   showb (TypeName package name) = fromText package <> fromString "/" <> fromText name
