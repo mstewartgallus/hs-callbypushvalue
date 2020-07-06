@@ -24,7 +24,6 @@ lookup :: Variable a -> VarMap t -> Maybe (t a)
 lookup (Variable t name) (VarMap map) = case Map.lookup name map of
   Nothing -> Nothing
   Just (Dyn t' x) -> case equalType t t' of
-    Nothing -> Nothing
     Just Refl -> Just x
 
 insert :: Variable a -> t a -> VarMap t -> VarMap t

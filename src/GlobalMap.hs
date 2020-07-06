@@ -20,7 +20,6 @@ lookup :: Global a -> GlobalMap t -> Maybe (t a)
 lookup (Global t package name) (GlobalMap map) = case Map.lookup (package, name) map of
   Nothing -> Nothing
   Just (Dyn t' x) -> case equalType t t' of
-    Nothing -> Nothing
     Just Refl -> Just x
 
 insert :: Global a -> t a -> GlobalMap t -> GlobalMap t
