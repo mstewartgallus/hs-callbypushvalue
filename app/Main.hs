@@ -22,14 +22,13 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: SystemF.Term (F Integer)
+mkProgram :: SystemF.SystemF t => t SystemF.Term (F Integer)
 mkProgram =
-  SystemF.build $
-    SystemF.apply
-      ( SystemF.lambda int $ \x ->
-          SystemF.apply (SystemF.apply (SystemF.global plus) x) (SystemF.apply (SystemF.apply (SystemF.global plus) x) x)
-      )
-      (SystemF.constant (IntegerConstant 5))
+  SystemF.apply
+    ( SystemF.lambda int $ \x ->
+        SystemF.apply (SystemF.apply (SystemF.global plus) x) (SystemF.apply (SystemF.apply (SystemF.global plus) x) x)
+    )
+    (SystemF.constant (IntegerConstant 5))
 
 phases ::
   SystemF.Term a ->
@@ -95,7 +94,7 @@ optimizeCps = loop iterCps
 
 main :: IO ()
 main = do
-  let program = mkProgram
+  let program = SystemF.build $ mkProgram
 
   putStrLn "Lambda Calculus:"
   printT program

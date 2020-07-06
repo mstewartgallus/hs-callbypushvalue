@@ -69,27 +69,24 @@ instance TextShow (Term a) where
   showb (LambdaTerm binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyTerm f x) = showb x <> fromString "\n" <> showb f
 
-simplify :: Term a -> Builder Term a
-simplify = simplify' VarMap.empty
+simplify :: SystemF t => Term a -> t Term a
+simplify = simp VarMap.empty
 
-simplify' :: VarMap X -> Term a -> Builder Term a
-simplify' map = loop
-  where
-    loop :: Term x -> Builder Term x
-    loop (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
-      let term' = loop term
-       in letBe term' $ \value -> simplify' (VarMap.insert binder (X value) map) body
-    loop (LetTerm term binder@(Variable t _) body) =
-      let term' = simplify term
-       in letBe term' $ \value -> simplify' (VarMap.insert binder (X value) map) body
-    loop (LambdaTerm binder@(Variable t _) body) =
-      let body' = simplify body
-       in lambda t $ \value -> simplify' (VarMap.insert binder (X value) map) body
-    loop (ApplyTerm f x) = apply (loop f) (loop x)
-    loop (ConstantTerm c) = constant c
-    loop (GlobalTerm g) = global g
-    loop (VariableTerm v) = case VarMap.lookup v map of
-      Just (X x) -> x
+simp :: SystemF t => VarMap (X t) -> Term a -> t Term a
+simp env (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
+  let term' = simp env term
+   in letBe term' $ \value -> simp (VarMap.insert binder (X value) env) body
+simp env (LetTerm term binder@(Variable t _) body) =
+  let term' = simp env term
+   in letBe term' $ \value -> simp (VarMap.insert binder (X value) env) body
+simp env (LambdaTerm binder@(Variable t _) body) =
+  let body' = simp env body
+   in lambda t $ \value -> simp (VarMap.insert binder (X value) env) body
+simp env (ApplyTerm f x) = apply (simp env f) (simp env x)
+simp _ (ConstantTerm c) = constant c
+simp _ (GlobalTerm g) = global g
+simp env (VariableTerm v) = case VarMap.lookup v env of
+  Just (X x) -> x
 
 count :: Variable a -> Term b -> Int
 count v = w
@@ -101,28 +98,26 @@ count v = w
     w (ApplyTerm f x) = w f + w x
     w _ = 0
 
-inline :: Term a -> Builder Term a
-inline = inline' VarMap.empty
+inline :: SystemF t => Term a -> t Term a
+inline = inl VarMap.empty
 
-data X a where
-  X :: Builder Term a -> X a
+data X t a where
+  X :: t Term a -> X t a
 
-inline' :: VarMap X -> Term a -> Builder Term a
-inline' map = w
-  where
-    w :: Term x -> Builder Term x
-    w (LetTerm term binder@(Variable t _) body) =
-      let term' = w term
-       in if count binder body <= 1 || isSimple term
-            then inline' (VarMap.insert binder (X term') map) body
-            else letBe term' $ \value ->
-              inline' (VarMap.insert binder (X value) map) body
-    w v@(VariableTerm variable) = case VarMap.lookup variable map of
-      Just (X replacement) -> replacement
-    w (ApplyTerm f x) = apply (w f) (w x)
-    w (LambdaTerm binder@(Variable t _) body) = lambda t $ \value -> inline' (VarMap.insert binder (X value) map) body
-    w (ConstantTerm c) = constant c
-    w (GlobalTerm g) = global g
+inl :: SystemF t => VarMap (X t) -> Term a -> t Term a
+inl env (LetTerm term binder@(Variable t _) body) =
+  let term' = inl env term
+   in if count binder body <= 1 || isSimple term
+        then inl (VarMap.insert binder (X term') env) body
+        else letBe term' $ \value ->
+          inl (VarMap.insert binder (X value) env) body
+inl env v@(VariableTerm variable) = case VarMap.lookup variable env of
+  Just (X replacement) -> replacement
+inl env (ApplyTerm f x) = inl env f `apply` inl env x
+inl env (LambdaTerm binder@(Variable t _) body) = lambda t $ \value ->
+  inl (VarMap.insert binder (X value) env) body
+inl _ (ConstantTerm c) = constant c
+inl _ (GlobalTerm g) = global g
 
 isSimple :: Term a -> Bool
 isSimple (ConstantTerm _) = True

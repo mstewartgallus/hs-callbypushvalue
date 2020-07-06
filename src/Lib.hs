@@ -14,8 +14,6 @@ module Lib
     F (),
     U (),
     (:->) (),
-    inlineTerm,
-    simplifyTerm,
     toCallByPushValue,
     toCallcc,
     toContinuationPassingStyle,
@@ -41,10 +39,6 @@ import TextShow
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
-
-inlineTerm = SystemF.inline
-
-simplifyTerm = SystemF.simplify
 
 simplifyCbpv = Cbpv.simplify
 
