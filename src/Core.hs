@@ -26,6 +26,7 @@ import Common
 import qualified Data.Text as T
 import Data.Typeable
 import Global
+import Name
 import Unsafe.Coerce
 
 {-
@@ -77,11 +78,11 @@ stack' :: TypeName (V a (Stack a))
 stack' = TypeName (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
-plus = Global (u int -=> u int -=> int) (T.pack "core") (T.pack "+")
+plus = Global (u int -=> u int -=> int) $ Name (T.pack "core") (T.pack "+")
 
 -- fixme...
 strictPlus :: Global (Integer -> Integer -> F Integer)
-strictPlus = Global (intRaw -=> intRaw -=> int) (T.pack "core") (T.pack "+!")
+strictPlus = Global (intRaw -=> intRaw -=> int) $ Name (T.pack "core") (T.pack "+!")
 
 u :: Type a -> Type (U a)
 u x = applyType thunk x

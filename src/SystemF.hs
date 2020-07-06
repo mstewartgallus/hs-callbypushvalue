@@ -56,7 +56,7 @@ data Term a where
 typeOf :: Term a -> Type a
 typeOf (VariableTerm (Variable t _)) = t
 typeOf (ConstantTerm (IntegerConstant _)) = int
-typeOf (GlobalTerm (Global t _ _)) = t
+typeOf (GlobalTerm (Global t _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
 typeOf (LambdaTerm (Variable t _) body) = t -#-> typeOf body
 typeOf (ApplyTerm f _) =

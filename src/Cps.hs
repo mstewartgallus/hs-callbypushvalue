@@ -98,7 +98,7 @@ build (Builder s) = Unique.run s
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
 typeOf :: Code a -> Type a
-typeOf (GlobalCode (Global t _ _)) = t
+typeOf (GlobalCode (Global t _)) = t
 typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
 typeOf (ReturnCode value) = applyType returnsType (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body

@@ -17,7 +17,7 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 
 typeOf :: Code a -> Type a
-typeOf (GlobalCode (Global t _ _)) = t
+typeOf (GlobalCode (Global t _)) = t
 typeOf (ForceCode thunk) =
   let ThunkType x = typeOfData thunk
    in x
