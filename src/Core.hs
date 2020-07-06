@@ -26,6 +26,7 @@ import Common
 import qualified Data.Text as T
 import Data.Typeable
 import Global
+import Kind
 import Name
 import Type
 import Unsafe.Coerce
@@ -35,48 +36,41 @@ Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
 fn :: Type (V a (V b (a :-> b)))
-fn = LambdaType $ \x ->
-  LambdaType $ \y ->
-    NominalType $ TypeApp (TypeApp fn' x) y
+fn = NominalType (TypeKind `FunKind` (TypeKind `FunKind` TypeKind)) fn'
 
-fn' :: TypeName (V a (V b (a :-> b)))
-fn' = TypeName $ Name (T.pack "core") (T.pack "fn")
+fn' :: Name
+fn' = Name (T.pack "core") (T.pack "fn")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
-thunk = LambdaType $ \x ->
-  NominalType $ TypeApp thunk' x
+thunk = NominalType (TypeKind `FunKind` TypeKind) thunk'
 
-thunk' :: TypeName (V a (U a))
-thunk' = TypeName $ Name (T.pack "core") (T.pack "U")
+thunk' :: Name
+thunk' = Name (T.pack "core") (T.pack "U")
 
-fnRaw' :: TypeName (V a (V b (a -> b)))
-fnRaw' = TypeName $ Name (T.pack "core") (T.pack "fnRaw")
+fnRaw' :: Name
+fnRaw' = Name (T.pack "core") (T.pack "fnRaw")
 
 fnRaw :: Type (V a (V b (a -> b)))
-fnRaw = LambdaType $ \x ->
-  LambdaType $ \y ->
-    NominalType $ TypeApp (TypeApp fnRaw' x) y
+fnRaw = NominalType (TypeKind `FunKind` (TypeKind `FunKind` TypeKind)) fnRaw'
 
 returnsType :: Type (V a (F a))
-returnsType = LambdaType $ \x ->
-  NominalType $ TypeApp returnsType' x
+returnsType = NominalType (TypeKind `FunKind` TypeKind) returnsType'
 
-returnsType' :: TypeName (V a (F a))
-returnsType' = TypeName $ Name (T.pack "core") (T.pack "F")
+returnsType' :: Name
+returnsType' = Name (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
 int = applyType returnsType intRaw
 
 intRaw :: Type Integer
-intRaw = NominalType $ TypeName $ Name (T.pack "core") (T.pack "int")
+intRaw = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
 stack :: Type (V a (Stack a))
-stack = LambdaType $ \x ->
-  NominalType $ TypeApp stack' x
+stack = NominalType (TypeKind `FunKind` TypeKind) stack'
 
-stack' :: TypeName (V a (Stack a))
-stack' = TypeName $ Name (T.pack "core") (T.pack "stack")
+stack' :: Name
+stack' = Name (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (u int -=> u int -=> int) $ Name (T.pack "core") (T.pack "+")
@@ -99,28 +93,28 @@ infixr 9 -#->
 a -#-> b = applyType (applyType fnRaw (applyType thunk a)) b
 
 decompose :: Type (a -> b) -> (Type a, Type b)
-decompose (NominalType (TypeApp (TypeApp f x) y)) =
-  let Just Refl = equalName f fnRaw'
+decompose (ApplyType (ApplyType f x) y) =
+  let Just Refl = equalType f fnRaw
    in -- fixme... wtf?
       (unsafeCoerce x, unsafeCoerce y)
 
 pattern head :=> tail <- (decompose -> (head, tail))
 
 getstacktype :: Type (Stack a) -> Type a
-getstacktype (NominalType (TypeApp f x)) =
-  let Just Refl = equalName f stack'
+getstacktype (ApplyType f x) =
+  let Just Refl = equalType f stack
    in -- fixme... wtf?
       unsafeCoerce x
 
 getthunktype :: Type (U a) -> Type a
-getthunktype (NominalType (TypeApp f x)) =
-  let Just Refl = equalName f thunk'
+getthunktype (ApplyType f x) =
+  let Just Refl = equalType f thunk
    in -- fixme... wtf?
       unsafeCoerce x
 
 getreturntype :: Type (F a) -> Type a
-getreturntype (NominalType (TypeApp f x)) =
-  let Just Refl = equalName f returnsType'
+getreturntype (ApplyType f x) =
+  let Just Refl = equalType f returnsType
    in -- fixme... wtf?
       unsafeCoerce x
 
