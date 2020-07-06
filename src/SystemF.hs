@@ -11,6 +11,9 @@ import Global
 import Kind
 import TextShow (TextShow, fromString, showb)
 import Type
+import TypeMap (TypeMap)
+import qualified TypeMap
+import TypeVariable
 import TypeVariable
 import qualified Unique
 import VarMap (VarMap)
@@ -86,25 +89,31 @@ instance TextShow (Term a) where
   showb (GlobalTerm g) = showb g
   showb (LetTerm term binder body) = showb term <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LambdaTerm binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
-  showb (ApplyTerm f x) = showb x <> fromString "\n" <> showb f
+  showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
+  showb (ForallTerm binder@(TypeVariable t _) body) = fromString "∀ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
+  showb (ApplyTypeTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
 simplify :: SystemF t => Term a -> t Term a
-simplify = simp VarMap.empty
+simplify = simp TypeMap.empty VarMap.empty
 
-simp :: SystemF t => VarMap (X t) -> Term a -> t Term a
-simp env (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
-  let term' = simp env term
-   in letBe term' $ \value -> simp (VarMap.insert binder (X value) env) body
-simp env (LetTerm term binder@(Variable t _) body) =
-  let term' = simp env term
-   in letBe term' $ \value -> simp (VarMap.insert binder (X value) env) body
-simp env (LambdaTerm binder@(Variable t _) body) =
-  let body' = simp env body
-   in lambda t $ \value -> simp (VarMap.insert binder (X value) env) body
-simp env (ApplyTerm f x) = apply (simp env f) (simp env x)
-simp _ (ConstantTerm c) = constant c
-simp _ (GlobalTerm g) = global g
-simp env (VariableTerm v) = case VarMap.lookup v env of
+simp :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
+simp tenv env (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
+  let term' = simp tenv env term
+   in letBe term' $ \value -> simp tenv (VarMap.insert binder (X value) env) body
+simp tenv env (LetTerm term binder@(Variable t _) body) =
+  let term' = simp tenv env term
+   in letBe term' $ \value -> simp tenv (VarMap.insert binder (X value) env) body
+simp tenv env (LambdaTerm binder@(Variable t _) body) =
+  let body' = simp tenv env body
+   in lambda t $ \value -> simp tenv (VarMap.insert binder (X value) env) body
+simp tenv env (ApplyTerm f x) = apply (simp tenv env f) (simp tenv env x)
+simp _ _ (ConstantTerm c) = constant c
+simp _ _ (GlobalTerm g) = global g
+simp tenv env (ForallTerm binder@(TypeVariable k _) body) =
+  let body' = simp tenv env body
+   in forall k $ \t -> simp (TypeMap.insert binder t tenv) env body
+simp tenv env (ApplyTypeTerm f x) = SystemF.applyType (simp tenv env f) x
+simp tenv env (VariableTerm v) = case VarMap.lookup v env of
   Just (X x) -> x
 
 count :: Variable a -> Term b -> Int
@@ -118,25 +127,28 @@ count v = w
     w _ = 0
 
 inline :: SystemF t => Term a -> t Term a
-inline = inl VarMap.empty
+inline = inl TypeMap.empty VarMap.empty
 
 data X t a where
   X :: t Term a -> X t a
 
-inl :: SystemF t => VarMap (X t) -> Term a -> t Term a
-inl env (LetTerm term binder@(Variable t _) body) =
-  let term' = inl env term
+inl :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
+inl tenv env (LetTerm term binder@(Variable t _) body) =
+  let term' = inl tenv env term
    in if count binder body <= 1 || isSimple term
-        then inl (VarMap.insert binder (X term') env) body
+        then inl tenv (VarMap.insert binder (X term') env) body
         else letBe term' $ \value ->
-          inl (VarMap.insert binder (X value) env) body
-inl env v@(VariableTerm variable) = case VarMap.lookup variable env of
+          inl tenv (VarMap.insert binder (X value) env) body
+inl _ env v@(VariableTerm variable) = case VarMap.lookup variable env of
   Just (X replacement) -> replacement
-inl env (ApplyTerm f x) = inl env f `apply` inl env x
-inl env (LambdaTerm binder@(Variable t _) body) = lambda t $ \value ->
-  inl (VarMap.insert binder (X value) env) body
-inl _ (ConstantTerm c) = constant c
-inl _ (GlobalTerm g) = global g
+inl tenv env (ApplyTerm f x) = inl tenv env f `apply` inl tenv env x
+inl tenv env (LambdaTerm binder@(Variable t _) body) = lambda t $ \value ->
+  inl tenv (VarMap.insert binder (X value) env) body
+inl _ _ (ConstantTerm c) = constant c
+inl _ _ (GlobalTerm g) = global g
+inl tenv env (ApplyTypeTerm f x) = inl tenv env f `SystemF.applyType` x
+inl tenv env (ForallTerm binder@(TypeVariable t _) body) = forall t $ \value ->
+  inl (TypeMap.insert binder value tenv) env body
 
 isSimple :: Term a -> Bool
 isSimple (ConstantTerm _) = True
