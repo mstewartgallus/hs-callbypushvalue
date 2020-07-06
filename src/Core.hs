@@ -10,6 +10,7 @@ module Core
     stack,
     pattern (:=>),
     (-=>),
+    (-#->),
     pattern ReturnsType,
     pattern StackType,
     pattern ThunkType,
@@ -44,7 +45,7 @@ returnsType :: Type (V a (F a))
 returnsType = NominalType $ TypeName (T.pack "core") (T.pack "F")
 
 int :: Type (F Integer)
-int = ApplyType returnsType intRaw
+int = applyType returnsType intRaw
 
 intRaw :: Type Integer
 intRaw = NominalType $ TypeName (T.pack "core") (T.pack "int")
@@ -60,12 +61,17 @@ strictPlus :: Global (Integer -> Integer -> F Integer)
 strictPlus = Global (intRaw -=> intRaw -=> int) (T.pack "core") (T.pack "+!")
 
 u :: Type a -> Type (U a)
-u x = ApplyType thunk x
+u x = applyType thunk x
 
 infixr 9 -=>
 
 (-=>) :: Type a -> Type b -> Type (a -> b)
-a -=> b = ApplyType (ApplyType fnRaw a) b
+a -=> b = applyType (applyType fnRaw a) b
+
+infixr 9 -#->
+
+(-#->) :: Type a -> Type b -> Type (a :-> b)
+a -#-> b = applyType (applyType fnRaw (applyType thunk a)) b
 
 decompose :: Type (a -> b) -> (Type a, Type b)
 decompose (ApplyType (ApplyType f x) y) =

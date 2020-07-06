@@ -56,7 +56,7 @@ typeOf (VariableTerm (Variable t _)) = t
 typeOf (ConstantTerm (IntegerConstant _)) = int
 typeOf (GlobalTerm (Global t _ _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
-typeOf (LambdaTerm (Variable t _) body) = ApplyType thunk t -=> typeOf body
+typeOf (LambdaTerm (Variable t _) body) = t -#-> typeOf body
 typeOf (ApplyTerm f _) =
   let _ :=> result = typeOf f
    in result

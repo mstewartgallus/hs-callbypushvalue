@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyVariable (..), Variable (..)) where
+module Common (applyType, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyVariable (..), Variable (..)) where
 
 import qualified Data.Text as T
 import Data.Typeable
@@ -25,6 +25,9 @@ data Global a = Global (Type a) T.Text T.Text
 data Type a where
   NominalType :: TypeName a -> Type a
   ApplyType :: Type (V a b) -> Type a -> Type b
+
+applyType :: Type (V a b) -> Type a -> Type b
+applyType f x = ApplyType f x
 
 -- fixme... is there a safer way?
 equalName :: TypeName a -> TypeName b -> Maybe (a :~: b)
