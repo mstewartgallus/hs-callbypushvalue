@@ -5,6 +5,7 @@
 module Callcc (build, Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
 
 import Common
+import Constant
 import Core
 import Data.Text as T
 import TextShow (TextShow, fromString, fromText, showb, toText)

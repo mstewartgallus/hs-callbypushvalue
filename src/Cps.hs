@@ -5,6 +5,7 @@
 module Cps (build, Cps (..), Code (..), Data (..), Builder (..), simplify, inline, evaluate, typeOf) where
 
 import Common
+import Constant
 import Core
 import qualified Data.Text as T
 import GlobalMap (GlobalMap)

@@ -5,6 +5,7 @@
 module Cbpv (typeOf, build, Builder, Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
+import Constant
 import Core
 import qualified Data.Text as T
 import GlobalMap (GlobalMap)

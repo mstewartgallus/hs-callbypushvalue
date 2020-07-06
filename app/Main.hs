@@ -5,6 +5,7 @@ module Main where
 import qualified Callcc
 import qualified Cbpv
 import Common
+import qualified Constant
 import Core
 import qualified Cps
 import qualified Data.Text as T
@@ -26,7 +27,7 @@ mkProgram =
     ( SystemF.lambda int $ \x ->
         SystemF.apply (SystemF.apply (SystemF.global plus) x) (SystemF.apply (SystemF.apply (SystemF.global plus) x) x)
     )
-    (SystemF.constant (IntegerConstant 5))
+    (SystemF.constant (Constant.IntegerConstant 5))
 
 phases ::
   SystemF.Term a ->

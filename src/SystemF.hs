@@ -5,6 +5,7 @@
 module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where
 
 import Common
+import Constant
 import Core
 import TextShow (TextShow, fromString, showb)
 import qualified Unique

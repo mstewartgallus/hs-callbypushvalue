@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Constant (..), Global (..), AnyVariable (..), Variable (..)) where
+module Common (applyType, equalName, equalType, V, (:->), TypeName (..), Type (..), F, U, Nil, R (..), Stack (..), Label (..), Global (..), AnyVariable (..), Variable (..)) where
 
 import qualified Data.Text as T
 import Data.Typeable
@@ -73,12 +73,6 @@ instance Ord (Variable a) where
 
 data Label a = Label (Type a) T.Text
 
-data Constant a where
-  IntegerConstant :: Integer -> Constant Integer
-
-instance Eq (Constant a) where
-  (IntegerConstant x) == (IntegerConstant y) = x == y
-
 instance Eq (Global a) where
   (Global _ a x) == (Global _ b y) = a == b && x == y
 
@@ -98,9 +92,6 @@ instance TextShow (TypeName a) where
 
 instance TextShow (Type a) where
   showb (NominalType name) = showb name
-
-instance TextShow (Constant a) where
-  showb (IntegerConstant n) = showb n
 
 instance TextShow (Global a) where
   showb (Global _ package name) = fromText package <> fromString "/" <> fromText name
