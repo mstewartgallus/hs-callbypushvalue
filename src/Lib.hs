@@ -2,19 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Lib
-  ( fn,
-    thunk,
-    int,
-    plus,
-    Variable (..),
-    Constant (..),
-    Global (Global),
-    Type (..),
-    Stack (),
-    F (),
-    U (),
-    (:->) (),
-    toCallByPushValue,
+  ( toCallByPushValue,
     toCallcc,
     toContinuationPassingStyle,
   )
@@ -23,13 +11,9 @@ where
 import qualified Callcc
 import qualified Cbpv
 import Common
-import Control.Monad.ST
-import Control.Monad.State
 import Core
-import Cps
+import qualified Cps
 import qualified Data.Text as T
-import Data.Typeable
-import SystemF (Term (..))
 import qualified SystemF
 import TextShow
 import Unique
@@ -42,21 +26,21 @@ toCallByPushValue = toCbpv VarMap.empty
 newtype C a = C (Cbpv.Builder Cbpv.Code a)
 
 toCbpv :: VarMap C -> SystemF.Term a -> Cbpv.Builder Cbpv.Code a
-toCbpv env (VariableTerm x) =
+toCbpv env (SystemF.VariableTerm x) =
   let Just (C replacement) = VarMap.lookup x env
    in replacement
-toCbpv _ (ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
-toCbpv _ (GlobalTerm x) = Cbpv.global x
-toCbpv env (LetTerm term binder body) =
+toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
+toCbpv _ (SystemF.GlobalTerm x) = Cbpv.global x
+toCbpv env (SystemF.LetTerm term binder body) =
   let term' = toCbpv env term
    in Cbpv.letBe (Cbpv.delay term') $ \value ->
         let env' = VarMap.insert binder (C (Cbpv.force value)) env
          in toCbpv env' body
-toCbpv env (LambdaTerm binder@(Variable t _) body) =
+toCbpv env (SystemF.LambdaTerm binder@(Variable t _) body) =
   Cbpv.lambda (applyType thunk t) $ \value ->
     let env' = VarMap.insert binder (C (Cbpv.force value)) env
      in toCbpv env' body
-toCbpv env (ApplyTerm f x) =
+toCbpv env (SystemF.ApplyTerm f x) =
   let f' = toCbpv env f
       x' = toCbpv env x
    in Cbpv.apply f' (Cbpv.delay x')
@@ -140,7 +124,7 @@ toCps env (Callcc.ReturnCode value) k = Cps.jump (Cps.returns (toCpsData env val
 
 newtype Y a = Y (Cps.Builder Cps.Data a)
 
-toCpsData :: VarMap Y -> Callcc.Data a -> Cps.Builder Data a
+toCpsData :: VarMap Y -> Callcc.Data a -> Cps.Builder Cps.Data a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData env (Callcc.VariableData v) =
   let Just (Y x) = VarMap.lookup v env

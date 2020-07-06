@@ -5,14 +5,12 @@ module Main where
 import qualified Callcc
 import qualified Cbpv
 import Common
-import Control.Monad.State
+import Core
 import qualified Cps
 import qualified Data.Text as T
 import Lib
-import SystemF
 import qualified SystemF
 import TextShow
-import Unique
 
 iterTerm = 20
 
