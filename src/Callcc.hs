@@ -8,6 +8,7 @@ import Common
 import Constant
 import Core
 import Data.Text as T
+import Global
 import TextShow (TextShow, fromString, fromText, showb, toText)
 import Unique
 import qualified VarMap

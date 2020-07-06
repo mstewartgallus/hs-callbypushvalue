@@ -25,6 +25,7 @@ where
 import Common
 import qualified Data.Text as T
 import Data.Typeable
+import Global
 import Unsafe.Coerce
 
 {-

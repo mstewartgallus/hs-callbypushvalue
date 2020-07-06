@@ -9,6 +9,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable
+import Global
 
 data Dyn t where
   Dyn :: Type a -> t a -> Dyn t

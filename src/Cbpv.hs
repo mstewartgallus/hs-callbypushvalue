@@ -8,6 +8,7 @@ import Common
 import Constant
 import Core
 import qualified Data.Text as T
+import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
