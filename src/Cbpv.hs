@@ -186,12 +186,12 @@ inline' map = code
     value (ConstantData k) = constant k
 
 -- Fixme... use a different file for this?
-intrinsify :: Code a -> Builder Code a
-intrinsify code = intrins VarMap.empty code
+intrinsify :: Cpbv t => Code a -> t Code a
+intrinsify = intrins VarMap.empty
 
 newtype X a = X (Builder Data a)
 
-intrins :: VarMap X -> Code a -> Builder Code a
+intrins :: Cpbv t => VarMap (t Data) -> Code a -> t Code a
 intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
@@ -199,31 +199,31 @@ intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
 intrins env (ForceCode x) = force (intrinsData env x)
 intrins env (ReturnCode x) = returns (intrinsData env x)
 intrins env (LambdaCode binder@(Variable t _) body) = lambda t $ \value ->
-  let env' = VarMap.insert binder (X value) env
+  let env' = VarMap.insert binder value env
    in intrins env' body
 intrins env (LetBeCode value binder body) = letBe (intrinsData env value) $ \value ->
-  let env' = VarMap.insert binder (X value) env
+  let env' = VarMap.insert binder value env
    in intrins env' body
 intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value ->
-  let env' = VarMap.insert binder (X value) env
+  let env' = VarMap.insert binder value env
    in intrins env' body
 
-intrinsData :: VarMap X -> Data a -> Builder Data a
+intrinsData :: Cpbv t => VarMap (t Data) -> Data a -> t Data a
 intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
-  let Just (X x) = VarMap.lookup binder env
+  let Just x = VarMap.lookup binder env
    in x
 intrinsData env (ConstantData x) = constant x
 
-newtype Intrinsic a = Intrinsic (Builder Code a)
+newtype Intrinsic t a = Intrinsic (t Code a)
 
-intrinsics :: GlobalMap Intrinsic
+intrinsics :: Cpbv t => GlobalMap (Intrinsic t)
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
     ]
 
-plusIntrinsic :: Builder Code (F Integer :-> F Integer :-> F Integer)
+plusIntrinsic :: Cpbv t => t Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
   lambda (applyType thunk int) $ \x' ->
     lambda (applyType thunk int) $ \y' ->
