@@ -57,36 +57,30 @@ instance Callcc Builder where
   letTo x f = Builder $ do
     x' <- builder x
     let F t = typeOf x'
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LetToCode x' v body
   letBe x f = Builder $ do
     x' <- builder x
     let t = typeOfData x'
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LetBeCode x' v body
   lambda t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LambdaCode v body
   apply f x = Builder $ do
-    f' <- builder f
-    x' <- builder x
-    pure $ ApplyCode f' x'
+    pure ApplyCode <*> builder f <*> builder x
   constant k = (Builder . pure) $ ConstantData k
 
   catch t f = Builder $ do
     v <- pure (Variable (StackType t)) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ CatchCode v body
-  throw x f = Builder $ do
-    x' <- builder x
-    f' <- builder f
-    pure $ ThrowCode x' f'
+  throw x f =
+    Builder $
+      pure ThrowCode <*> builder x <*> builder f
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -147,28 +141,26 @@ count v = code
 inline :: Callcc t => Code a -> t Code a
 inline = inlCode VarMap.empty
 
-newtype X t a = X (t Data a)
-
-inlCode :: Callcc t => VarMap (X t) -> Code a -> t Code a
+inlCode :: Callcc t => VarMap (t Data) -> Code a -> t Code a
 inlCode env (LetBeCode term binder body) =
   let term' = inlValue env term
    in if Callcc.count binder body <= 1
-        then inlCode (VarMap.insert binder (X term') env) body
+        then inlCode (VarMap.insert binder term' env) body
         else letBe term' $ \x ->
-          inlCode (VarMap.insert binder (X x) env) body
+          inlCode (VarMap.insert binder x env) body
 inlCode env (LetToCode term binder body) = letTo (inlCode env term) $ \x ->
-  inlCode (VarMap.insert binder (X x) env) body
+  inlCode (VarMap.insert binder x env) body
 inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
 inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  inlCode (VarMap.insert binder (X x) env) body
+  inlCode (VarMap.insert binder x env) body
 inlCode env (ReturnCode val) = returns (inlValue env val)
 inlCode env (GlobalCode g) = global g
 inlCode env (ThrowCode x f) = throw (inlValue env x) (inlCode env f)
 inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
-  inlCode (VarMap.insert binder (X x) env) body
+  inlCode (VarMap.insert binder x env) body
 
-inlValue :: Callcc t => VarMap (X t) -> Data x -> t Data x
+inlValue :: Callcc t => VarMap (t Data) -> Data x -> t Data x
 inlValue env (VariableData variable) =
-  let Just (X replacement) = VarMap.lookup variable env
+  let Just replacement = VarMap.lookup variable env
    in replacement
 inlValue _ (ConstantData k) = constant k
