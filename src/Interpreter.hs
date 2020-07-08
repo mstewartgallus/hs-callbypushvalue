@@ -25,7 +25,7 @@ data X tag a where
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
     Act k -> k NilStack
-  returns (Value x) = Act $ \(PopStack k) -> k x
+  returns (Value x) (Value (PopStack k)) = Act $ \NilStack -> k x
   letBe x f = f x
   pop (Value (PushStack x k)) f = f (Value x) (Value k)
   nilStack = Value NilStack
@@ -53,9 +53,10 @@ abstractData (PushData h t) =
 abstractData NilStackData = \_ -> nilStack
 
 abstract :: Cps t => Code a -> VarMap (t Data) -> t Code a
-abstract (ReturnCode value) =
+abstract (ReturnCode value k) =
   let value' = abstractData value
-   in \env -> returns (value' env)
+      k' = abstractData k
+   in \env -> returns (value' env) (k' env)
 abstract (LetBeCode value binder body) =
   let value' = abstractData value
       body' = abstract body

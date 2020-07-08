@@ -119,7 +119,7 @@ toCps env (Callcc.CatchCode binder body) k =
     let env' = VarMap.insert binder k' env
      in toCps env' body Cps.nilStack
 toCps _ (Callcc.GlobalCode x) k = Cps.jump (Cps.global x) k
-toCps env (Callcc.ReturnCode value) k = Cps.jump (Cps.returns (toCpsData env value)) k
+toCps env (Callcc.ReturnCode value) k = Cps.returns (toCpsData env value) k
 
 toCpsData :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Data a -> t Cps.Data a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x
