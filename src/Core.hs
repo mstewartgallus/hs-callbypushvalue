@@ -9,8 +9,6 @@ module Core
     pattern StackType,
     pattern U,
     pattern IntType,
-    int,
-    intRaw,
     plus,
     strictPlus,
   )

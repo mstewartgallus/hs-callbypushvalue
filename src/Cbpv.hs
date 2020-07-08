@@ -225,8 +225,8 @@ intrinsics =
 
 plusIntrinsic :: Cbpv t => t Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
-  lambda (U int) $ \x' ->
-    lambda (U int) $ \y' ->
+  lambda (U (F IntType)) $ \x' ->
+    lambda (U (F IntType)) $ \y' ->
       letTo (force x') $ \x'' ->
         letTo (force y') $ \y'' ->
           apply (apply (global strictPlus) x'') y''
