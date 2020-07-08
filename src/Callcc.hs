@@ -154,7 +154,7 @@ inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
 inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode env (ReturnCode val) = returns (inlValue env val)
-inlCode env (GlobalCode g) = global g
+inlCode _ (GlobalCode g) = global g
 inlCode env (ThrowCode x f) = throw (inlValue env x) (inlCode env f)
 inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
   inlCode (VarMap.insert binder x env) body
