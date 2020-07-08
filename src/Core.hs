@@ -8,6 +8,7 @@ module Core
     pattern F,
     pattern StackType,
     pattern U,
+    pattern NilType,
     pattern IntType,
     plus,
     strictPlus,
@@ -26,6 +27,9 @@ import Type
 Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
+
+nil :: Type Nil
+nil = NominalType TypeKind $ Name (T.pack "core") (T.pack "nil")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
@@ -78,6 +82,12 @@ pattern IntType <-
   ((equalType intRaw) -> Just Refl)
   where
     IntType = intRaw
+
+pattern NilType :: Type Nil
+pattern NilType <-
+  ((equalType nil) -> Just Refl)
+  where
+    NilType = nil
 
 pattern StackType :: Type a -> Type (Stack a)
 pattern StackType x <-

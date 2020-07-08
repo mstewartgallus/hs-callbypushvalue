@@ -10,7 +10,7 @@ import qualified Constant
 import Core
 import Global
 import TextShow (TextShow, fromString, showb)
-import Type (Type, applyType)
+import Type (Type)
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -81,6 +81,7 @@ instance TextShow (Code a) where
   showb (JumpCode action stack) = showb action <> fromString " , " <> showb stack
 
 instance TextShow (Data a) where
+  showb NilStackData = fromString "nil"
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
   showb (LetToData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
@@ -96,18 +97,24 @@ typeOf (GlobalCode (Global t _)) = t
 typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
 typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
+typeOf (JumpCode _ _) = NilType
 
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (LetToData (Variable t _) _) = StackType (F t)
+typeOfData (PushData h t) =
+  let a = typeOfData h
+      StackType b = typeOfData t
+   in StackType (a :=> b)
+typeOfData NilStackData = StackType NilType
 
 simplify :: Data a -> Data a
 simplify = simpData
 
 simpData :: Data a -> Data a
 simpData (LetToData binder body) = LetToData binder (simpCode body)
-simpData (PushData head tail) = PushData (simpData head) (simpData tail)
+simpData (PushData h t) = PushData (simpData h) (simpData t)
 simpData x = x
 
 simpCode :: Code a -> Code a
@@ -120,26 +127,26 @@ simpCode g@(GlobalCode _) = g
 inline :: Data a -> Builder Data a
 inline = inlineData VarMap.empty
 
-newtype Y a = Y (Builder Data a)
-
-inlineData :: VarMap Y -> Data a -> Builder Data a
-inlineData env (VariableData variable) =
-  let Just (Y replacement) = VarMap.lookup variable env
-   in replacement
+inlineData :: Cps t => VarMap (t Data) -> Data a -> t Data a
+inlineData env (VariableData v) =
+  let Just x = VarMap.lookup v env
+   in x
 inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
-  let env' = VarMap.insert binder (Y value) env
+  let env' = VarMap.insert binder value env
    in inlineCode env' body
-inlineData env (PushData head tail) = Cps.push (inlineData env head) (inlineData env tail)
+inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
 inlineData _ (ConstantData k) = Cps.constant k
+inlineData _ NilStackData = Cps.nilStack
 
-inlineCode :: VarMap Y -> Code x -> Builder Code x
+inlineCode :: Cps t => VarMap (t Data) -> Code x -> t Code x
 inlineCode env (LetBeCode term binder body) =
-  if count binder body <= 1
-    then inlineCode (VarMap.insert binder (Y (inlineData env term)) env) body
-    else letBe (inlineData env term) $ \x ->
-      inlineCode (VarMap.insert binder (Y x) env) body
+  let term' = inlineData env term
+   in if count binder body <= 1
+        then inlineCode (VarMap.insert binder term' env) body
+        else letBe term' $ \x ->
+          inlineCode (VarMap.insert binder x env) body
 inlineCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  inlineCode (VarMap.insert binder (Y x) env) body
+  inlineCode (VarMap.insert binder x env) body
 inlineCode env (ReturnCode val) = returns (inlineData env val)
 inlineCode _ (GlobalCode g) = global g
 inlineCode env (JumpCode x f) = jump (inlineCode env x) (inlineData env f)
@@ -155,6 +162,6 @@ count v = code
     code _ = 0
     value :: Data x -> Int
     value (LetToData binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
-    value (PushData head tail) = value head + value tail
+    value (PushData h t) = value h + value t
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
     value _ = 0
