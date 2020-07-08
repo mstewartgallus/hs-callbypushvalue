@@ -37,12 +37,12 @@ class Cps t where
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
 
   pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code c) -> t Code c
+  jump :: t Code a -> t Data (Stack a) -> t Code Nil
 
   letTo :: Type a -> (t Data a -> t Code Nil) -> t Data (Stack (F a))
   push :: t Data a -> t Data (Stack b) -> t Data (Stack (a -> b))
 
   nilStack :: t Data (Stack Nil)
-  jump :: t Code a -> t Data (Stack a) -> t Code Nil
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalCode g

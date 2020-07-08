@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Main where
 
@@ -22,13 +23,11 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: SystemF.SystemF t => t SystemF.Term (F Integer)
+mkProgram :: SystemF.SystemF t => t SystemF.Term (F Integer :-> F Integer :-> F Integer)
 mkProgram =
-  SystemF.apply
-    ( SystemF.lambda (F IntType) $ \x ->
-        SystemF.plus (SystemF.plus x x) (SystemF.plus x x)
-    )
-    (SystemF.constant (Constant.IntegerConstant 5))
+    SystemF.lambda (F IntType) $ \x ->
+    SystemF.lambda (F IntType) $ \y ->
+    SystemF.plus (SystemF.plus x y) (SystemF.plus y x)
 
 phases ::
   SystemF.Term a ->
@@ -128,7 +127,10 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let PopStack k = cpsData
-  let R eff = k $ PopStack $ \value -> R $ printT value
+  let R eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> R $ printT value
   eff
 
   return ()
+
+t :: a -> Stack (F (Stack (F a)))
+t x = PopStack $ \(PopStack k) -> k x
