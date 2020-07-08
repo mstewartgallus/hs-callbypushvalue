@@ -1,20 +1,14 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Core
-  ( fn,
-    thunk,
-    stack,
-    pattern (:=>),
-    (-=>),
-    (-#->),
-    pattern ReturnsType,
+  ( pattern (:=>),
+    pattern F,
     pattern StackType,
-    pattern ThunkType,
-    returnsType,
+    pattern U,
+    pattern IntType,
     int,
     intRaw,
     plus,
@@ -34,11 +28,6 @@ import Type
 Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
-fn :: Type (V a (V b (a :-> b)))
-fn = NominalType (TypeKind `FunKind` (TypeKind `FunKind` TypeKind)) fn'
-
-fn' :: Name
-fn' = Name (T.pack "core") (T.pack "fn")
 
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
@@ -72,33 +61,40 @@ stack' :: Name
 stack' = Name (T.pack "core") (T.pack "stack")
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
-plus = Global (u int -=> u int -=> int) $ Name (T.pack "core") (T.pack "+")
+plus = Global (U int :=> U int :=> int) $ Name (T.pack "core") (T.pack "+")
 
 -- fixme...
 strictPlus :: Global (Integer -> Integer -> F Integer)
-strictPlus = Global (intRaw -=> intRaw -=> int) $ Name (T.pack "core") (T.pack "+!")
+strictPlus = Global (intRaw :=> intRaw :=> int) $ Name (T.pack "core") (T.pack "+!")
 
-u :: Type a -> Type (U a)
-u x = applyType thunk x
+infixr 9 :=>
 
-infixr 9 -=>
+pattern (:=>) :: Type a -> Type b -> Type (a -> b)
+pattern head :=> tail <-
+  (ApplyType (ApplyType ((equalType fnRaw) -> Just Refl) head) tail)
+  where
+    a :=> b = ApplyType (ApplyType fnRaw a) b
 
-(-=>) :: Type a -> Type b -> Type (a -> b)
-a -=> b = applyType (applyType fnRaw a) b
-
-infixr 9 -#->
-
-(-#->) :: Type a -> Type b -> Type (a :-> b)
-a -#-> b = applyType (applyType fnRaw (applyType thunk a)) b
-
-pattern (:=>) :: forall a b. Type a -> Type b -> Type (a -> b)
-pattern head :=> tail <- (ApplyType (ApplyType ((equalType fnRaw) -> Just Refl) head) tail)
+pattern IntType :: Type Integer
+pattern IntType <-
+  ((equalType intRaw) -> Just Refl)
+  where
+    IntType = intRaw
 
 pattern StackType :: Type a -> Type (Stack a)
-pattern StackType x <- (ApplyType ((equalType stack) -> Just Refl) x)
+pattern StackType x <-
+  (ApplyType ((equalType stack) -> Just Refl) x)
+  where
+    StackType x = ApplyType stack x
 
-pattern ThunkType :: Type a -> Type (U a)
-pattern ThunkType x <- (ApplyType ((equalType thunk) -> Just Refl) x)
+pattern U :: Type a -> Type (U a)
+pattern U x <-
+  (ApplyType ((equalType thunk) -> Just Refl) x)
+  where
+    U x = ApplyType thunk x
 
-pattern ReturnsType :: Type a -> Type (F a)
-pattern ReturnsType x <- (ApplyType ((equalType returnsType) -> Just Refl) x)
+pattern F :: Type a -> Type (F a)
+pattern F x <-
+  (ApplyType ((equalType returnsType) -> Just Refl) x)
+  where
+    F x = ApplyType returnsType x

@@ -37,7 +37,7 @@ toCbpv env (SystemF.LetTerm term binder body) =
         let env' = VarMap.insert binder (Cbpv.force value) env
          in toCbpv env' body
 toCbpv env (SystemF.LambdaTerm binder@(Variable t _) body) =
-  Cbpv.lambda (applyType thunk t) $ \value ->
+  Cbpv.lambda (U t) $ \value ->
     let env' = VarMap.insert binder (Cbpv.force value) env
      in toCbpv env' body
 toCbpv env (SystemF.ApplyTerm f x) =
@@ -83,9 +83,9 @@ toExplicitCatchThrowData env (Cbpv.VariableData v) =
 toExplicitCatchThrowData env (Cbpv.ThunkData code) =
   let code' = toExplicitCatchThrow env code
       t = Cbpv.typeOf code
-   in Callcc.catch (applyType returnsType (applyType stack (applyType returnsType (applyType stack t)))) $ \returner ->
+   in Callcc.catch (F (StackType (F (StackType t)))) $ \returner ->
         Callcc.letTo
-          ( Callcc.catch (applyType returnsType (applyType stack t)) $ \label ->
+          ( Callcc.catch (F (StackType t)) $ \label ->
               Callcc.throw returner (Callcc.returns label)
           )
           $ \binder ->
@@ -97,7 +97,7 @@ toContinuationPassingStyle = toCps' VarMap.empty
 toCps' :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack (F (Stack a)))
 toCps' env act =
   let t = Callcc.typeOf act
-   in Cps.letTo (applyType stack t) $ \k ->
+   in Cps.letTo (StackType t) $ \k ->
         toCps env act k
 
 toCps :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack a) -> t Cps.Code Nil
@@ -110,7 +110,7 @@ toCps env (Callcc.LetBeCode value binder body) k =
 toCps env (Callcc.ThrowCode val body) _ =
   toCps env body (toCpsData env val)
 toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
-  let ReturnsType t = Callcc.typeOf action
+  let F t = Callcc.typeOf action
    in toCps env action $ Cps.letTo t $ \value ->
         let env' = VarMap.insert binder value env
          in toCps env' body k

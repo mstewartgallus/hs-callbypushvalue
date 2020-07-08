@@ -21,12 +21,12 @@ import Variable
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _)) = t
 typeOf (ForceCode thunk) =
-  let ThunkType x = typeOfData thunk
+  let U x = typeOfData thunk
    in x
-typeOf (ReturnCode value) = applyType returnsType (typeOfData value)
+typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
-typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
+typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
@@ -34,7 +34,7 @@ typeOf (ApplyCode f _) =
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
-typeOfData (ThunkData code) = applyType thunk (typeOf code)
+typeOfData (ThunkData code) = U (typeOf code)
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
@@ -62,7 +62,7 @@ instance Cbpv Builder where
       pure ReturnCode <*> builder value
   letTo x f = Builder $ do
     x' <- builder x
-    let ReturnsType t = typeOf x'
+    let F t = typeOf x'
     h <- Unique.uniqueId
     let v = Variable t h
     body <- builder (f ((Builder . pure) $ VariableData v))
@@ -224,8 +224,8 @@ intrinsics =
 
 plusIntrinsic :: Cbpv t => t Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
-  lambda (applyType thunk int) $ \x' ->
-    lambda (applyType thunk int) $ \y' ->
+  lambda (U int) $ \x' ->
+    lambda (U int) $ \y' ->
       letTo (force x') $ \x'' ->
         letTo (force y') $ \y'' ->
           apply (apply (global strictPlus) x'') y''

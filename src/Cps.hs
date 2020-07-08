@@ -92,14 +92,14 @@ newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _)) = t
-typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
-typeOf (ReturnCode value) = applyType returnsType (typeOfData value)
+typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
+typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 
 typeOfData :: Data a -> Type a
 typeOfData (ConstantData (IntegerConstant _)) = intRaw
 typeOfData (VariableData (Variable t _)) = t
-typeOfData (LetToData (Variable t _) _) = applyType stack $ applyType returnsType t
+typeOfData (LetToData (Variable t _) _) = StackType (F t)
 
 simplify :: Data a -> Data a
 simplify = simpData

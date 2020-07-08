@@ -23,8 +23,8 @@ build (Builder s) = Unique.run s
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _)) = t
-typeOf (LambdaCode (Variable t _) body) = t -=> typeOf body
-typeOf (ReturnCode value) = applyType returnsType (typeOfData value)
+typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
+typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (CatchCode (Variable (StackType x) _) _) = x
@@ -55,7 +55,7 @@ instance Callcc Builder where
       pure ReturnCode <*> builder value
   letTo x f = Builder $ do
     x' <- builder x
-    let ReturnsType t = typeOf x'
+    let F t = typeOf x'
     h <- Unique.uniqueId
     let v = Variable t h
     body <- builder $ f ((Builder . pure) $ VariableData v)
@@ -79,8 +79,7 @@ instance Callcc Builder where
   constant k = (Builder . pure) $ ConstantData k
 
   catch t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable (applyType stack t) h
+    v <- pure (Variable (StackType t)) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ CatchCode v body
   throw x f = Builder $ do
