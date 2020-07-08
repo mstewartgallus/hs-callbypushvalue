@@ -5,7 +5,8 @@
 module Cbpv (typeOf, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
-import Constant
+import Constant (Constant)
+import qualified Constant
 import Core
 import qualified Data.Text as T
 import Global
@@ -33,7 +34,7 @@ typeOf (ApplyCode f _) =
 
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
-typeOfData (ConstantData (IntegerConstant _)) = intRaw
+typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData code) = U (typeOf code)
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}

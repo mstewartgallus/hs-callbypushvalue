@@ -5,7 +5,8 @@
 module Cps (build, Cps (..), Code (..), Data (..), Builder (..), simplify, inline, typeOf) where
 
 import Common
-import Constant
+import Constant (Constant)
+import qualified Constant
 import Core
 import Global
 import TextShow (TextShow, fromString, showb)
@@ -97,7 +98,7 @@ typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 
 typeOfData :: Data a -> Type a
-typeOfData (ConstantData (IntegerConstant _)) = intRaw
+typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (LetToData (Variable t _) _) = StackType (F t)
 

@@ -5,7 +5,8 @@
 module Callcc (build, Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
 
 import Common
-import Constant
+import Constant (Constant)
+import qualified Constant
 import Core
 import Data.Text as T
 import Global
@@ -35,7 +36,7 @@ typeOf (ThrowCode _ _) = undefined
 
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
-typeOfData (ConstantData (IntegerConstant _)) = intRaw
+typeOfData (ConstantData k) = Constant.typeOf k
 
 class Callcc t where
   constant :: Constant a -> t Data a

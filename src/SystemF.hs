@@ -5,7 +5,8 @@
 module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where
 
 import Common
-import Constant
+import Constant (Constant)
+import qualified Constant
 import Core
 import Global
 import Kind
@@ -70,7 +71,7 @@ data Term a where
 
 typeOf :: Term a -> Type a
 typeOf (VariableTerm (Variable t _)) = t
-typeOf (ConstantTerm (IntegerConstant _)) = int
+typeOf (ConstantTerm k) = F (Constant.typeOf k)
 typeOf (GlobalTerm (Global t _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
 typeOf (LambdaTerm (Variable t _) body) = U t :=> typeOf body
