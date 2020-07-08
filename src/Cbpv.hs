@@ -64,20 +64,17 @@ instance Cbpv Builder where
   letTo x f = Builder $ do
     x' <- builder x
     let F t = typeOf x'
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LetToCode x' v body
   letBe x f = Builder $ do
     x' <- builder x
     let t = typeOfData x'
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LetBeCode x' v body
   lambda t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LambdaCode v body
   apply f x =
@@ -189,10 +186,8 @@ inlValue _ (ConstantData k) = constant k
 intrinsify :: Cbpv t => Code a -> t Code a
 intrinsify = intrins VarMap.empty
 
-newtype X t a = X (t Data a)
-
 intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
-intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
+intrins _ (GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
 intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
@@ -201,8 +196,8 @@ intrins env (ReturnCode x) = returns (intrinsData env x)
 intrins env (LambdaCode binder@(Variable t _) body) = lambda t $ \value ->
   let env' = VarMap.insert binder value env
    in intrins env' body
-intrins env (LetBeCode value binder body) = letBe (intrinsData env value) $ \value ->
-  let env' = VarMap.insert binder value env
+intrins env (LetBeCode value binder body) = letBe (intrinsData env value) $ \x ->
+  let env' = VarMap.insert binder x env
    in intrins env' body
 intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value ->
   let env' = VarMap.insert binder value env
@@ -213,7 +208,7 @@ intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just x = VarMap.lookup binder env
    in x
-intrinsData env (ConstantData x) = constant x
+intrinsData _ (ConstantData x) = constant x
 
 newtype Intrinsic t a = Intrinsic (t Code a)
 
