@@ -13,11 +13,7 @@ import qualified Cbpv
 import Common
 import Core
 import qualified Cps
-import qualified Data.Text as T
 import qualified SystemF
-import TextShow
-import Type
-import Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
@@ -53,7 +49,7 @@ toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.global x
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.lambda t $ \x ->
     toExplicitCatchThrow (VarMap.insert binder x env) body
-toExplicitCatchThrow env ap@(Cbpv.ApplyCode f x) =
+toExplicitCatchThrow env (Cbpv.ApplyCode f x) =
   let f' = toExplicitCatchThrow env f
       x' = toExplicitCatchThrowData env x
    in Callcc.letTo x' $ \val ->
@@ -107,14 +103,18 @@ toCps env (Callcc.LetBeCode value binder body) k =
   Cps.letBe (toCpsData env value) $ \value ->
     let env' = VarMap.insert binder value env
      in toCps env' body k
+toCps env (Callcc.LambdaCode binder body) k =
+  Cps.pop k $ \h t ->
+    let env' = VarMap.insert binder h env
+     in toCps env' body t
 toCps env (Callcc.ThrowCode val body) _ =
   toCps env body (toCpsData env val)
-toCps env (Callcc.LetToCode action binder@(Variable t _) body) k =
+toCps env (Callcc.LetToCode action binder body) k =
   let F t = Callcc.typeOf action
    in toCps env action $ Cps.letTo t $ \value ->
         let env' = VarMap.insert binder value env
          in toCps env' body k
-toCps env (Callcc.CatchCode binder@(Variable t _) body) k =
+toCps env (Callcc.CatchCode binder body) k =
   Cps.letBe k $ \k' ->
     let env' = VarMap.insert binder k' env
      in toCps env' body Cps.nilStack

@@ -33,6 +33,7 @@ typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
 typeOf (ThrowCode _ _) = undefined
+typeOf _ = undefined
 
 typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
@@ -158,6 +159,7 @@ inlCode _ (GlobalCode g) = global g
 inlCode env (ThrowCode x f) = throw (inlValue env x) (inlCode env f)
 inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
   inlCode (VarMap.insert binder x env) body
+inlCode _ _ = undefined
 
 inlValue :: Callcc t => VarMap (t Data) -> Data x -> t Data x
 inlValue env (VariableData variable) =

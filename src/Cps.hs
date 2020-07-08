@@ -19,7 +19,7 @@ import Variable
 data Code a where
   GlobalCode :: Global a -> Code a
   ReturnCode :: Data a -> Code (F a)
-  LambdaCode :: Variable a -> Code b -> Code (a -> b)
+  PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code c -> Code c
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   JumpCode :: Code a -> Data (Stack a) -> Code Nil
 
@@ -35,7 +35,8 @@ class Cps t where
   global :: Global a -> t Code a
   returns :: t Data a -> t Code (F a)
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
-  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
+
+  pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code c) -> t Code c
 
   letTo :: Type a -> (t Data a -> t Code Nil) -> t Data (Stack (F a))
   push :: t Data a -> t Data (Stack b) -> t Data (Stack (a -> b))
@@ -54,10 +55,13 @@ instance Cps Builder where
     v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LetBeCode x' v body
-  lambda t f = Builder $ do
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LambdaCode v body
+  pop x f = Builder $ do
+    x' <- builder x
+    let StackType (a :=> b) = typeOfData x'
+    h <- pure (Variable a) <*> Unique.uniqueId
+    t <- pure (Variable (StackType b)) <*> Unique.uniqueId
+    body <- builder $ f ((Builder . pure) (VariableData h)) ((Builder . pure) (VariableData t))
+    pure $ PopCode x' h t body
   constant k = (Builder . pure) $ ConstantData k
 
   letTo t f = Builder $ do
@@ -76,7 +80,7 @@ instance Cps Builder where
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
   showb (ReturnCode x) = fromString "return " <> showb x
-  showb (LambdaCode k body) = fromString "λ " <> showb k <> fromString " →\n" <> showb body
+  showb (PopCode value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (JumpCode action stack) = showb action <> fromString " , " <> showb stack
 
@@ -94,7 +98,7 @@ newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
 typeOf :: Code a -> Type a
 typeOf (GlobalCode (Global t _)) = t
-typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
+typeOf (PopCode _ _ _ body) = typeOf body
 typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (JumpCode _ _) = NilType
@@ -118,7 +122,7 @@ simpData (PushData h t) = PushData (simpData h) (simpData t)
 simpData x = x
 
 simpCode :: Code a -> Code a
-simpCode (LambdaCode binder body) = LambdaCode binder (simpCode body)
+simpCode (PopCode value h t body) = PopCode (simpData value) h t (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
 simpCode (JumpCode x f) = JumpCode (simpCode x) (simpData f)
 simpCode (ReturnCode value) = ReturnCode (simpData value)
@@ -145,8 +149,8 @@ inlineCode env (LetBeCode term binder body) =
         then inlineCode (VarMap.insert binder term' env) body
         else letBe term' $ \x ->
           inlineCode (VarMap.insert binder x env) body
-inlineCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  inlineCode (VarMap.insert binder x env) body
+inlineCode env (PopCode value h t body) = pop (inlineData env value) $ \x y ->
+  inlineCode (VarMap.insert t y (VarMap.insert h x env)) body
 inlineCode env (ReturnCode val) = returns (inlineData env val)
 inlineCode _ (GlobalCode g) = global g
 inlineCode env (JumpCode x f) = jump (inlineCode env x) (inlineData env f)
@@ -157,7 +161,7 @@ count v = code
     code :: Code x -> Int
     code (JumpCode x f) = code x + value f
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (PopCode x h t body) = value x + if AnyVariable t == AnyVariable v || AnyVariable h == AnyVariable v then 0 else code body
     code (ReturnCode x) = value x
     code _ = 0
     value :: Data x -> Int

@@ -18,15 +18,17 @@ evaluate :: Data a -> a
 evaluate x = case abstractData x VarMap.empty of
   Value value -> value
 
-newtype Id a = Id a
-
 data X tag a where
   Value :: a -> X Data a
   Act :: (Stack a -> R) -> X Code a
 
 instance Cps X where
-  letTo t f = Value $ PopStack $ \x -> case f (Value x) of
+  letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
     Act k -> k NilStack
+  returns (Value x) = Act $ \(PopStack k) -> k x
+  letBe x f = f x
+  pop (Value (PushStack x k)) f = f (Value x) (Value k)
+  nilStack = Value NilStack
   jump (Act x) (Value f) = Act $ \NilStack -> (x f)
   global g = case GlobalMap.lookup g globals of
     Just (G x) -> Act x
@@ -58,10 +60,12 @@ abstract (LetBeCode value binder body) =
   let value' = abstractData value
       body' = abstract body
    in \env -> body' (VarMap.insert binder (value' env) env)
-abstract (LambdaCode variable@(Variable t _) body) =
-  let body' = abstract body
+abstract (PopCode value h t body) =
+  let value' = abstractData value
+      body' = abstract body
    in \env ->
-        lambda t $ \x -> body' (VarMap.insert variable x env)
+        pop (value' env) $ \x y ->
+          body' (VarMap.insert h x (VarMap.insert t y env))
 abstract (GlobalCode g) =
   let g' = global g
    in \_ -> g'
