@@ -8,6 +8,7 @@ import Common
 import qualified Constant
 import Core
 import qualified Cps
+import qualified Interpreter
 import qualified Data.Text as T
 import Lib
 import qualified SystemF
@@ -124,7 +125,7 @@ main = do
   putStrLn "\nOptimized Cps:"
   printT optCps
 
-  let cpsData = Cps.evaluate optCps
+  let cpsData = Interpreter.evaluate optCps
 
   let PopStack k = cpsData
   let R eff = k $ PopStack $ \value -> R $ printT value

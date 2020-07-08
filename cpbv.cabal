@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 363f6921a322b9f6e589053a2235870ffc63eef3722040ab852bcc7c0d766e6b
+-- hash: b89490d939ed1632b0ef9e69a4c73fc4de98c6b315dcd24fd389751f316d6a9e
 
 name:           cpbv
 version:        0.1.0.0
@@ -35,6 +35,7 @@ library
       Cps
       Global
       GlobalMap
+      Interpreter
       Kind
       Lib
       Name
