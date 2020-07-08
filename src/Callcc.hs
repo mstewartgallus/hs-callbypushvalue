@@ -23,7 +23,6 @@ build :: Builder t a -> t a
 build (Builder s) = Unique.run s
 
 typeOf :: Code a -> Type a
-typeOf (GlobalCode (Global t _)) = t
 typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
 typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
@@ -36,12 +35,13 @@ typeOf (ThrowCode _ _) = undefined
 typeOf _ = undefined
 
 typeOfData :: Data a -> Type a
+typeOfData (GlobalData (Global t _)) = t
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 
 class Callcc t where
   constant :: Constant a -> t Data a
-  global :: Global a -> t Code a
+  global :: Global a -> t Data a
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
@@ -51,7 +51,7 @@ class Callcc t where
   throw :: t Data (Stack a) -> t Code a -> t Code Nil
 
 instance Callcc Builder where
-  global g = (Builder . pure) $ GlobalCode g
+  global g = (Builder . pure) $ GlobalData g
   returns value =
     Builder $
       pure ReturnCode <*> builder value
@@ -84,7 +84,6 @@ instance Callcc Builder where
       pure ThrowCode <*> builder x <*> builder f
 
 data Code a where
-  GlobalCode :: Global a -> Code a
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
   ApplyCode :: Code (a -> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
@@ -94,11 +93,11 @@ data Code a where
   ThrowCode :: Data (Stack a) -> Code a -> Code Nil
 
 data Data a where
+  GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
 
 instance TextShow (Code a) where
-  showb (GlobalCode g) = showb g
   showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ReturnCode value) = fromString "return " <> showb value
@@ -109,6 +108,7 @@ instance TextShow (Code a) where
   showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
 instance TextShow (Data a) where
+  showb (GlobalData g) = showb g
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
 
@@ -155,13 +155,13 @@ inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
 inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode env (ReturnCode val) = returns (inlValue env val)
-inlCode _ (GlobalCode g) = global g
 inlCode env (ThrowCode x f) = throw (inlValue env x) (inlCode env f)
 inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode _ _ = undefined
 
 inlValue :: Callcc t => VarMap (t Data) -> Data x -> t Data x
+inlValue _ (GlobalData g) = global g
 inlValue env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement

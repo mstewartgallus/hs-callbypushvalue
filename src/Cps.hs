@@ -17,13 +17,13 @@ import qualified VarMap
 import Variable
 
 data Code a where
-  GlobalCode :: Global a -> Code a
   ReturnCode :: Data a -> Data (Stack (F a)) -> Code Nil
   JumpCode :: Code a -> Data (Stack a) -> Code Nil
   PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code c -> Code c
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
 
 data Data a where
+  GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   LetToData :: Variable a -> Code Nil -> Data (Stack (F a))
@@ -32,7 +32,7 @@ data Data a where
 
 class Cps t where
   constant :: Constant a -> t Data a
-  global :: Global a -> t Code a
+  global :: Global a -> t Data a
 
   returns :: t Data a -> t Data (Stack (F a)) -> t Code Nil
 
@@ -47,7 +47,7 @@ class Cps t where
   nilStack :: t Data (Stack Nil)
 
 instance Cps Builder where
-  global g = (Builder . pure) $ GlobalCode g
+  global g = (Builder . pure) $ GlobalData g
   returns value k =
     Builder $
       pure ReturnCode <*> builder value <*> builder k
@@ -80,7 +80,6 @@ instance Cps Builder where
     pure PushData <*> builder x <*> builder k
 
 instance TextShow (Code a) where
-  showb (GlobalCode k) = showb k
   showb (ReturnCode x k) = fromString "return " <> showb x <> fromString ".\n" <> showb k
   showb (PopCode value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
@@ -88,6 +87,7 @@ instance TextShow (Code a) where
 
 instance TextShow (Data a) where
   showb NilStackData = fromString "nil"
+  showb (GlobalData k) = showb k
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
   showb (LetToData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
@@ -99,13 +99,13 @@ build (Builder s) = Unique.run s
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
 typeOf :: Code a -> Type a
-typeOf (GlobalCode (Global t _)) = t
 typeOf (PopCode _ _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (ReturnCode _ _) = NilType
 typeOf (JumpCode _ _) = NilType
 
 typeOfData :: Data a -> Type a
+typeOfData (GlobalData (Global t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (LetToData (Variable t _) _) = StackType (F t)
@@ -128,7 +128,6 @@ simpCode (PopCode value h t body) = PopCode (simpData value) h t (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
 simpCode (JumpCode x f) = JumpCode (simpCode x) (simpData f)
 simpCode (ReturnCode value k) = ReturnCode (simpData value) (simpData k)
-simpCode g@(GlobalCode _) = g
 
 inline :: Data a -> Builder Data a
 inline = inlineData VarMap.empty
@@ -142,6 +141,7 @@ inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
    in inlineCode env' body
 inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
 inlineData _ (ConstantData k) = Cps.constant k
+inlineData _ (GlobalData g) = global g
 inlineData _ NilStackData = Cps.nilStack
 
 inlineCode :: Cps t => VarMap (t Data) -> Code x -> t Code x
@@ -154,7 +154,6 @@ inlineCode env (LetBeCode term binder body) =
 inlineCode env (PopCode value h t body) = pop (inlineData env value) $ \x y ->
   inlineCode (VarMap.insert t y (VarMap.insert h x env)) body
 inlineCode env (ReturnCode val k) = returns (inlineData env val) (inlineData env k)
-inlineCode _ (GlobalCode g) = global g
 inlineCode env (JumpCode x f) = jump (inlineCode env x) (inlineData env f)
 
 count :: Variable a -> Code b -> Int

@@ -31,7 +31,7 @@ instance Cps X where
   nilStack = Value NilStack
   jump (Act x) (Value f) = Act $ \NilStack -> (x f)
   global g = case GlobalMap.lookup g globals of
-    Just (G x) -> Act x
+    Just (G x) -> Value x
     Nothing -> error "global not found in environment"
   push (Value h) (Value t) = Value (PushStack h t)
   constant (IntegerConstant x) = Value x
@@ -51,6 +51,9 @@ abstractData (PushData h t) =
       t' = abstractData t
    in \env -> push (h' env) (t' env)
 abstractData NilStackData = \_ -> nilStack
+abstractData (GlobalData g) =
+  let g' = global g
+   in \_ -> g'
 
 abstract :: Cps t => Code a -> VarMap (t Data) -> t Code a
 abstract (ReturnCode value k) =
@@ -67,15 +70,12 @@ abstract (PopCode value h t body) =
    in \env ->
         pop (value' env) $ \x y ->
           body' (VarMap.insert h x (VarMap.insert t y env))
-abstract (GlobalCode g) =
-  let g' = global g
-   in \_ -> g'
 abstract (JumpCode x f) =
   let x' = abstract x
       f' = abstractData f
    in \env -> jump (x' env) (f' env)
 
-data G a = G (Stack a -> R)
+data G a = G a
 
 globals :: GlobalMap G
 globals =
@@ -83,5 +83,5 @@ globals =
     [ GlobalMap.Entry strictPlus (G strictPlusImpl)
     ]
 
-strictPlusImpl :: Stack (Integer -> Integer -> F Integer) -> R
-strictPlusImpl (PushStack x (PushStack y (PopStack k))) = k (x + y)
+strictPlusImpl :: Stack (F (Stack (Integer -> Integer -> F Integer)))
+strictPlusImpl = PopStack $ \(PushStack x (PushStack y (PopStack k))) -> k (x + y)

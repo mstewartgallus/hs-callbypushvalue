@@ -23,7 +23,7 @@ import Variable
 
 class SystemF t where
   constant :: Constant a -> t Term (F a)
-  global :: Global a -> t Term a
+  global :: Global (U a) -> t Term a
   lambda :: Type a -> (t Term a -> t Term b) -> t Term (a :-> b)
   apply :: t Term (a :-> b) -> t Term a -> t Term b
   letBe :: t Term a -> (t Term a -> t Term b) -> t Term b
@@ -66,7 +66,7 @@ instance SystemF Builder where
 data Term a where
   VariableTerm :: Variable a -> Term a
   ConstantTerm :: Constant a -> Term (F a)
-  GlobalTerm :: Global a -> Term a
+  GlobalTerm :: Global (U a) -> Term a
   LetTerm :: Term a -> Variable a -> Term b -> Term b
   LambdaTerm :: Variable a -> Term b -> Term (a :-> b)
   ForallTerm :: TypeVariable a -> Term b -> Term (V a b)
@@ -76,7 +76,7 @@ data Term a where
 typeOf :: Term a -> Type a
 typeOf (VariableTerm (Variable t _)) = t
 typeOf (ConstantTerm k) = F (Constant.typeOf k)
-typeOf (GlobalTerm (Global t _)) = t
+typeOf (GlobalTerm (Global (U t) _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
 typeOf (LambdaTerm (Variable t _) body) = U t :=> typeOf body
 typeOf (ApplyTerm f _) =

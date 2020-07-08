@@ -62,12 +62,12 @@ stack = NominalType (TypeKind `FunKind` TypeKind) stack'
 stack' :: Name
 stack' = Name (T.pack "core") (T.pack "stack")
 
-plus :: Global (F Integer :-> F Integer :-> F Integer)
-plus = Global (U int :=> U int :=> int) $ Name (T.pack "core") (T.pack "+")
+plus :: Global (U (F Integer :-> F Integer :-> F Integer))
+plus = Global (U (U int :=> U int :=> int)) $ Name (T.pack "core") (T.pack "+")
 
 -- fixme...
-strictPlus :: Global (Integer -> Integer -> F Integer)
-strictPlus = Global (intRaw :=> intRaw :=> int) $ Name (T.pack "core") (T.pack "+!")
+strictPlus :: Global (U (Integer -> Integer -> F Integer))
+strictPlus = Global (U (intRaw :=> intRaw :=> int)) $ Name (T.pack "core") (T.pack "+!")
 
 infixr 9 :=>
 

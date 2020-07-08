@@ -26,7 +26,7 @@ toCbpv env (SystemF.VariableTerm x) =
   let Just replacement = VarMap.lookup x env
    in replacement
 toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
-toCbpv _ (SystemF.GlobalTerm x) = Cbpv.global x
+toCbpv _ (SystemF.GlobalTerm x) = Cbpv.force (Cbpv.global x)
 toCbpv env (SystemF.LetTerm term binder body) =
   let term' = toCbpv env term
    in Cbpv.letBe (Cbpv.delay term') $ \value ->
@@ -45,7 +45,6 @@ toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
 
 toExplicitCatchThrow :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
-toExplicitCatchThrow _ (Cbpv.GlobalCode x) = Callcc.global x
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.lambda t $ \x ->
     toExplicitCatchThrow (VarMap.insert binder x env) body
@@ -72,6 +71,7 @@ toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) =
           Callcc.throw val (Callcc.returns v)
 
 toExplicitCatchThrowData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Code (F a)
+toExplicitCatchThrowData _ (Cbpv.GlobalData x) = Callcc.returns (Callcc.global x)
 toExplicitCatchThrowData _ (Cbpv.ConstantData x) = Callcc.returns (Callcc.constant x)
 toExplicitCatchThrowData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
@@ -118,11 +118,11 @@ toCps env (Callcc.CatchCode binder body) k =
   Cps.letBe k $ \k' ->
     let env' = VarMap.insert binder k' env
      in toCps env' body Cps.nilStack
-toCps _ (Callcc.GlobalCode x) k = Cps.jump (Cps.global x) k
 toCps env (Callcc.ReturnCode value) k = Cps.returns (toCpsData env value) k
 
 toCpsData :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Data a -> t Cps.Data a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x
+toCpsData _ (Callcc.GlobalData x) = Cps.global x
 toCpsData env (Callcc.VariableData v) =
   let Just x = VarMap.lookup v env
    in x
