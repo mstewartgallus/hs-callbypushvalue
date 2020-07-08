@@ -29,7 +29,6 @@ import Global
 import Kind
 import Name
 import Type
-import Unsafe.Coerce
 
 {-
 Define a standard library of call by push value types.
@@ -92,37 +91,14 @@ infixr 9 -#->
 (-#->) :: Type a -> Type b -> Type (a :-> b)
 a -#-> b = applyType (applyType fnRaw (applyType thunk a)) b
 
-decompose :: Type (a -> b) -> (Type a, Type b)
-decompose (ApplyType (ApplyType f x) y) =
-  let Just Refl = equalType f fnRaw
-   in -- fixme... wtf?
-      (unsafeCoerce x, unsafeCoerce y)
-
-pattern head :=> tail <- (decompose -> (head, tail))
-
-getstacktype :: Type (Stack a) -> Type a
-getstacktype (ApplyType f x) =
-  let Just Refl = equalType f stack
-   in -- fixme... wtf?
-      unsafeCoerce x
-
-getthunktype :: Type (U a) -> Type a
-getthunktype (ApplyType f x) =
-  let Just Refl = equalType f thunk
-   in -- fixme... wtf?
-      unsafeCoerce x
-
-getreturntype :: Type (F a) -> Type a
-getreturntype (ApplyType f x) =
-  let Just Refl = equalType f returnsType
-   in -- fixme... wtf?
-      unsafeCoerce x
+pattern (:=>) :: forall a b. Type a -> Type b -> Type (a -> b)
+pattern head :=> tail <- (ApplyType (ApplyType ((equalType fnRaw) -> Just Refl) head) tail)
 
 pattern StackType :: Type a -> Type (Stack a)
-pattern StackType x <- (getstacktype -> x)
+pattern StackType x <- (ApplyType ((equalType stack) -> Just Refl) x)
 
 pattern ThunkType :: Type a -> Type (U a)
-pattern ThunkType x <- (getthunktype -> x)
+pattern ThunkType x <- (ApplyType ((equalType thunk) -> Just Refl) x)
 
 pattern ReturnsType :: Type a -> Type (F a)
-pattern ReturnsType x <- (getreturntype -> x)
+pattern ReturnsType x <- (ApplyType ((equalType returnsType) -> Just Refl) x)
