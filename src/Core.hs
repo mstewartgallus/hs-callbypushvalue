@@ -118,8 +118,11 @@ getreturntype (ApplyType f x) =
    in -- fixme... wtf?
       unsafeCoerce x
 
+pattern StackType :: Type a -> Type (Stack a)
 pattern StackType x <- (getstacktype -> x)
 
+pattern ThunkType :: Type a -> Type (U a)
 pattern ThunkType x <- (getthunktype -> x)
 
+pattern ReturnsType :: Type a -> Type (F a)
 pattern ReturnsType x <- (getreturntype -> x)

@@ -2,7 +2,6 @@
 
 module Global (Global (..)) where
 
-import Common
 import Name (Name)
 import TextShow
 import Type (Type)
