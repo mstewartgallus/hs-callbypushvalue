@@ -14,7 +14,6 @@ import Type
 import TypeMap (TypeMap)
 import qualified TypeMap
 import TypeVariable
-import TypeVariable
 import qualified Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -41,24 +40,20 @@ instance SystemF Builder where
   letBe value f = Builder $ do
     value' <- builder value
     let t = typeOf value'
-    head <- Unique.uniqueId
-    let binder = Variable t head
+    binder <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f (Builder $ pure $ VariableTerm binder)
     pure (LetTerm value' binder body)
   lambda t f = Builder $ do
-    h <- Unique.uniqueId
-    let binder = Variable t h
+    binder <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f (Builder $ pure $ VariableTerm binder)
     pure (LambdaTerm binder body)
   forall t f = Builder $ do
-    h <- Unique.uniqueId
-    let binder = TypeVariable t h
+    binder <- pure (TypeVariable t) <*> Unique.uniqueId
     body <- builder $ f (VariableType binder)
     pure (ForallTerm binder body)
-  apply f x = Builder $ do
-    f' <- builder f
-    x' <- builder x
-    pure (ApplyTerm f' x')
+  apply f x =
+    Builder $
+      pure ApplyTerm <*> builder f <*> builder x
   applyType f x = Builder $ do
     f' <- builder f
     pure (ApplyTypeTerm f' x)
@@ -82,6 +77,8 @@ typeOf (LambdaTerm (Variable t _) body) = t -#-> typeOf body
 typeOf (ApplyTerm f _) =
   let _ :=> result = typeOf f
    in result
+typeOf (ForallTerm _ _) = undefined
+typeOf (ApplyTypeTerm _ _) = undefined
 
 instance TextShow (Term a) where
   showb (VariableTerm v) = showb v
@@ -96,25 +93,24 @@ instance TextShow (Term a) where
 simplify :: SystemF t => Term a -> t Term a
 simplify = simp TypeMap.empty VarMap.empty
 
-simp :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
-simp tenv env (ApplyTerm (LambdaTerm binder@(Variable t _) body) term) =
+simp :: SystemF t => TypeMap Type -> VarMap (t Term) -> Term a -> t Term a
+simp tenv env (ApplyTerm (LambdaTerm binder body) term) =
   let term' = simp tenv env term
-   in letBe term' $ \value -> simp tenv (VarMap.insert binder (X value) env) body
-simp tenv env (LetTerm term binder@(Variable t _) body) =
+   in letBe term' $ \value -> simp tenv (VarMap.insert binder value env) body
+simp tenv env (LetTerm term binder body) =
   let term' = simp tenv env term
-   in letBe term' $ \value -> simp tenv (VarMap.insert binder (X value) env) body
-simp tenv env (LambdaTerm binder@(Variable t _) body) =
-  let body' = simp tenv env body
-   in lambda t $ \value -> simp tenv (VarMap.insert binder (X value) env) body
+   in letBe term' $ \value -> simp tenv (VarMap.insert binder value env) body
+simp tenv env (LambdaTerm binder@(Variable t _) body) = lambda t $ \value ->
+  simp tenv (VarMap.insert binder value env) body
 simp tenv env (ApplyTerm f x) = apply (simp tenv env f) (simp tenv env x)
 simp _ _ (ConstantTerm c) = constant c
 simp _ _ (GlobalTerm g) = global g
-simp tenv env (ForallTerm binder@(TypeVariable k _) body) =
-  let body' = simp tenv env body
-   in forall k $ \t -> simp (TypeMap.insert binder t tenv) env body
+simp tenv env (ForallTerm binder@(TypeVariable k _) body) = forall k $ \t ->
+  simp (TypeMap.insert binder t tenv) env body
 simp tenv env (ApplyTypeTerm f x) = SystemF.applyType (simp tenv env f) x
-simp tenv env (VariableTerm v) = case VarMap.lookup v env of
-  Just (X x) -> x
+simp _ env (VariableTerm v) = case VarMap.lookup v env of
+  Just x -> x
+  Nothing -> error "variable not found in env"
 
 count :: Variable a -> Term b -> Int
 count v = w
@@ -129,21 +125,19 @@ count v = w
 inline :: SystemF t => Term a -> t Term a
 inline = inl TypeMap.empty VarMap.empty
 
-data X t a where
-  X :: t Term a -> X t a
-
-inl :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
-inl tenv env (LetTerm term binder@(Variable t _) body) =
+inl :: SystemF t => TypeMap Type -> VarMap (t Term) -> Term a -> t Term a
+inl tenv env (LetTerm term binder body) =
   let term' = inl tenv env term
    in if count binder body <= 1 || isSimple term
-        then inl tenv (VarMap.insert binder (X term') env) body
+        then inl tenv (VarMap.insert binder term' env) body
         else letBe term' $ \value ->
-          inl tenv (VarMap.insert binder (X value) env) body
-inl _ env v@(VariableTerm variable) = case VarMap.lookup variable env of
-  Just (X replacement) -> replacement
+          inl tenv (VarMap.insert binder value env) body
+inl _ env (VariableTerm v) = case VarMap.lookup v env of
+  Just replacement -> replacement
+  Nothing -> error "variable not found in env"
 inl tenv env (ApplyTerm f x) = inl tenv env f `apply` inl tenv env x
 inl tenv env (LambdaTerm binder@(Variable t _) body) = lambda t $ \value ->
-  inl tenv (VarMap.insert binder (X value) env) body
+  inl tenv (VarMap.insert binder value env) body
 inl _ _ (ConstantTerm c) = constant c
 inl _ _ (GlobalTerm g) = global g
 inl tenv env (ApplyTypeTerm f x) = inl tenv env f `SystemF.applyType` x
