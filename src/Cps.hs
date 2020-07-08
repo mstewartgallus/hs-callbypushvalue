@@ -17,7 +17,7 @@ import qualified VarMap
 import Variable
 
 data Code a where
-  ReturnCode :: Data a -> Data (Stack (F a)) -> Code Nil
+  ReturnCode :: Data a -> Data (Stack (F a)) -> Code R
   PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code c -> Code c
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
 
@@ -25,24 +25,21 @@ data Data a where
   GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToData :: Variable a -> Code Nil -> Data (Stack (F a))
+  LetToData :: Variable a -> Code R -> Data (Stack (F a))
   PushData :: Data a -> Data (Stack b) -> Data (Stack (a -> b))
-  NilStackData :: Data (Stack Nil)
 
 class Cps t where
   constant :: Constant a -> t Data a
   global :: Global a -> t Data a
 
-  returns :: t Data a -> t Data (Stack (F a)) -> t Code Nil
+  returns :: t Data a -> t Data (Stack (F a)) -> t Code R
 
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
 
   pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code c) -> t Code c
 
-  letTo :: Type a -> (t Data a -> t Code Nil) -> t Data (Stack (F a))
+  letTo :: Type a -> (t Data a -> t Code R) -> t Data (Stack (F a))
   push :: t Data a -> t Data (Stack b) -> t Data (Stack (a -> b))
-
-  nilStack :: t Data (Stack Nil)
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -69,7 +66,6 @@ instance Cps Builder where
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LetToData v body
 
-  nilStack = Builder $ pure $ NilStackData
   push x k = Builder $ do
     pure PushData <*> builder x <*> builder k
 
@@ -79,7 +75,6 @@ instance TextShow (Code a) where
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
 
 instance TextShow (Data a) where
-  showb NilStackData = fromString "nil"
   showb (GlobalData k) = showb k
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
@@ -94,7 +89,7 @@ newtype Builder t a = Builder {builder :: Unique.State (t a)}
 typeOf :: Code a -> Type a
 typeOf (PopCode _ _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
-typeOf (ReturnCode _ _) = NilType
+typeOf (ReturnCode _ _) = R
 
 typeOfData :: Data a -> Type a
 typeOfData (GlobalData (Global t _)) = t
@@ -105,7 +100,6 @@ typeOfData (PushData h t) =
   let a = typeOfData h
       StackType b = typeOfData t
    in StackType (a :=> b)
-typeOfData NilStackData = StackType NilType
 
 simplify :: Data a -> Data a
 simplify = simpData
@@ -133,7 +127,6 @@ inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
 inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
 inlineData _ (ConstantData k) = Cps.constant k
 inlineData _ (GlobalData g) = global g
-inlineData _ NilStackData = Cps.nilStack
 
 inlineCode :: Cps t => VarMap (t Data) -> Code x -> t Code x
 inlineCode env (LetBeCode term binder body) =

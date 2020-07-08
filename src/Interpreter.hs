@@ -20,15 +20,14 @@ evaluate x = case abstractData x VarMap.empty of
 
 data X tag a where
   Value :: a -> X Data a
-  Act :: (Stack a -> R) -> X Code a
+  Act :: IO () -> X Code R
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
-    Act k -> k NilStack
-  returns (Value x) (Value (PopStack k)) = Act $ \NilStack -> k x
+    Act k -> k
+  returns (Value x) (Value (PopStack k)) = Act (k x)
   letBe x f = f x
   pop (Value (PushStack x k)) f = f (Value x) (Value k)
-  nilStack = Value NilStack
   global g = case GlobalMap.lookup g globals of
     Just (G x) -> Value x
     Nothing -> error "global not found in environment"
@@ -49,7 +48,6 @@ abstractData (PushData h t) =
   let h' = abstractData h
       t' = abstractData t
    in \env -> push (h' env) (t' env)
-abstractData NilStackData = \_ -> nilStack
 abstractData (GlobalData g) =
   let g' = global g
    in \_ -> g'

@@ -95,7 +95,7 @@ toCps' env act =
    in Cps.letTo (StackType t) $ \k ->
         toCps env act k
 
-toCps :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack a) -> t Cps.Code Nil
+toCps :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack a) -> t Cps.Code R
 toCps env (Callcc.ApplyCode f x) k =
   toCps env f (Cps.push (toCpsData env x) k)
 toCps env (Callcc.LetBeCode value binder body) k =

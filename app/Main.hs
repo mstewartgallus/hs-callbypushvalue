@@ -127,7 +127,7 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let PopStack k = cpsData
-  let R eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> R $ printT value
+  let eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> printT value
   eff
 
   return ()
