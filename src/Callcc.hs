@@ -27,11 +27,11 @@ typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
 typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
-typeOf (CatchCode (Variable (StackType x) _) _) = x
+typeOf (CatchCode _ body) = typeOf body
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
-typeOf (ThrowCode _ _) = undefined
+typeOf (ThrowCode t _ _) = t
 typeOf _ = undefined
 
 typeOfData :: Data a -> Type a
@@ -47,8 +47,8 @@ class Callcc t where
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
   apply :: t Code (a -> b) -> t Data a -> t Code b
-  catch :: Type a -> (t Data (Stack a) -> t Code Nil) -> t Code a
-  throw :: t Data (Stack a) -> t Code a -> t Code Nil
+  catch :: Type a -> (t Data (Stack a) -> t Code a) -> t Code a
+  throw :: Type b -> t Data (Stack a) -> t Code a -> t Code b
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -79,9 +79,9 @@ instance Callcc Builder where
     v <- pure (Variable (StackType t)) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ CatchCode v body
-  throw x f =
+  throw t x f =
     Builder $
-      pure ThrowCode <*> builder x <*> builder f
+      pure (ThrowCode t) <*> builder x <*> builder f
 
 data Code a where
   LambdaCode :: Variable a -> Code b -> Code (a -> b)
@@ -89,8 +89,8 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Variable (Stack a) -> Code Nil -> Code a
-  ThrowCode :: Data (Stack a) -> Code a -> Code Nil
+  CatchCode :: Variable (Stack a) -> Code a -> Code a
+  ThrowCode :: Type b -> Data (Stack a) -> Code a -> Code b
 
 data Data a where
   GlobalData :: Global a -> Data a
@@ -105,7 +105,7 @@ instance TextShow (Code a) where
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (CatchCode binder@(Variable t _) body) =
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
-  showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
+  showb (ThrowCode _ label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
 instance TextShow (Data a) where
   showb (GlobalData g) = showb g
@@ -120,7 +120,7 @@ simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
 simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (CatchCode binder body) = CatchCode binder (simplify body)
-simplify (ThrowCode stack act) = ThrowCode stack (simplify act)
+simplify (ThrowCode t stack act) = ThrowCode t stack (simplify act)
 simplify x = x
 
 count :: Variable a -> Code b -> Int
@@ -131,7 +131,7 @@ count v = code
     code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
-    code (ThrowCode x f) = value x + code f
+    code (ThrowCode _ x f) = value x + code f
     code (CatchCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ReturnCode x) = value x
     code _ = 0
@@ -155,7 +155,7 @@ inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
 inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode env (ReturnCode val) = returns (inlValue env val)
-inlCode env (ThrowCode x f) = throw (inlValue env x) (inlCode env f)
+inlCode env (ThrowCode t x f) = throw t (inlValue env x) (inlCode env f)
 inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode _ _ = undefined
