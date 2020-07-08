@@ -158,38 +158,37 @@ count v = code
     value (ThunkData c) = code c
     value _ = 0
 
-inline :: Code a -> Builder Code a
-inline = inline' VarMap.empty
+inline :: Cpbv t => Code a -> t Code a
+inline = inlCode VarMap.empty
 
-inline' :: VarMap X -> Code a -> Builder Code a
-inline' map = code
-  where
-    code :: Code x -> Builder Code x
-    code (LetBeCode term binder body) =
-      if count binder body <= 1
-        then inline' (VarMap.insert binder (X (value term)) map) body
-        else letBe (value term) $ \x ->
-          inline' (VarMap.insert binder (X x) map) body
-    code (LetToCode term binder body) = letTo (code term) $ \x ->
-      inline' (VarMap.insert binder (X x) map) body
-    code (ApplyCode f x) = apply (code f) (value x)
-    code (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-      inline' (VarMap.insert binder (X x) map) body
-    code (ForceCode th) = force (value th)
-    code (ReturnCode val) = returns (value val)
-    code (GlobalCode g) = global g
-    value :: Data x -> Builder Data x
-    value (VariableData variable) =
-      let Just (X replacement) = VarMap.lookup variable map
-       in replacement
-    value (ThunkData c) = delay (code c)
-    value (ConstantData k) = constant k
+inlCode :: Cpbv t => VarMap (t Data) -> Code a -> t Code a
+inlCode env (LetBeCode term binder body) =
+  let term' = inlValue env term
+   in if count binder body <= 1
+        then inlCode (VarMap.insert binder term' env) body
+        else letBe term' $ \x ->
+          inlCode (VarMap.insert binder x env) body
+inlCode env (LetToCode term binder body) = letTo (inlCode env term) $ \x ->
+  inlCode (VarMap.insert binder x env) body
+inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
+inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+  inlCode (VarMap.insert binder x env) body
+inlCode env (ForceCode th) = force (inlValue env th)
+inlCode env (ReturnCode val) = returns (inlValue env val)
+inlCode _ (GlobalCode g) = global g
+
+inlValue :: Cpbv t => VarMap (t Data) -> Data x -> t Data x
+inlValue env (VariableData variable) =
+  let Just replacement = VarMap.lookup variable env
+   in replacement
+inlValue env (ThunkData c) = delay (inlCode env c)
+inlValue _ (ConstantData k) = constant k
 
 -- Fixme... use a different file for this?
 intrinsify :: Cpbv t => Code a -> t Code a
 intrinsify = intrins VarMap.empty
 
-newtype X a = X (Builder Data a)
+newtype X t a = X (t Data a)
 
 intrins :: Cpbv t => VarMap (t Data) -> Code a -> t Code a
 intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
