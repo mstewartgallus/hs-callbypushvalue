@@ -29,7 +29,6 @@ instance Cps X where
   letBe x f = f x
   pop (Value (PushStack x k)) f = f (Value x) (Value k)
   nilStack = Value NilStack
-  jump (Act x) (Value f) = Act $ \NilStack -> (x f)
   global g = case GlobalMap.lookup g globals of
     Just (G x) -> Value x
     Nothing -> error "global not found in environment"
@@ -70,10 +69,6 @@ abstract (PopCode value h t body) =
    in \env ->
         pop (value' env) $ \x y ->
           body' (VarMap.insert h x (VarMap.insert t y env))
-abstract (JumpCode x f) =
-  let x' = abstract x
-      f' = abstractData f
-   in \env -> jump (x' env) (f' env)
 
 data G a = G a
 
