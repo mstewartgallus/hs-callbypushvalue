@@ -8,4 +8,4 @@ import TextShow
 data Name = Name {package :: Text, name :: Text} deriving (Eq, Ord)
 
 instance TextShow Name where
-  showb (Name package name) = fromText package <> fromString "/" <> fromText name
+  showb x = fromText (package x) <> fromString "/" <> fromText (name x)

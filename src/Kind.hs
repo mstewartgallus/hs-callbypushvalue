@@ -16,10 +16,10 @@ data Kind a where
 instance TextShow (Kind a) where
   showb TypeKind = fromString "*"
   showb (FunKind a b) = fromString "(" <> loop a b <> fromString ")"
-    where
-      loop :: Kind a -> Kind b -> Builder
-      loop a (FunKind b c) = showb a <> fromString " → " <> loop b c
-      loop a x = showb a <> fromString " → " <> showb x
+
+loop :: Kind a -> Kind b -> Builder
+loop a (FunKind b c) = showb a <> fromString " → " <> loop b c
+loop a x = showb a <> fromString " → " <> showb x
 
 -- fixme... not correct.
 equalKind :: Kind a -> Kind b -> Maybe (a :~: b)
