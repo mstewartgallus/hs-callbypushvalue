@@ -26,7 +26,7 @@ mkProgram :: SystemF.SystemF t => t SystemF.Term (F Integer)
 mkProgram =
   SystemF.apply
     ( SystemF.lambda (F IntType) $ \x ->
-        SystemF.apply (SystemF.apply (SystemF.global plus) x) (SystemF.apply (SystemF.apply (SystemF.global plus) x) x)
+        SystemF.plus (SystemF.plus x x) (SystemF.plus x x)
     )
     (SystemF.constant (Constant.IntegerConstant 5))
 

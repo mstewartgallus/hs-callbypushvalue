@@ -2,12 +2,13 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (simplify, inline, build, Builder, SystemF (..), Term (..)) where
+module SystemF (simplify, inline, build, Builder, SystemF (..), plus, Term (..)) where
 
 import Common
 import Constant (Constant)
 import qualified Constant
-import Core
+import Core hiding (plus)
+import qualified Core
 import Global
 import Kind
 import TextShow (TextShow, fromString, showb)
@@ -29,6 +30,9 @@ class SystemF t where
 
   forall :: Kind a -> (Type a -> t Term b) -> t Term (V a b)
   applyType :: t Term (V a b) -> Type a -> t Term b
+
+plus :: SystemF t => t Term (F Integer) -> t Term (F Integer) -> t Term (F Integer)
+plus x y = apply (apply (global Core.plus) x) y
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
