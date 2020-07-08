@@ -7,12 +7,9 @@ module Cps (build, Cps (..), Code (..), Data (..), Builder (..), simplify, inlin
 import Common
 import Constant
 import Core
-import qualified Data.Text as T
 import Global
-import GlobalMap (GlobalMap)
-import qualified GlobalMap
-import TextShow (TextShow, fromString, fromText, showb, toText)
-import Type
+import TextShow (TextShow, fromString, showb)
+import Type (Type, applyType)
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -53,33 +50,27 @@ instance Cps Builder where
   letBe x f = Builder $ do
     x' <- builder x
     let t = typeOfData x'
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LetBeCode x' v body
   lambda t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ VariableData v)
     pure $ LambdaCode v body
   constant k = (Builder . pure) $ ConstantData k
 
   letTo t f = Builder $ do
-    h <- Unique.uniqueId
-    let v = Variable t h
+    v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LetToData v body
 
-  jump x f = Builder $ do
-    x' <- builder x
-    f' <- builder f
-    pure $ JumpCode x' f'
+  jump x f =
+    Builder $
+      pure JumpCode <*> builder x <*> builder f
 
   nilStack = Builder $ pure $ NilStackData
   push x k = Builder $ do
-    x' <- builder x
-    k' <- builder k
-    pure $ PushData x' k'
+    pure PushData <*> builder x <*> builder k
 
 instance TextShow (Code a) where
   showb (GlobalCode k) = showb k
