@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (typeOf, build, Builder, Cpbv (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (typeOf, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Constant
@@ -41,7 +41,7 @@ newtype Builder t a = Builder {builder :: Unique.State (t a)}
 build :: Builder t a -> t a
 build (Builder s) = Unique.run s
 
-class Cpbv t where
+class Cbpv t where
   global :: Global a -> t Code a
   force :: t Data (U a) -> t Code a
   returns :: t Data a -> t Code (F a)
@@ -52,7 +52,7 @@ class Cpbv t where
   constant :: Constant a -> t Data a
   delay :: t Code a -> t Data (U a)
 
-instance Cpbv Builder where
+instance Cbpv Builder where
   global g = (Builder . pure) $ GlobalCode g
   force thunk =
     Builder $
@@ -158,10 +158,10 @@ count v = code
     value (ThunkData c) = code c
     value _ = 0
 
-inline :: Cpbv t => Code a -> t Code a
+inline :: Cbpv t => Code a -> t Code a
 inline = inlCode VarMap.empty
 
-inlCode :: Cpbv t => VarMap (t Data) -> Code a -> t Code a
+inlCode :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
 inlCode env (LetBeCode term binder body) =
   let term' = inlValue env term
    in if count binder body <= 1
@@ -177,7 +177,7 @@ inlCode env (ForceCode th) = force (inlValue env th)
 inlCode env (ReturnCode val) = returns (inlValue env val)
 inlCode _ (GlobalCode g) = global g
 
-inlValue :: Cpbv t => VarMap (t Data) -> Data x -> t Data x
+inlValue :: Cbpv t => VarMap (t Data) -> Data x -> t Data x
 inlValue env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement
@@ -185,12 +185,12 @@ inlValue env (ThunkData c) = delay (inlCode env c)
 inlValue _ (ConstantData k) = constant k
 
 -- Fixme... use a different file for this?
-intrinsify :: Cpbv t => Code a -> t Code a
+intrinsify :: Cbpv t => Code a -> t Code a
 intrinsify = intrins VarMap.empty
 
 newtype X t a = X (t Data a)
 
-intrins :: Cpbv t => VarMap (t Data) -> Code a -> t Code a
+intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
 intrins env (GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
@@ -207,7 +207,7 @@ intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value
   let env' = VarMap.insert binder value env
    in intrins env' body
 
-intrinsData :: Cpbv t => VarMap (t Data) -> Data a -> t Data a
+intrinsData :: Cbpv t => VarMap (t Data) -> Data a -> t Data a
 intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just x = VarMap.lookup binder env
@@ -216,13 +216,13 @@ intrinsData env (ConstantData x) = constant x
 
 newtype Intrinsic t a = Intrinsic (t Code a)
 
-intrinsics :: Cpbv t => GlobalMap (Intrinsic t)
+intrinsics :: Cbpv t => GlobalMap (Intrinsic t)
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
     ]
 
-plusIntrinsic :: Cpbv t => t Code (F Integer :-> F Integer :-> F Integer)
+plusIntrinsic :: Cbpv t => t Code (F Integer :-> F Integer :-> F Integer)
 plusIntrinsic =
   lambda (applyType thunk int) $ \x' ->
     lambda (applyType thunk int) $ \y' ->
