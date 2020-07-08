@@ -7,7 +7,7 @@ module Type (applyType, equalType, Type (..)) where
 import Common
 import Data.Typeable
 import Kind
-import Name
+import Name (Name)
 import TextShow
 import TypeVariable
 import Unsafe.Coerce
@@ -31,12 +31,13 @@ equalType (VariableType (TypeVariable _ name)) (VariableType (TypeVariable _ nam
 equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x x') of
   (Just Refl, Just Refl) -> Just Refl
   _ -> Nothing
+equalType _ _ = Nothing
 
 instance TextShow (Type a) where
-  showb (NominalType kind name) = showb name
+  showb (NominalType _ name) = showb name
   showb (VariableType v) = showb v
-  showb (ApplyType f x) = fromString "(" <> loop f x <> fromString ")"
-    where
-      loop :: Type a -> Type b -> Builder
-      loop a (ApplyType b c) = showb a <> fromString " " <> loop b c
-      loop a x = showb a <> fromString " " <> showb x
+  showb a@(ApplyType _ _) = fromString "(" <> loop a <> fromString ")"
+
+loop :: Type a -> Builder
+loop (ApplyType f x) = showb f <> fromString " " <> loop x
+loop x = showb x

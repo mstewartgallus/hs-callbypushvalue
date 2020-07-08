@@ -1,5 +1,5 @@
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 module Unique (Unique, run, uniqueId, State) where
