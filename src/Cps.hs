@@ -101,33 +101,37 @@ typeOfData (PushData h t) =
    in StackType (a :=> b)
 
 simplify :: Data a -> Data a
-simplify = simpData
-
-simpData :: Data a -> Data a
-simpData (LetToData binder body) = LetToData binder (simpCode body)
-simpData (PushData h t) = PushData (simpData h) (simpData t)
-simpData x = x
-
-simpCode :: Code -> Code
-simpCode (PopCode value h t body) = PopCode (simpData value) h t (simpCode body)
-simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
-simpCode (ReturnCode value k) = ReturnCode (simpData value) (simpData k)
+simplify (LetToData binder body) = LetToData binder (simplify body)
+simplify (PushData h t) = PushData (simplify h) (simplify t)
+simplify (PopCode value h t body) = PopCode (simplify value) h t (simplify body)
+simplify (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simplify body)
+simplify (ReturnCode value k) = ReturnCode (simplify value) (simplify k)
+simplify x = x
 
 inline :: Cps t => Data a -> t a
-inline = inlineData VarMap.empty
+inline = inline' VarMap.empty
 
 newtype X t a = X (t a)
 
-inlineData :: Cps t => VarMap (X t) -> Data a -> t a
-inlineData env (VariableData v) =
+inline' :: Cps t => VarMap (X t) -> Data a -> t a
+inline' env (VariableData v) =
   let Just (X x) = VarMap.lookup v env
    in x
-inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
+inline' env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
   let env' = VarMap.insert binder (X value) env
-   in inlineCode env' body
-inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
-inlineData _ (ConstantData k) = Cps.constant k
-inlineData _ (GlobalData g) = global g
+   in inline' env' body
+inline' env (PushData h t) = Cps.push (inline' env h) (inline' env t)
+inline' _ (ConstantData k) = Cps.constant k
+inline' _ (GlobalData g) = global g
+inline' env (LetBeCode term binder body)
+  | count binder body <= 1 || isSimple term =
+    let term' = inline' env term
+     in inline' (VarMap.insert binder (X term') env) body
+  | otherwise = letBe (inline' env term) $ \x ->
+    inline' (VarMap.insert binder (X x) env) body
+inline' env (PopCode value h t body) = pop (inline' env value) $ \x y ->
+  inline' (VarMap.insert t (X y) (VarMap.insert h (X x) env)) body
+inline' env (ReturnCode val k) = returns (inline' env val) (inline' env k)
 
 isSimple :: Data a -> Bool
 isSimple (ConstantData _) = True
@@ -135,27 +139,14 @@ isSimple (VariableData _) = True
 isSimple (GlobalData _) = True
 isSimple _ = False
 
-inlineCode :: Cps t => VarMap (X t) -> Code -> t R
-inlineCode env (LetBeCode term binder body)
-  | count binder body <= 1 || isSimple term =
-    let term' = inlineData env term
-     in inlineCode (VarMap.insert binder (X term') env) body
-  | otherwise = letBe (inlineData env term) $ \x ->
-    inlineCode (VarMap.insert binder (X x) env) body
-inlineCode env (PopCode value h t body) = pop (inlineData env value) $ \x y ->
-  inlineCode (VarMap.insert t (X y) (VarMap.insert h (X x) env)) body
-inlineCode env (ReturnCode val k) = returns (inlineData env val) (inlineData env k)
-
-count :: Variable a -> Code -> Int
-count v = code
+count :: Variable a -> Data b -> Int
+count v = w
   where
-    code :: Code -> Int
-    code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (PopCode x h t body) = value x + if AnyVariable t == AnyVariable v || AnyVariable h == AnyVariable v then 0 else code body
-    code (ReturnCode x k) = value x + value k
-    code _ = 0
-    value :: Data x -> Int
-    value (LetToData binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
-    value (PushData h t) = value h + value t
-    value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-    value _ = 0
+    w :: Data b -> Int
+    w (LetBeCode x binder body) = w x + if AnyVariable binder == AnyVariable v then 0 else w body
+    w (PopCode x h t body) = w x + if AnyVariable t == AnyVariable v || AnyVariable h == AnyVariable v then 0 else w body
+    w (ReturnCode x k) = w x + w k
+    w (LetToData binder body) = if AnyVariable binder == AnyVariable v then 0 else w body
+    w (PushData h t) = w h + w t
+    w (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+    w _ = 0
