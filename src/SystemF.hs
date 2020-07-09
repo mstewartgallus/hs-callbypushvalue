@@ -22,21 +22,21 @@ import qualified VarMap
 import Variable
 
 class SystemF t where
-  constant :: Constant a -> t Term (F a)
-  global :: Global (U a) -> t Term a
-  lambda :: Action a -> (t Term a -> t Term b) -> t Term (a :-> b)
-  apply :: t Term (a :-> b) -> t Term a -> t Term b
-  letBe :: t Term a -> (t Term a -> t Term b) -> t Term b
+  constant :: Constant a -> t (F a)
+  global :: Global (U a) -> t a
+  lambda :: Action a -> (t a -> t b) -> t (a :-> b)
+  apply :: t (a :-> b) -> t a -> t b
+  letBe :: t a -> (t a -> t b) -> t b
 
-  forall :: Kind a -> (Type a -> t Term b) -> t Term (V a b)
-  applyType :: t Term (V a b) -> Type a -> t Term b
+  forall :: Kind a -> (Type a -> t b) -> t (V a b)
+  applyType :: t (V a b) -> Type a -> t b
 
-plus :: SystemF t => t Term (F Integer) -> t Term (F Integer) -> t Term (F Integer)
+plus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
 plus x y = apply (apply (global Core.plus) x) y
 
-newtype Builder t a = Builder {builder :: Unique.State (t a)}
+newtype Builder a = Builder {builder :: Unique.State (Term a)}
 
-build :: Builder t a -> t a
+build :: Builder a -> Term a
 build (Builder s) = Unique.run s
 
 instance SystemF Builder where
@@ -95,10 +95,10 @@ instance TextShow (Term a) where
   showb (ForallTerm binder@(TypeVariable t _) body) = fromString "∀ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyTypeTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
-simplify :: SystemF t => Term a -> t Term a
+simplify :: SystemF t => Term a -> t a
 simplify = simp TypeMap.empty VarMap.empty
 
-simp :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
+simp :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t a
 simp tenv env (ApplyTerm (LambdaTerm binder body) term) =
   let term' = simp tenv env term
    in letBe term' $ \value -> simp tenv (VarMap.insert binder (X value) env) body
@@ -127,13 +127,13 @@ count v = w
     w (ApplyTerm f x) = w f + w x
     w _ = 0
 
-inline :: SystemF t => Term a -> t Term a
+inline :: SystemF t => Term a -> t a
 inline = inl TypeMap.empty VarMap.empty
 
 data X t a where
-  X :: t Term a -> X t (U a)
+  X :: t a -> X t (U a)
 
-inl :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t Term a
+inl :: SystemF t => TypeMap Type -> VarMap (X t) -> Term a -> t a
 inl tenv env (LetTerm term binder body) =
   let term' = inl tenv env term
    in if count binder body <= 1 || isSimple term

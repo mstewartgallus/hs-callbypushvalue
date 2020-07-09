@@ -29,7 +29,7 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: SystemF.SystemF t => t SystemF.Term (F Integer :-> F Integer :-> F Integer)
+mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
     SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
