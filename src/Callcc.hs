@@ -10,6 +10,9 @@ import qualified Constant
 import Core
 import Data.Text as T
 import Global
+import Label
+import LabelMap (LabelMap)
+import qualified LabelMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
 import Type
 import Unique
@@ -37,6 +40,7 @@ typeOf _ = undefined
 typeOfData :: Data a -> Type a
 typeOfData (GlobalData (Global t _)) = t
 typeOfData (VariableData (Variable t _)) = t
+typeOfData (LabelData (Label t _)) = StackType t
 typeOfData (ConstantData k) = Constant.typeOf k
 
 class Callcc t where
@@ -76,8 +80,8 @@ instance Callcc Builder where
   constant k = (Builder . pure) $ ConstantData k
 
   catch t f = Builder $ do
-    v <- pure (Variable (StackType t)) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
+    v <- pure (Label t) <*> Unique.uniqueId
+    body <- builder $ f ((Builder . pure) $ LabelData v)
     pure $ CatchCode v body
   throw t x f =
     Builder $
@@ -89,13 +93,14 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Variable (Stack a) -> Code a -> Code a
+  CatchCode :: Label a -> Code a -> Code a
   ThrowCode :: Action b -> Data (Stack a) -> Code a -> Code b
 
 data Data a where
   GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
+  LabelData :: Label a -> Data (Stack a)
 
 instance TextShow (Code a) where
   showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
@@ -103,7 +108,7 @@ instance TextShow (Code a) where
   showb (ReturnCode value) = fromString "return " <> showb value
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (CatchCode binder@(Variable t _) body) =
+  showb (CatchCode binder@(Label t _) body) =
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode _ label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
 
@@ -111,6 +116,7 @@ instance TextShow (Data a) where
   showb (GlobalData g) = showb g
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
+  showb (LabelData b) = showb b
 
 simplify :: Code a -> Code a
 simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
@@ -132,7 +138,7 @@ count v = code
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
     code (ThrowCode _ x f) = value x + code f
-    code (CatchCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (CatchCode _ body) = code body
     code (ReturnCode x) = value x
     code _ = 0
     value :: Data x -> Int
@@ -140,29 +146,34 @@ count v = code
     value _ = 0
 
 inline :: Callcc t => Code a -> t Code a
-inline = inlCode VarMap.empty
+inline = inlCode LabelMap.empty VarMap.empty
 
-inlCode :: Callcc t => VarMap (t Data) -> Code a -> t Code a
-inlCode env (LetBeCode term binder body) =
-  let term' = inlValue env term
+newtype L t a = L (t Data (Stack a))
+
+inlCode :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Code a -> t Code a
+inlCode lenv env (LetBeCode term binder body) =
+  let term' = inlValue lenv env term
    in if Callcc.count binder body <= 1
-        then inlCode (VarMap.insert binder term' env) body
+        then inlCode lenv (VarMap.insert binder term' env) body
         else letBe term' $ \x ->
-          inlCode (VarMap.insert binder x env) body
-inlCode env (LetToCode term binder body) = letTo (inlCode env term) $ \x ->
-  inlCode (VarMap.insert binder x env) body
-inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
-inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  inlCode (VarMap.insert binder x env) body
-inlCode env (ReturnCode val) = returns (inlValue env val)
-inlCode env (ThrowCode t x f) = throw t (inlValue env x) (inlCode env f)
-inlCode env (CatchCode binder@(Variable (StackType t) _) body) = catch t $ \x ->
-  inlCode (VarMap.insert binder x env) body
-inlCode _ _ = undefined
+          inlCode lenv (VarMap.insert binder x env) body
+inlCode lenv env (LetToCode term binder body) = letTo (inlCode lenv env term) $ \x ->
+  inlCode lenv (VarMap.insert binder x env) body
+inlCode lenv env (ApplyCode f x) = apply (inlCode lenv env f) (inlValue lenv env x)
+inlCode lenv env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+  inlCode lenv (VarMap.insert binder x env) body
+inlCode lenv env (ReturnCode val) = returns (inlValue lenv env val)
+inlCode lenv env (ThrowCode t x f) = throw t (inlValue lenv env x) (inlCode lenv env f)
+inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
+  inlCode (LabelMap.insert binder (L x) lenv) env body
+inlCode lenv _ _ = undefined
 
-inlValue :: Callcc t => VarMap (t Data) -> Data x -> t Data x
-inlValue _ (GlobalData g) = global g
-inlValue env (VariableData variable) =
+inlValue :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Data x -> t Data x
+inlValue _ _ (GlobalData g) = global g
+inlValue _ env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement
-inlValue _ (ConstantData k) = constant k
+inlValue lenv _ (LabelData label) =
+  let Just (L x) = LabelMap.lookup label lenv
+   in x
+inlValue _ _ (ConstantData k) = constant k
