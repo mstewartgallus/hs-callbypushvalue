@@ -51,11 +51,9 @@ class Callcc t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
-  -- bettercatch :: (t Code (a -> R) -> t Code R) -> t Code a
-  -- betterthrow :: t Data a -> t Code (a -> R) -> t Code R
-
   catch :: Action a -> (t Data (Stack a) -> t Code R) -> t Code a
-  throw :: t Data (Stack a) -> t Code a -> t Code R
+
+  throw :: t Data (Stack (F a)) -> t Data a -> t Code R
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -97,7 +95,7 @@ data Code a where
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   CatchCode :: Label a -> Code R -> Code a
-  ThrowCode :: Data (Stack a) -> Code a -> Code R
+  ThrowCode :: Data (Stack (F a)) -> Data a -> Code R
 
 data Data a where
   GlobalData :: Global a -> Data a
@@ -129,7 +127,7 @@ simplify (ApplyCode f x) = ApplyCode (simplify f) x
 simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
 simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
 simplify (CatchCode binder body) = CatchCode binder (simplify body)
-simplify (ThrowCode stack act) = ThrowCode stack (simplify act)
+simplify (ThrowCode stack act) = ThrowCode stack act
 simplify x = x
 
 count :: Variable a -> Code b -> Int
@@ -140,7 +138,7 @@ count v = code
     code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
-    code (ThrowCode x f) = value x + code f
+    code (ThrowCode x f) = value x + value f
     code (CatchCode _ body) = code body
     code (ReturnCode x) = value x
     code _ = 0
@@ -166,7 +164,7 @@ inlCode lenv env (ApplyCode f x) = apply (inlCode lenv env f) (inlValue lenv env
 inlCode lenv env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode lenv (VarMap.insert binder x env) body
 inlCode lenv env (ReturnCode val) = returns (inlValue lenv env val)
-inlCode lenv env (ThrowCode x f) = throw (inlValue lenv env x) (inlCode lenv env f)
+inlCode lenv env (ThrowCode x f) = throw (inlValue lenv env x) (inlValue lenv env f)
 inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
 
