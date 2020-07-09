@@ -69,5 +69,5 @@ loop x = showb x
 
 loopAct :: Action a -> Builder
 loopAct (F x) = fromString "F " <> showb x
-loopAct (a :=> b) = fromString "(" <> showb a <> fromString ")" <> loopAct b
+loopAct (a :=> b) = showb a <> fromString " → " <> loopAct b
 loopAct R = fromString "R"
