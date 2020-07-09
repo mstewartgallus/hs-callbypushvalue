@@ -8,15 +8,14 @@ import qualified Cbpv
 import Common
 import qualified Constant
 import Core
-import Type
 import qualified Cps
-import qualified Interpreter
+import Data.Data
 import qualified Data.Text as T
+import qualified Interpreter
 import Lib
 import qualified SystemF
 import TextShow
-import Data.Data
-
+import Type
 
 -- mkProgram :: (SystemF.SystemF t => Data a => t SystemF.Term a)
 -- mkProgram = undefined
@@ -31,9 +30,9 @@ iterCps = 20
 
 mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
-    SystemF.lambda (F IntType) $ \x ->
+  SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
-    SystemF.plus (SystemF.plus x y) (SystemF.plus y x)
+      SystemF.plus (SystemF.plus x y) (SystemF.plus y x)
 
 phases ::
   SystemF.Term a ->
@@ -132,11 +131,11 @@ main = do
 
   let cpsData = Interpreter.evaluate optCps
 
-  -- let PopStack k = cpsData
-  -- let eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> printT value
-  -- eff
+  let PopStack k = cpsData
+  let MkR eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> MkR $ printT value
+  eff
 
   return ()
 
-t :: a -> Stack (F (Stack (F a)))
+t :: a -> U (F a)
 t x = PopStack $ \(PopStack k) -> k x

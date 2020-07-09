@@ -27,7 +27,7 @@ instance Cps X where
   letBe x f = f x
   pop (Value (PushStack x k)) f = f (Value x) (Value k)
   global g = case GlobalMap.lookup g globals of
-    Just (G x) -> Value x
+    Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
   push (Value h) (Value t) = Value (PushStack h t)
   constant (IntegerConstant x) = Value x
@@ -66,12 +66,12 @@ abstract (PopTerm value h t body) =
         pop (value' env) $ \x y ->
           body' (VarMap.insert h (Y x) (VarMap.insert t (Y y) env))
 
-data G a = G a
+newtype Id a = Id a
 
-globals :: GlobalMap G
+globals :: GlobalMap Id
 globals =
   GlobalMap.fromList
-    [ GlobalMap.Entry strictPlus (G strictPlusImpl)
+    [ GlobalMap.Entry strictPlus (Id strictPlusImpl)
     ]
 
 strictPlusImpl :: Stack (F (Stack (Integer :=> Integer :=> F Integer)))
