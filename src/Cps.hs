@@ -32,17 +32,17 @@ data Data a where
   LetBeCode :: Data a -> Variable a -> Code -> Code
 
 class Cps t where
-  constant :: Constant a -> t (Data a)
-  global :: Global a -> t (Data a)
+  constant :: Constant a -> t a
+  global :: Global a -> t a
 
-  returns :: t (Data a) -> t (Data (Stack (F a))) -> t Code
+  returns :: t a -> t (Stack (F a)) -> t R
 
-  letBe :: t (Data a) -> (t (Data a) -> t Code) -> t Code
+  letBe :: t a -> (t a -> t R) -> t R
 
-  pop :: t (Data (Stack (a :=> b))) -> (t (Data a) -> t (Data (Stack b)) -> t Code) -> t Code
+  pop :: t (Stack (a :=> b)) -> (t a -> t (Stack b) -> t R) -> t R
 
-  letTo :: Type a -> (t (Data a) -> t Code) -> t (Data (Stack (F a)))
-  push :: t (Data a) -> t (Data (Stack b)) -> t (Data (Stack (a :=> b)))
+  letTo :: Type a -> (t a -> t R) -> t (Stack (F a))
+  push :: t a -> t (Stack b) -> t (Stack (a :=> b))
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -82,10 +82,10 @@ instance TextShow (Data a) where
   showb (LetToData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PushData x f) = showb x <> fromString " :: " <> showb f
 
-build :: Builder t -> t
+build :: Builder a -> Data a
 build (Builder s) = Unique.run s
 
-newtype Builder t = Builder {builder :: Unique.State t}
+newtype Builder a = Builder {builder :: Unique.State (Data a)}
 
 typeOf :: Code -> Action R
 typeOf _ = R
@@ -113,12 +113,12 @@ simpCode (PopCode value h t body) = PopCode (simpData value) h t (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
 simpCode (ReturnCode value k) = ReturnCode (simpData value) (simpData k)
 
-inline :: Cps t => Data a -> t (Data a)
+inline :: Cps t => Data a -> t a
 inline = inlineData VarMap.empty
 
-newtype X t a = X (t (Data a))
+newtype X t a = X (t a)
 
-inlineData :: Cps t => VarMap (X t) -> Data a -> t (Data a)
+inlineData :: Cps t => VarMap (X t) -> Data a -> t a
 inlineData env (VariableData v) =
   let Just (X x) = VarMap.lookup v env
    in x
@@ -135,7 +135,7 @@ isSimple (VariableData _) = True
 isSimple (GlobalData _) = True
 isSimple _ = False
 
-inlineCode :: Cps t => VarMap (X t) -> Code -> t Code
+inlineCode :: Cps t => VarMap (X t) -> Code -> t R
 inlineCode env (LetBeCode term binder body)
   | count binder body <= 1 || isSimple term =
     let term' = inlineData env term

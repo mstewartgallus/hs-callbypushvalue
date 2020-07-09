@@ -87,16 +87,16 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) =
           )
           $ \binder -> Callcc.throw (F (StackType (F (StackType t)))) binder code'
 
-toContinuationPassingStyle :: Cps.Cps t => Callcc.Code (F a) -> t (Cps.Data (U (F a)))
+toContinuationPassingStyle :: Cps.Cps t => Callcc.Code (F a) -> t (U (F a))
 toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps' :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> t (Cps.Data (U (F a)))
+toCps' :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> t (U (F a))
 toCps' env act =
   let t = Callcc.typeOf act
    in Cps.letTo (StackType t) $ \k ->
         toCpsValue env act $ \x -> Cps.returns x k
 
-toCpsValue :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> (t (Cps.Data a) -> t Cps.Code) -> t Cps.Code
+toCpsValue :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> (t a -> t R) -> t R
 toCpsValue env a@(Callcc.ApplyCode f x) k =
   let F t = Callcc.typeOf a
       x' = toCpsData env x
@@ -118,7 +118,7 @@ toCpsValue env (Callcc.CatchCode binder@(Variable (StackType (F t)) _) body) k =
     let env' = VarMap.insert binder (Y k') env
      in toCpsValue env' body $ \x -> Cps.returns x k'
 
-toCpsFn :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (a :=> b) -> t (Cps.Data a) -> t (Cps.Data (Stack b)) -> t Cps.Code
+toCpsFn :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (a :=> b) -> t a -> t (Stack b) -> t R
 toCpsFn env a@(Callcc.ApplyCode f x) y k =
   let x' = toCpsData env x
    in toCpsFn env f x' $ Cps.push y k
@@ -143,16 +143,16 @@ toCpsFn env (Callcc.CatchCode binder@(Variable (StackType (a :=> b)) _) body) x 
       let env' = VarMap.insert binder (Y (Cps.push x' k')) env
        in toCpsFn env' body x' k'
 
-toCps :: Cps.Cps t => VarMap (Y t) -> Callcc.Code a -> t (Cps.Data (Stack a)) -> t Cps.Code
+toCps :: Cps.Cps t => VarMap (Y t) -> Callcc.Code a -> t (Stack a) -> t R
 toCps env val k =
   let
    in case Callcc.typeOf val of
         F _ -> toCpsValue env val $ \x -> Cps.returns x k
         _ :=> _ -> Cps.pop k $ \h t -> toCpsFn env val h t
 
-newtype Y t a = Y (t (Cps.Data a))
+newtype Y t a = Y (t a)
 
-toCpsData :: Cps.Cps t => VarMap (Y t) -> Callcc.Data a -> t (Cps.Data a)
+toCpsData :: Cps.Cps t => VarMap (Y t) -> Callcc.Data a -> t a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData _ (Callcc.GlobalData x) = Cps.global x
 toCpsData env (Callcc.VariableData v) =

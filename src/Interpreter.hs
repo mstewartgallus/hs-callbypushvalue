@@ -18,8 +18,7 @@ evaluate :: Data a -> a
 evaluate x = case abstractData x VarMap.empty of
   Value value -> value
 
-data X t where
-  Value :: a -> X (Data a)
+newtype X a = Value a
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
@@ -33,9 +32,9 @@ instance Cps X where
   push (Value h) (Value t) = Value (PushStack h t)
   constant (IntegerConstant x) = Value x
 
-newtype Y t a = Y (t (Data a))
+newtype Y t a = Y (t a)
 
-abstractData :: Cps t => Data a -> VarMap (Y t) -> t (Data a)
+abstractData :: Cps t => Data a -> VarMap (Y t) -> t a
 abstractData (ConstantData k) = \_ -> constant k
 abstractData (VariableData v) = \env -> case VarMap.lookup v env of
   Just (Y x) -> x
@@ -53,7 +52,7 @@ abstractData (GlobalData g) =
   let g' = global g
    in \_ -> g'
 
-abstract :: Cps t => Code -> VarMap (Y t) -> t Code
+abstract :: Cps t => Code -> VarMap (Y t) -> t R
 abstract (ReturnCode value k) =
   let value' = abstractData value
       k' = abstractData k
