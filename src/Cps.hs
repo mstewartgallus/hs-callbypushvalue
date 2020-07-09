@@ -41,6 +41,7 @@ class Cps t where
 
   pop :: t (Stack (a :=> b)) -> (t a -> t (Stack b) -> t R) -> t R
 
+  nilStack :: t (Stack R)
   letTo :: Type a -> (t a -> t R) -> t (Stack (F a))
   push :: t a -> t (Stack b) -> t (Stack (a :=> b))
 
