@@ -129,13 +129,19 @@ inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
 inlineData _ (ConstantData k) = Cps.constant k
 inlineData _ (GlobalData g) = global g
 
+isSimple :: Data a -> Bool
+isSimple (ConstantData _) = True
+isSimple (VariableData _) = True
+isSimple (GlobalData _) = True
+isSimple _ = False
+
 inlineCode :: Cps t => VarMap (t Data) -> Code x -> t Code x
-inlineCode env (LetBeCode term binder body) =
-  let term' = inlineData env term
-   in if count binder body <= 1
-        then inlineCode (VarMap.insert binder term' env) body
-        else letBe term' $ \x ->
-          inlineCode (VarMap.insert binder x env) body
+inlineCode env (LetBeCode term binder body)
+  | count binder body <= 1 || isSimple term =
+    let term' = inlineData env term
+     in inlineCode (VarMap.insert binder term' env) body
+  | otherwise = letBe (inlineData env term) $ \x ->
+    inlineCode (VarMap.insert binder x env) body
 inlineCode env (PopCode value h t body) = pop (inlineData env value) $ \x y ->
   inlineCode (VarMap.insert t y (VarMap.insert h x env)) body
 inlineCode env (ReturnCode val k) = returns (inlineData env val) (inlineData env k)
