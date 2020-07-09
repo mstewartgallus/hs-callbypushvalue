@@ -17,30 +17,30 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-data Code a where
-  ReturnCode :: Data a -> Data (Stack (F a)) -> Code R
-  PopCode :: Data (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Code R -> Code R
-  LetBeCode :: Data a -> Variable a -> Code R -> Code R
+data Code where
+  ReturnCode :: Data a -> Data (Stack (F a)) -> Code
+  PopCode :: Data (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Code -> Code
+  LetBeCode :: Data a -> Variable a -> Code -> Code
 
 data Data a where
   GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LetToData :: Variable a -> Code R -> Data (Stack (F a))
+  LetToData :: Variable a -> Code -> Data (Stack (F a))
   PushData :: Data a -> Data (Stack b) -> Data (Stack (a :=> b))
 
 class Cps t where
-  constant :: Constant a -> t Data a
-  global :: Global a -> t Data a
+  constant :: Constant a -> t (Data a)
+  global :: Global a -> t (Data a)
 
-  returns :: t Data a -> t Data (Stack (F a)) -> t Code R
+  returns :: t (Data a) -> t (Data (Stack (F a))) -> t Code
 
-  letBe :: t Data a -> (t Data a -> t Code R) -> t Code R
+  letBe :: t (Data a) -> (t (Data a) -> t Code) -> t Code
 
-  pop :: t Data (Stack (a :=> b)) -> (t Data a -> t Data (Stack b) -> t Code R) -> t Code R
+  pop :: t (Data (Stack (a :=> b))) -> (t (Data a) -> t (Data (Stack b)) -> t Code) -> t Code
 
-  letTo :: Type a -> (t Data a -> t Code R) -> t Data (Stack (F a))
-  push :: t Data a -> t Data (Stack b) -> t Data (Stack (a :=> b))
+  letTo :: Type a -> (t (Data a) -> t Code) -> t (Data (Stack (F a)))
+  push :: t (Data a) -> t (Data (Stack b)) -> t (Data (Stack (a :=> b)))
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -70,7 +70,7 @@ instance Cps Builder where
   push x k = Builder $ do
     pure PushData <*> builder x <*> builder k
 
-instance TextShow (Code a) where
+instance TextShow Code where
   showb (ReturnCode x k) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb x))) <> fromString "\n}\n" <> showb k
   showb (PopCode value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
@@ -82,15 +82,13 @@ instance TextShow (Data a) where
   showb (LetToData binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PushData x f) = showb x <> fromString " :: " <> showb f
 
-build :: Builder t a -> t a
+build :: Builder t -> t
 build (Builder s) = Unique.run s
 
-newtype Builder t a = Builder {builder :: Unique.State (t a)}
+newtype Builder t = Builder {builder :: Unique.State t}
 
-typeOf :: Code a -> Action a
-typeOf (PopCode _ _ _ body) = typeOf body
-typeOf (LetBeCode _ _ body) = typeOf body
-typeOf (ReturnCode _ _) = R
+typeOf :: Code -> Action R
+typeOf _ = R
 
 typeOfData :: Data a -> Type a
 typeOfData (GlobalData (Global t _)) = t
@@ -110,20 +108,22 @@ simpData (LetToData binder body) = LetToData binder (simpCode body)
 simpData (PushData h t) = PushData (simpData h) (simpData t)
 simpData x = x
 
-simpCode :: Code a -> Code a
+simpCode :: Code -> Code
 simpCode (PopCode value h t body) = PopCode (simpData value) h t (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
 simpCode (ReturnCode value k) = ReturnCode (simpData value) (simpData k)
 
-inline :: Data a -> Builder Data a
+inline :: Cps t => Data a -> t (Data a)
 inline = inlineData VarMap.empty
 
-inlineData :: Cps t => VarMap (t Data) -> Data a -> t Data a
+newtype X t a = X (t (Data a))
+
+inlineData :: Cps t => VarMap (X t) -> Data a -> t (Data a)
 inlineData env (VariableData v) =
-  let Just x = VarMap.lookup v env
+  let Just (X x) = VarMap.lookup v env
    in x
 inlineData env (LetToData binder@(Variable t _) body) = Cps.letTo t $ \value ->
-  let env' = VarMap.insert binder value env
+  let env' = VarMap.insert binder (X value) env
    in inlineCode env' body
 inlineData env (PushData h t) = Cps.push (inlineData env h) (inlineData env t)
 inlineData _ (ConstantData k) = Cps.constant k
@@ -135,21 +135,21 @@ isSimple (VariableData _) = True
 isSimple (GlobalData _) = True
 isSimple _ = False
 
-inlineCode :: Cps t => VarMap (t Data) -> Code x -> t Code x
+inlineCode :: Cps t => VarMap (X t) -> Code -> t Code
 inlineCode env (LetBeCode term binder body)
   | count binder body <= 1 || isSimple term =
     let term' = inlineData env term
-     in inlineCode (VarMap.insert binder term' env) body
+     in inlineCode (VarMap.insert binder (X term') env) body
   | otherwise = letBe (inlineData env term) $ \x ->
-    inlineCode (VarMap.insert binder x env) body
+    inlineCode (VarMap.insert binder (X x) env) body
 inlineCode env (PopCode value h t body) = pop (inlineData env value) $ \x y ->
-  inlineCode (VarMap.insert t y (VarMap.insert h x env)) body
+  inlineCode (VarMap.insert t (X y) (VarMap.insert h (X x) env)) body
 inlineCode env (ReturnCode val k) = returns (inlineData env val) (inlineData env k)
 
-count :: Variable a -> Code b -> Int
+count :: Variable a -> Code -> Int
 count v = code
   where
-    code :: Code x -> Int
+    code :: Code -> Int
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
     code (PopCode x h t body) = value x + if AnyVariable t == AnyVariable v || AnyVariable h == AnyVariable v then 0 else code body
     code (ReturnCode x k) = value x + value k
