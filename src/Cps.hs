@@ -10,6 +10,9 @@ import qualified Constant
 import Core
 import qualified Data.Text as T
 import Global
+import Label
+import LabelMap (LabelMap)
+import qualified LabelMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
 import Type
 import Unique
@@ -21,10 +24,11 @@ data Term a where
   GlobalTerm :: Global a -> Term a
   ConstantTerm :: Constant a -> Term a
   VariableTerm :: Variable a -> Term a
+  LabelTerm :: Label a -> Term (Stack a)
   LetToTerm :: Variable a -> Term R -> Term (Stack (F a))
   PushTerm :: Term a -> Term (Stack b) -> Term (Stack (a :=> b))
   ReturnTerm :: Term a -> Term (Stack (F a)) -> Term R
-  PopTerm :: Term (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Term R -> Term R
+  PopTerm :: Term (Stack (a :=> b)) -> Variable a -> Label b -> Term R -> Term R
   LetBeTerm :: Term a -> Variable a -> Term R -> Term R
 
 class Cps t where
@@ -55,8 +59,8 @@ instance Cps Builder where
     x' <- builder x
     let StackType (a :=> b) = typeOf x'
     h <- pure (Variable a) <*> Unique.uniqueId
-    t <- pure (Variable (StackType b)) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) (VariableTerm h)) ((Builder . pure) (VariableTerm t))
+    t <- pure (Label b) <*> Unique.uniqueId
+    body <- builder $ f ((Builder . pure) (VariableTerm h)) ((Builder . pure) (LabelTerm t))
     pure $ PopTerm x' h t body
   constant k = (Builder . pure) $ ConstantTerm k
 
@@ -70,6 +74,7 @@ instance Cps Builder where
 
 instance TextShow (Term a) where
   showb (VariableTerm v) = showb v
+  showb (LabelTerm v) = showb v
   showb (ConstantTerm k) = showb k
   showb (GlobalTerm k) = showb k
   showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
@@ -87,6 +92,7 @@ typeOf :: Term a -> Type a
 typeOf (GlobalTerm (Global t _)) = t
 typeOf (ConstantTerm k) = Constant.typeOf k
 typeOf (VariableTerm (Variable t _)) = t
+typeOf (LabelTerm (Label t _)) = StackType t
 typeOf (LetToTerm (Variable t _) _) = StackType (F t)
 typeOf (PushTerm h t) =
   let a = typeOf h
@@ -102,33 +108,39 @@ simplify (ReturnTerm value k) = ReturnTerm (simplify value) (simplify k)
 simplify x = x
 
 inline :: Cps t => Term a -> t a
-inline = inline' VarMap.empty
+inline = inline' LabelMap.empty VarMap.empty
 
 newtype X t a = X (t a)
 
-inline' :: Cps t => VarMap (X t) -> Term a -> t a
-inline' env (VariableTerm v) =
+newtype L t a = L (t (Stack a))
+
+inline' :: Cps t => LabelMap (L t) -> VarMap (X t) -> Term a -> t a
+inline' _ env (VariableTerm v) =
   let Just (X x) = VarMap.lookup v env
    in x
-inline' env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value ->
+inline' lenv _ (LabelTerm v) =
+  let Just (L x) = LabelMap.lookup v lenv
+   in x
+inline' lenv env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value ->
   let env' = VarMap.insert binder (X value) env
-   in inline' env' body
-inline' env (PushTerm h t) = Cps.push (inline' env h) (inline' env t)
-inline' _ (ConstantTerm k) = Cps.constant k
-inline' _ (GlobalTerm g) = global g
-inline' env (LetBeTerm term binder body)
+   in inline' lenv env' body
+inline' lenv env (PushTerm h t) = Cps.push (inline' lenv env h) (inline' lenv env t)
+inline' _ _ (ConstantTerm k) = Cps.constant k
+inline' _ _ (GlobalTerm g) = global g
+inline' lenv env (LetBeTerm term binder body)
   | count binder body <= 1 || isSimple term =
-    let term' = inline' env term
-     in inline' (VarMap.insert binder (X term') env) body
-  | otherwise = letBe (inline' env term) $ \x ->
-    inline' (VarMap.insert binder (X x) env) body
-inline' env (PopTerm value h t body) = pop (inline' env value) $ \x y ->
-  inline' (VarMap.insert t (X y) (VarMap.insert h (X x) env)) body
-inline' env (ReturnTerm val k) = returns (inline' env val) (inline' env k)
+    let term' = inline' lenv env term
+     in inline' lenv (VarMap.insert binder (X term') env) body
+  | otherwise = letBe (inline' lenv env term) $ \x ->
+    inline' lenv (VarMap.insert binder (X x) env) body
+inline' lenv env (PopTerm value h t body) = pop (inline' lenv env value) $ \x y ->
+  inline' (LabelMap.insert t (L y) lenv) (VarMap.insert h (X x) env) body
+inline' lenv env (ReturnTerm val k) = returns (inline' lenv env val) (inline' lenv env k)
 
 isSimple :: Term a -> Bool
 isSimple (ConstantTerm _) = True
 isSimple (VariableTerm _) = True
+isSimple (LabelTerm _) = True
 isSimple (GlobalTerm _) = True
 isSimple _ = False
 
@@ -137,7 +149,7 @@ count v = w
   where
     w :: Term b -> Int
     w (LetBeTerm x binder body) = w x + if AnyVariable binder == AnyVariable v then 0 else w body
-    w (PopTerm x h t body) = w x + if AnyVariable t == AnyVariable v || AnyVariable h == AnyVariable v then 0 else w body
+    w (PopTerm x h t body) = w x + if AnyVariable h == AnyVariable v then 0 else w body
     w (ReturnTerm x k) = w x + w k
     w (LetToTerm binder body) = if AnyVariable binder == AnyVariable v then 0 else w body
     w (PushTerm h t) = w h + w t
