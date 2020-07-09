@@ -46,60 +46,75 @@ toCbpv env (SystemF.ApplyTerm f x) =
    in Cbpv.apply f' (Cbpv.delay x')
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
-toCallcc x = Callcc.build $ callcc' VarMap.empty x
+toCallcc x = Callcc.build (callcc VarMap.empty x)
 
-callcc' :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
-callcc' env (Cbpv.LambdaCode binder@(Variable t _) body) =
+callcc :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
+callcc env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.lambda t $ \x ->
-    callcc' (VarMap.insert binder x env) body
-callcc' env (Cbpv.ApplyCode f x) =
-  let f' = callcc' env f
-      x' = callccData env x
-   in Callcc.letTo x' $ \val ->
-        Callcc.apply f' val
-callcc' env (Cbpv.LetToCode action binder body) =
-  let action' = callcc' env action
-   in Callcc.letTo action' $ \x ->
-        callcc' (VarMap.insert binder x env) body
-callcc' env (Cbpv.LetBeCode value binder body) =
-  let value' = callccData env value
-   in Callcc.letTo value' $ \x ->
-        callcc' (VarMap.insert binder x env) body
-callcc' env (Cbpv.ReturnCode x) =
-  callccData env x
-callcc' env f@(Cbpv.ForceCode thunk) =
-  let t = Cbpv.typeOf f
-      thunk' = callccData env thunk
-   in Callcc.letTo thunk' $ \val ->
-        Callcc.catch t $ \v ->
-          Callcc.throw val (Callcc.returns v)
+    callcc (VarMap.insert binder x env) body
+callcc env (Cbpv.ApplyCode f x) =
+  Callcc.letTo (callccData env x) $ \x' ->
+    Callcc.apply (callcc env f) x'
+callcc env (Cbpv.LetToCode action binder body) =
+  Callcc.letTo (callcc env action) $ \x ->
+    callcc (VarMap.insert binder x env) body
+callcc env (Cbpv.LetBeCode value binder body) =
+  Callcc.letTo (callccData env value) $ \x ->
+    callcc (VarMap.insert binder x env) body
+callcc env (Cbpv.ReturnCode x) = callccData env x
+callcc env x@(Cbpv.ForceCode thunk) =
+  let t = Cbpv.typeOf x
+   in Callcc.letTo (callccData env thunk) $ \thunk' ->
+        Callcc.catch t $ \val ->
+          Callcc.throw thunk' (Callcc.returns val)
+callcc env x = Callcc.catch (Cbpv.typeOf x) $ \k ->
+  callccCps env x $ \x' ->
+    Callcc.throw k x'
+
+callccCps :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> (t Callcc.Code a -> t Callcc.Code R) -> t Callcc.Code R
+callccCps env (Cbpv.LambdaCode binder@(Variable t _) body) k =
+  k $ Callcc.lambda t $ \x ->
+    callcc (VarMap.insert binder x env) body
+callccCps env (Cbpv.ApplyCode f x) k =
+  callccDataCps env x $ \x' ->
+    k (Callcc.apply (callcc env f) x')
+callccCps env (Cbpv.LetToCode action binder body) k =
+  k $ Callcc.letTo (callcc env action) $ \x ->
+    callcc (VarMap.insert binder x env) body
+callccCps env (Cbpv.LetBeCode value binder body) k =
+  callccDataCps env value $ \x ->
+    k $ callcc (VarMap.insert binder x env) body
+callccCps env (Cbpv.ReturnCode x) k =
+  callccDataCps env x $ \x' -> k (Callcc.returns x')
+callccCps env x@(Cbpv.ForceCode thunk) k =
+  let t = Cbpv.typeOf x
+   in callccDataCps env thunk $ \thunk' ->
+        k $ Callcc.catch t $ \val ->
+          Callcc.throw thunk' (Callcc.returns val)
 
 callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Code (F a)
-callccData _ (Cbpv.GlobalData x) = Callcc.returns (Callcc.global x)
-callccData _ (Cbpv.ConstantData x) = Callcc.returns (Callcc.constant x)
+callccData _ (Cbpv.GlobalData x) = Callcc.returns $ Callcc.global x
+callccData _ (Cbpv.ConstantData x) = Callcc.returns $ Callcc.constant x
 callccData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
    in Callcc.returns x
-callccData env (Cbpv.ThunkData code) =
+callccData env x =
+  let t = Cbpv.typeOfData x
+   in Callcc.catch (F t) $ \k ->
+        callccDataCps env x $ \x' ->
+          Callcc.throw k (Callcc.returns x')
+
+callccDataCps :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> (t Callcc.Data a -> t Callcc.Code R) -> t Callcc.Code R
+callccDataCps _ (Cbpv.GlobalData x) k = k (Callcc.global x)
+callccDataCps _ (Cbpv.ConstantData x) k = k (Callcc.constant x)
+callccDataCps env (Cbpv.VariableData v) k =
+  let Just x = VarMap.lookup v env
+   in k x
+callccDataCps env (Cbpv.ThunkData code) k =
   let t = Cbpv.typeOf code
-   in case t of
-        F _ -> thunkValue env code
-        _ :=> _ -> thunkFn env code
-
-thunkValue :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code (F a) -> t Callcc.Code (F (U (F a)))
-thunkValue env code =
-  let code' = callcc' env code
-      t = Cbpv.typeOf code
-   in Callcc.catch (F (StackType (F (StackType t)))) $ \returner ->
-        Callcc.letTo
-          ( Callcc.catch (F (StackType t)) $ \label ->
-              Callcc.throw returner (Callcc.returns label)
-          )
-          $ \binder ->
-            Callcc.throw binder code'
-
-thunkFn :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code (a :=> b) -> t Callcc.Code (F (U (a :=> b)))
-thunkFn env code = undefined
+   in callccCps env code $ \code' ->
+        Callcc.letTo (Callcc.catch (F (StackType t)) k) $ \binder ->
+          Callcc.throw binder code'
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (U a)
 toContinuationPassingStyle = toCps' LabelMap.empty VarMap.empty

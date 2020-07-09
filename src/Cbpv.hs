@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (typeOf, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (typeOf, typeOfData, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Constant (Constant)
