@@ -48,8 +48,8 @@ class Cbpv t where
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
-  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
-  apply :: t Code (a -> b) -> t Data a -> t Code b
+  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
+  apply :: t Code (a :=> b) -> t Data a -> t Code b
   constant :: Constant a -> t Data a
   delay :: t Code a -> t Data (U a)
 
@@ -86,8 +86,8 @@ instance Cbpv Builder where
       pure ThunkData <*> builder code
 
 data Code a where
-  LambdaCode :: Variable a -> Code b -> Code (a -> b)
-  ApplyCode :: Code (a -> b) -> Data a -> Code b
+  LambdaCode :: Variable a -> Code b -> Code (a :=> b)
+  ApplyCode :: Code (a :=> b) -> Data a -> Code b
   ForceCode :: Data (U a) -> Code a
   ReturnCode :: Data a -> Code (F a)
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b

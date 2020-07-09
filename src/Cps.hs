@@ -19,7 +19,7 @@ import Variable
 
 data Code a where
   ReturnCode :: Data a -> Data (Stack (F a)) -> Code R
-  PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code R -> Code R
+  PopCode :: Data (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Code R -> Code R
   LetBeCode :: Data a -> Variable a -> Code R -> Code R
 
 data Data a where
@@ -27,7 +27,7 @@ data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   LetToData :: Variable a -> Code R -> Data (Stack (F a))
-  PushData :: Data a -> Data (Stack b) -> Data (Stack (a -> b))
+  PushData :: Data a -> Data (Stack b) -> Data (Stack (a :=> b))
 
 class Cps t where
   constant :: Constant a -> t Data a
@@ -37,10 +37,10 @@ class Cps t where
 
   letBe :: t Data a -> (t Data a -> t Code R) -> t Code R
 
-  pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code R) -> t Code R
+  pop :: t Data (Stack (a :=> b)) -> (t Data a -> t Data (Stack b) -> t Code R) -> t Code R
 
   letTo :: Type a -> (t Data a -> t Code R) -> t Data (Stack (F a))
-  push :: t Data a -> t Data (Stack b) -> t Data (Stack (a -> b))
+  push :: t Data a -> t Data (Stack b) -> t Data (Stack (a :=> b))
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalData g

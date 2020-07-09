@@ -118,7 +118,7 @@ toCpsValue env (Callcc.CatchCode binder@(Variable (StackType (F t)) _) body) k =
     let env' = VarMap.insert binder k' env
      in toCpsValue env' body $ \x -> Cps.returns x k'
 
-toCpsFn :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code (a -> b) -> t Cps.Data a -> t Cps.Data (Stack b) -> t Cps.Code R
+toCpsFn :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code (a :=> b) -> t Cps.Data a -> t Cps.Data (Stack b) -> t Cps.Code R
 toCpsFn env a@(Callcc.ApplyCode f x) y k =
   let x' = toCpsData env x
    in toCpsFn env f x' $ Cps.push y k

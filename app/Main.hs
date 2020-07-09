@@ -15,6 +15,11 @@ import qualified Data.Text as T
 import Lib
 import qualified SystemF
 import TextShow
+import Data.Data
+
+
+-- mkProgram :: (SystemF.SystemF t => Data a => t SystemF.Term a)
+-- mkProgram = undefined
 
 iterTerm = 20
 

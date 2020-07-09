@@ -20,7 +20,7 @@ evaluate x = case abstractData x VarMap.empty of
 
 data X tag a where
   Value :: a -> X Data a
-  Act :: IO () -> X Code R
+  Act :: R -> X Code R
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
@@ -76,5 +76,5 @@ globals =
     [ GlobalMap.Entry strictPlus (G strictPlusImpl)
     ]
 
-strictPlusImpl :: Stack (F (Stack (Integer -> Integer -> F Integer)))
+strictPlusImpl :: Stack (F (Stack (Integer :=> Integer :=> F Integer)))
 strictPlusImpl = PopStack $ \(PushStack x (PushStack y (PopStack k))) -> k (x + y)

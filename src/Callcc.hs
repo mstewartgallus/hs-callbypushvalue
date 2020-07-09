@@ -45,8 +45,8 @@ class Callcc t where
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
-  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
-  apply :: t Code (a -> b) -> t Data a -> t Code b
+  lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
+  apply :: t Code (a :=> b) -> t Data a -> t Code b
   catch :: Action a -> (t Data (Stack a) -> t Code a) -> t Code a
   throw :: Action b -> t Data (Stack a) -> t Code a -> t Code b
 
@@ -84,8 +84,8 @@ instance Callcc Builder where
       pure (ThrowCode t) <*> builder x <*> builder f
 
 data Code a where
-  LambdaCode :: Variable a -> Code b -> Code (a -> b)
-  ApplyCode :: Code (a -> b) -> Data a -> Code b
+  LambdaCode :: Variable a -> Code b -> Code (a :=> b)
+  ApplyCode :: Code (a :=> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b

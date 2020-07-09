@@ -22,7 +22,7 @@ infixr 9 :=>
 
 data Action a where
   F :: Type a -> Action (F a)
-  (:=>) :: Type a -> Action b -> Action (a -> b)
+  (:=>) :: Type a -> Action b -> Action (a :=> b)
   R :: Action R
 
 applyType :: Type (V a b) -> Type a -> Type b
