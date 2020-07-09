@@ -51,15 +51,15 @@ abstract (PushTerm h t) =
 abstract (GlobalTerm g) =
   let g' = global g
    in \_ -> g'
-abstract (ReturnCode value k) =
+abstract (ReturnTerm value k) =
   let value' = abstract value
       k' = abstract k
    in \env -> returns (value' env) (k' env)
-abstract (LetBeCode value binder body) =
+abstract (LetBeTerm value binder body) =
   let value' = abstract value
       body' = abstract body
    in \env -> body' (VarMap.insert binder (Y (value' env)) env)
-abstract (PopCode value h t body) =
+abstract (PopTerm value h t body) =
   let value' = abstract value
       body' = abstract body
    in \env ->
