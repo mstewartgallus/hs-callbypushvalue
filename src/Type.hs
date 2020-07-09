@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Type (applyType, equalType, Action (..), Type (..)) where
+module Type (applyType, equalType, equalAction, Action (..), Type (..)) where
 
 import Common
 import Data.Typeable
@@ -56,8 +56,11 @@ equalAction _ _ = Nothing
 instance TextShow (Type a) where
   showb (NominalType _ name) = showb name
   showb (VariableType v) = showb v
-  showb a@(ApplyType _ _) = fromString "(" <> loop a <> fromString ")"
-  showb a@(ApplyAction _ _) = fromString "(" <> loop a <> fromString ")"
+  showb x = fromString "(" <> loop x <> fromString ")"
+
+instance TextShow (Action a) where
+  showb R = fromString "R"
+  showb x = fromString "(" <> loopAct x <> fromString ")"
 
 loop :: Type a -> Builder
 loop (ApplyAction f x) = showb f <> fromString " " <> loopAct x

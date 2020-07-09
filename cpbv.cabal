@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b89490d939ed1632b0ef9e69a4c73fc4de98c6b315dcd24fd389751f316d6a9e
+-- hash: 28c58b23e1f3c3070c9970fcfa5fa5ebae99fd470043d8839695d9d23178c2af
 
 name:           cpbv
 version:        0.1.0.0
@@ -37,6 +37,8 @@ library
       GlobalMap
       Interpreter
       Kind
+      Label
+      LabelMap
       Lib
       Name
       SystemF

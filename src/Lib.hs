@@ -13,6 +13,9 @@ import qualified Cbpv
 import Common
 import Core
 import qualified Cps
+import Label
+import qualified LabelMap
+import LabelMap (LabelMap)
 import qualified SystemF
 import Type
 import qualified VarMap
@@ -20,22 +23,22 @@ import VarMap (VarMap)
 import Variable
 
 toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t Cbpv.Code a
-toCallByPushValue = toCbpv VarMap.empty
+toCallByPushValue = toCbpv LabelMap.empty
 
-toCbpv :: Cbpv.Cbpv t => VarMap (t Cbpv.Data) -> SystemF.Term a -> t Cbpv.Code a
-toCbpv env (SystemF.VariableTerm x) =
-  let Just replacement = VarMap.lookup x env
-   in Cbpv.force replacement
+toCbpv :: Cbpv.Cbpv t => LabelMap (t Cbpv.Code) -> SystemF.Term a -> t Cbpv.Code a
+toCbpv env (SystemF.LabelTerm x) =
+  let Just x' = LabelMap.lookup x env
+   in x'
 toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
 toCbpv _ (SystemF.GlobalTerm x) = Cbpv.force (Cbpv.global x)
 toCbpv env (SystemF.LetTerm term binder body) =
   let term' = toCbpv env term
    in Cbpv.letBe (Cbpv.delay term') $ \value ->
-        let env' = VarMap.insert binder value env
+        let env' = LabelMap.insert binder (Cbpv.force value) env
          in toCbpv env' body
-toCbpv env (SystemF.LambdaTerm binder@(Variable t _) body) =
-  Cbpv.lambda t $ \value ->
-    let env' = VarMap.insert binder value env
+toCbpv env (SystemF.LambdaTerm binder@(Label t _) body) =
+  Cbpv.lambda (U t) $ \value ->
+    let env' = LabelMap.insert binder (Cbpv.force value) env
      in toCbpv env' body
 toCbpv env (SystemF.ApplyTerm f x) =
   let f' = toCbpv env f
