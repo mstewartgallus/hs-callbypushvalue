@@ -20,12 +20,11 @@ evaluate x = case abstractData x VarMap.empty of
 
 data X t where
   Value :: a -> X (Data a)
-  Act :: R -> X Code
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
-    Act k -> k
-  returns (Value x) (Value (PopStack k)) = Act (k x)
+    Value k -> k
+  returns (Value x) (Value (PopStack k)) = Value (k x)
   letBe x f = f x
   pop (Value (PushStack x k)) f = f (Value x) (Value k)
   global g = case GlobalMap.lookup g globals of

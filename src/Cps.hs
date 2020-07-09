@@ -17,10 +17,9 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-data Code where
-  ReturnCode :: Data a -> Data (Stack (F a)) -> Code
-  PopCode :: Data (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Code -> Code
-  LetBeCode :: Data a -> Variable a -> Code -> Code
+type Code = Data R
+
+-- data Code where
 
 data Data a where
   GlobalData :: Global a -> Data a
@@ -28,6 +27,9 @@ data Data a where
   VariableData :: Variable a -> Data a
   LetToData :: Variable a -> Code -> Data (Stack (F a))
   PushData :: Data a -> Data (Stack b) -> Data (Stack (a :=> b))
+  ReturnCode :: Data a -> Data (Stack (F a)) -> Code
+  PopCode :: Data (Stack (a :=> b)) -> Variable a -> Variable (Stack b) -> Code -> Code
+  LetBeCode :: Data a -> Variable a -> Code -> Code
 
 class Cps t where
   constant :: Constant a -> t (Data a)
@@ -70,12 +72,10 @@ instance Cps Builder where
   push x k = Builder $ do
     pure PushData <*> builder x <*> builder k
 
-instance TextShow Code where
+instance TextShow (Data a) where
   showb (ReturnCode x k) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb x))) <> fromString "\n}\n" <> showb k
   showb (PopCode value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-
-instance TextShow (Data a) where
   showb (GlobalData k) = showb k
   showb (ConstantData k) = showb k
   showb (VariableData v) = showb v
