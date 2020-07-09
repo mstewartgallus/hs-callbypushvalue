@@ -4,11 +4,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Core
-  ( pattern (:=>),
-    pattern F,
-    pattern StackType,
+  ( pattern StackType,
     pattern U,
-    pattern R,
     pattern IntType,
     plus,
     strictPlus,
@@ -28,9 +25,6 @@ Define a standard library of call by push value types.
 Still not sure how to handle types in a lot of cases.
 -}
 
-behaviour :: Type R
-behaviour = NominalType TypeKind $ Name (T.pack "core") (T.pack "R")
-
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
 thunk = NominalType (TypeKind `FunKind` TypeKind) thunk'
@@ -38,23 +32,8 @@ thunk = NominalType (TypeKind `FunKind` TypeKind) thunk'
 thunk' :: Name
 thunk' = Name (T.pack "core") (T.pack "U")
 
-fnRaw' :: Name
-fnRaw' = Name (T.pack "core") (T.pack "fnRaw")
-
-fnRaw :: Type (V a (V b (a -> b)))
-fnRaw = NominalType (TypeKind `FunKind` (TypeKind `FunKind` TypeKind)) fnRaw'
-
-returnsType :: Type (V a (F a))
-returnsType = NominalType (TypeKind `FunKind` TypeKind) returnsType'
-
-returnsType' :: Name
-returnsType' = Name (T.pack "core") (T.pack "F")
-
-int :: Type (F Integer)
-int = applyType returnsType intRaw
-
-intRaw :: Type Integer
-intRaw = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
+int :: Type Integer
+int = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
 stack :: Type (V a (Stack a))
 stack = NominalType (TypeKind `FunKind` TypeKind) stack'
@@ -63,46 +42,26 @@ stack' :: Name
 stack' = Name (T.pack "core") (T.pack "stack")
 
 plus :: Global (U (F Integer :-> F Integer :-> F Integer))
-plus = Global (U (U int :=> U int :=> int)) $ Name (T.pack "core") (T.pack "+")
+plus = Global (U (U (F int) :=> U (F int) :=> F int)) $ Name (T.pack "core") (T.pack "+")
 
 -- fixme...
 strictPlus :: Global (U (Integer -> Integer -> F Integer))
-strictPlus = Global (U (intRaw :=> intRaw :=> int)) $ Name (T.pack "core") (T.pack "+!")
-
-infixr 9 :=>
-
-pattern (:=>) :: Type a -> Type b -> Type (a -> b)
-pattern head :=> tail <-
-  (ApplyType (ApplyType ((equalType fnRaw) -> Just Refl) head) tail)
-  where
-    a :=> b = ApplyType (ApplyType fnRaw a) b
+strictPlus = Global (U (int :=> int :=> F int)) $ Name (T.pack "core") (T.pack "+!")
 
 pattern IntType :: Type Integer
 pattern IntType <-
-  ((equalType intRaw) -> Just Refl)
+  ((equalType int) -> Just Refl)
   where
-    IntType = intRaw
+    IntType = int
 
-pattern R :: Type R
-pattern R <-
-  ((equalType behaviour) -> Just Refl)
-  where
-    R = behaviour
-
-pattern StackType :: Type a -> Type (Stack a)
+pattern StackType :: (b ~ Stack a) => Action a -> Type b
 pattern StackType x <-
-  (ApplyType ((equalType stack) -> Just Refl) x)
+  (ApplyAction ((equalType stack) -> Just Refl) x)
   where
-    StackType x = ApplyType stack x
+    StackType x = ApplyAction stack x
 
-pattern U :: Type a -> Type (U a)
+pattern U :: (b ~ U a) => Action a -> Type b
 pattern U x <-
-  (ApplyType ((equalType thunk) -> Just Refl) x)
+  (ApplyAction ((equalType thunk) -> Just Refl) x)
   where
-    U x = ApplyType thunk x
-
-pattern F :: Type a -> Type (F a)
-pattern F x <-
-  (ApplyType ((equalType returnsType) -> Just Refl) x)
-  where
-    F x = ApplyType returnsType x
+    U x = ApplyAction thunk x

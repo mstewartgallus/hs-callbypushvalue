@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Type (applyType, equalType, Type (..)) where
+module Type (applyType, equalType, Action (..), Type (..)) where
 
 import Common
 import Data.Typeable
@@ -16,6 +16,14 @@ data Type a where
   NominalType :: Kind a -> Name -> Type a
   VariableType :: TypeVariable a -> Type a
   ApplyType :: Type (V a b) -> Type a -> Type b
+  ApplyAction :: Type (V a b) -> Action a -> Type b
+
+infixr 9 :=>
+
+data Action a where
+  F :: Type a -> Action (F a)
+  (:=>) :: Type a -> Action b -> Action (a -> b)
+  R :: Action R
 
 applyType :: Type (V a b) -> Type a -> Type b
 applyType = ApplyType
@@ -31,13 +39,32 @@ equalType (VariableType (TypeVariable _ name)) (VariableType (TypeVariable _ nam
 equalType (ApplyType f x) (ApplyType f' x') = case (equalType f f', equalType x x') of
   (Just Refl, Just Refl) -> Just Refl
   _ -> Nothing
+equalType (ApplyAction f x) (ApplyAction f' x') = case (equalType f f', equalAction x x') of
+  (Just Refl, Just Refl) -> Just Refl
+  _ -> Nothing
 equalType _ _ = Nothing
+
+equalAction :: Action a -> Action b -> Maybe (a :~: b)
+equalAction (F x) (F x') = case equalType x x' of
+  Just Refl -> Just Refl
+  _ -> Nothing
+equalAction (a :=> b) (a' :=> b') = case (equalType a a', equalAction b b') of
+  (Just Refl, Just Refl) -> Just Refl
+  _ -> Nothing
+equalAction _ _ = Nothing
 
 instance TextShow (Type a) where
   showb (NominalType _ name) = showb name
   showb (VariableType v) = showb v
   showb a@(ApplyType _ _) = fromString "(" <> loop a <> fromString ")"
+  showb a@(ApplyAction _ _) = fromString "(" <> loop a <> fromString ")"
 
 loop :: Type a -> Builder
+loop (ApplyAction f x) = showb f <> fromString " " <> loopAct x
 loop (ApplyType f x) = showb f <> fromString " " <> loop x
 loop x = showb x
+
+loopAct :: Action a -> Builder
+loopAct (F x) = fromString "F " <> showb x
+loopAct (a :=> b) = fromString "(" <> showb a <> fromString ")" <> loopAct b
+loopAct R = fromString "R"

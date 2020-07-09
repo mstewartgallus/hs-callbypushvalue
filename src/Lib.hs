@@ -14,6 +14,7 @@ import Common
 import Core
 import qualified Cps
 import qualified SystemF
+import Type
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
@@ -21,28 +22,28 @@ import Variable
 toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t Cbpv.Code a
 toCallByPushValue = toCbpv VarMap.empty
 
-toCbpv :: Cbpv.Cbpv t => VarMap (t Cbpv.Code) -> SystemF.Term a -> t Cbpv.Code a
+toCbpv :: Cbpv.Cbpv t => VarMap (t Cbpv.Data) -> SystemF.Term a -> t Cbpv.Code a
 toCbpv env (SystemF.VariableTerm x) =
   let Just replacement = VarMap.lookup x env
-   in replacement
+   in Cbpv.force replacement
 toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
 toCbpv _ (SystemF.GlobalTerm x) = Cbpv.force (Cbpv.global x)
 toCbpv env (SystemF.LetTerm term binder body) =
   let term' = toCbpv env term
    in Cbpv.letBe (Cbpv.delay term') $ \value ->
-        let env' = VarMap.insert binder (Cbpv.force value) env
+        let env' = VarMap.insert binder value env
          in toCbpv env' body
 toCbpv env (SystemF.LambdaTerm binder@(Variable t _) body) =
-  Cbpv.lambda (U t) $ \value ->
-    let env' = VarMap.insert binder (Cbpv.force value) env
+  Cbpv.lambda t $ \value ->
+    let env' = VarMap.insert binder value env
      in toCbpv env' body
 toCbpv env (SystemF.ApplyTerm f x) =
   let f' = toCbpv env f
       x' = toCbpv env x
    in Cbpv.apply f' (Cbpv.delay x')
 
-toCallcc :: Cbpv.Code a -> Callcc.Code a
-toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
+toCallcc :: Cbpv.Data a -> Callcc.Code (F a)
+toCallcc x = Callcc.build $ toExplicitCatchThrowData VarMap.empty x
 
 toExplicitCatchThrow :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
@@ -82,42 +83,72 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) =
    in Callcc.catch (F (StackType (F (StackType t)))) $ \returner ->
         Callcc.letTo
           ( Callcc.catch (F (StackType t)) $ \label ->
-              Callcc.throw undefined returner (Callcc.returns label)
+              Callcc.throw (F (StackType t)) returner (Callcc.returns label)
           )
-          $ \binder -> Callcc.throw undefined binder code'
+          $ \binder -> Callcc.throw (F (StackType (F (StackType t)))) binder code'
 
-toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t Cps.Data (Stack (F (Stack a)))
+toContinuationPassingStyle :: Cps.Cps t => Callcc.Code (F a) -> t Cps.Data (U (F a))
 toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps' :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack (F (Stack a)))
+toCps' :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code (F a) -> t Cps.Data (U (F a))
 toCps' env act =
   let t = Callcc.typeOf act
    in Cps.letTo (StackType t) $ \k ->
-        toCps env act k
+        toCpsValue env act $ \x -> Cps.returns x k
 
-toCps :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack a) -> t Cps.Code R
-toCps env (Callcc.ApplyCode f x) k =
-  toCps env f (Cps.push (toCpsData env x) k)
-toCps env (Callcc.LetBeCode value binder body) k =
+toCpsValue :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code (F a) -> (t Cps.Data a -> t Cps.Code R) -> t Cps.Code R
+toCpsValue env a@(Callcc.ApplyCode f x) k =
+  let F t = Callcc.typeOf a
+      x' = toCpsData env x
+   in toCpsFn env f x' $ Cps.letTo t k
+toCpsValue env (Callcc.LetBeCode value binder body) k =
   Cps.letBe (toCpsData env value) $ \value ->
     let env' = VarMap.insert binder value env
-     in toCps env' body k
-toCps env (Callcc.LambdaCode binder body) k =
-  Cps.pop k $ \h t ->
-    let env' = VarMap.insert binder h env
-     in toCps env' body t
-toCps env (Callcc.ThrowCode _ val body) _ =
-  toCps env body (toCpsData env val)
-toCps env (Callcc.LetToCode action binder body) k =
-  let F t = Callcc.typeOf action
-   in toCps env action $ Cps.letTo t $ \value ->
-        let env' = VarMap.insert binder value env
-         in toCps env' body k
-toCps env (Callcc.CatchCode binder body) k =
-  Cps.letBe k $ \k' ->
+     in toCpsValue env' body k
+toCpsValue env (Callcc.LetToCode action binder body) k =
+  toCpsValue env action $ \x ->
+    let env' = VarMap.insert binder x env
+     in toCpsValue env' body k
+toCpsValue env (Callcc.ReturnCode value) k = k (toCpsData env value)
+toCpsValue env (Callcc.ThrowCode _ k body) _ =
+  let k' = toCpsData env k
+   in toCps env body k'
+toCpsValue env (Callcc.CatchCode binder@(Variable (StackType (F t)) _) body) k =
+  Cps.letBe (Cps.letTo t k) $ \k' ->
     let env' = VarMap.insert binder k' env
-     in toCps env' body k'
-toCps env (Callcc.ReturnCode value) k = Cps.returns (toCpsData env value) k
+     in toCpsValue env' body $ \x -> Cps.returns x k'
+
+toCpsFn :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code (a -> b) -> t Cps.Data a -> t Cps.Data (Stack b) -> t Cps.Code R
+toCpsFn env a@(Callcc.ApplyCode f x) y k =
+  let x' = toCpsData env x
+   in toCpsFn env f x' $ Cps.push y k
+toCpsFn env (Callcc.LetBeCode value binder body) x k =
+  Cps.letBe (toCpsData env value) $ \value ->
+    let env' = VarMap.insert binder value env
+     in toCpsFn env' body x k
+toCpsFn env (Callcc.LambdaCode binder body) x k =
+  Cps.letBe x $ \x' ->
+    let env' = VarMap.insert binder x' env
+     in toCps env' body k
+toCpsFn env (Callcc.LetToCode action binder body) x k =
+  toCpsValue env action $ \y ->
+    let env' = VarMap.insert binder y env
+     in toCpsFn env' body x k
+toCpsFn env (Callcc.ThrowCode _ k body) _ _ =
+  let k' = toCpsData env k
+   in toCps env body k'
+toCpsFn env (Callcc.CatchCode binder@(Variable (StackType (a :=> b)) _) body) x k =
+  Cps.letBe x $ \x' ->
+    Cps.letBe k $ \k' ->
+      let env' = VarMap.insert binder (Cps.push x' k') env
+       in toCpsFn env' body x' k'
+
+toCps :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Code a -> t Cps.Data (Stack a) -> t Cps.Code R
+toCps env val k =
+  let
+   in case Callcc.typeOf val of
+        F _ -> toCpsValue env val $ \x -> Cps.returns x k
+        _ :=> _ -> Cps.pop k $ \h t -> toCpsFn env val h t
 
 toCpsData :: Cps.Cps t => VarMap (t Cps.Data) -> Callcc.Data a -> t Cps.Data a
 toCpsData _ (Callcc.ConstantData x) = Cps.constant x

@@ -8,9 +8,10 @@ import Common
 import Constant (Constant)
 import qualified Constant
 import Core
+import qualified Data.Text as T
 import Global
-import TextShow (TextShow, fromString, showb)
-import Type (Type)
+import TextShow (TextShow, fromString, fromText, showb, toText)
+import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -18,8 +19,8 @@ import Variable
 
 data Code a where
   ReturnCode :: Data a -> Data (Stack (F a)) -> Code R
-  PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code c -> Code c
-  LetBeCode :: Data a -> Variable a -> Code b -> Code b
+  PopCode :: Data (Stack (a -> b)) -> Variable a -> Variable (Stack b) -> Code R -> Code R
+  LetBeCode :: Data a -> Variable a -> Code R -> Code R
 
 data Data a where
   GlobalData :: Global a -> Data a
@@ -34,9 +35,9 @@ class Cps t where
 
   returns :: t Data a -> t Data (Stack (F a)) -> t Code R
 
-  letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
+  letBe :: t Data a -> (t Data a -> t Code R) -> t Code R
 
-  pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code c) -> t Code c
+  pop :: t Data (Stack (a -> b)) -> (t Data a -> t Data (Stack b) -> t Code R) -> t Code R
 
   letTo :: Type a -> (t Data a -> t Code R) -> t Data (Stack (F a))
   push :: t Data a -> t Data (Stack b) -> t Data (Stack (a -> b))
@@ -70,7 +71,7 @@ instance Cps Builder where
     pure PushData <*> builder x <*> builder k
 
 instance TextShow (Code a) where
-  showb (ReturnCode x k) = fromString "return " <> showb x <> fromString ".\n" <> showb k
+  showb (ReturnCode x k) = fromString "{" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb x))) <> fromString "\n}\n" <> showb k
   showb (PopCode value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
 
@@ -86,7 +87,7 @@ build (Builder s) = Unique.run s
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
-typeOf :: Code a -> Type a
+typeOf :: Code a -> Action a
 typeOf (PopCode _ _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (ReturnCode _ _) = R

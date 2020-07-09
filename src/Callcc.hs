@@ -22,7 +22,7 @@ newtype Builder t a = Builder {builder :: Unique.State (t a)}
 build :: Builder t a -> t a
 build (Builder s) = Unique.run s
 
-typeOf :: Code a -> Type a
+typeOf :: Code a -> Action a
 typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
 typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
@@ -47,8 +47,8 @@ class Callcc t where
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a -> b)
   apply :: t Code (a -> b) -> t Data a -> t Code b
-  catch :: Type a -> (t Data (Stack a) -> t Code a) -> t Code a
-  throw :: Type b -> t Data (Stack a) -> t Code a -> t Code b
+  catch :: Action a -> (t Data (Stack a) -> t Code a) -> t Code a
+  throw :: Action b -> t Data (Stack a) -> t Code a -> t Code b
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -90,7 +90,7 @@ data Code a where
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   CatchCode :: Variable (Stack a) -> Code a -> Code a
-  ThrowCode :: Type b -> Data (Stack a) -> Code a -> Code b
+  ThrowCode :: Action b -> Data (Stack a) -> Code a -> Code b
 
 data Data a where
   GlobalData :: Global a -> Data a

@@ -8,6 +8,7 @@ import qualified Cbpv
 import Common
 import qualified Constant
 import Core
+import Type
 import qualified Cps
 import qualified Interpreter
 import qualified Data.Text as T
@@ -32,17 +33,17 @@ mkProgram =
 phases ::
   SystemF.Term a ->
   ( SystemF.Term a,
-    Cbpv.Code a,
-    Cbpv.Code a,
-    Cbpv.Code a,
-    Callcc.Code a,
-    Callcc.Code a,
-    Cps.Data (Stack (F (Stack a))),
-    Cps.Data (Stack (F (Stack a)))
+    Cbpv.Data (U a),
+    Cbpv.Data (U a),
+    Cbpv.Data (U a),
+    Callcc.Code (F (U a)),
+    Callcc.Code (F (U a)),
+    Cps.Data (Stack (F (Stack (F (U a))))),
+    Cps.Data (Stack (F (Stack (F (U a)))))
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (toCallByPushValue optTerm)
+      cbpv = Cbpv.build (Cbpv.delay $ toCallByPushValue optTerm)
       intrinsified = Cbpv.build (Cbpv.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
@@ -61,13 +62,13 @@ optimizeTerm = loop iterTerm
           inlined = SystemF.build (SystemF.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
+optimizeCbpv :: Cbpv.Data a -> Cbpv.Data a
 optimizeCbpv = loop iterCbpv
   where
-    loop :: Int -> Cbpv.Code a -> Cbpv.Code a
+    loop :: Int -> Cbpv.Data a -> Cbpv.Data a
     loop 0 term = term
     loop n term =
-      let simplified = Cbpv.simplify term
+      let simplified = Cbpv.simplifyData term
           inlined = Cbpv.build (Cbpv.inline simplified)
        in loop (n - 1) inlined
 
@@ -126,9 +127,9 @@ main = do
 
   let cpsData = Interpreter.evaluate optCps
 
-  let PopStack k = cpsData
-  let eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> printT value
-  eff
+  -- let PopStack k = cpsData
+  -- let eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> printT value
+  -- eff
 
   return ()
 
