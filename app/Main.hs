@@ -38,17 +38,17 @@ mkProgram =
 phases ::
   SystemF.Term a ->
   ( SystemF.Term a,
-    Cbpv.Data (U a),
-    Cbpv.Data (U a),
-    Cbpv.Data (U a),
-    Callcc.Code (F (U a)),
-    Callcc.Code (F (U a)),
-    Cps.Term (Stack (F (Stack (F (U a))))),
-    Cps.Term (Stack (F (Stack (F (U a)))))
+    Cbpv.Code a,
+    Cbpv.Code a,
+    Cbpv.Code a,
+    Callcc.Code a,
+    Callcc.Code a,
+    Cps.Term (U a),
+    Cps.Term (U a)
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (Cbpv.delay $ toCallByPushValue optTerm)
+      cbpv = Cbpv.build (toCallByPushValue optTerm)
       intrinsified = Cbpv.build (Cbpv.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
@@ -67,13 +67,13 @@ optimizeTerm = loop iterTerm
           inlined = SystemF.build (SystemF.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCbpv :: Cbpv.Data a -> Cbpv.Data a
+optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
   where
-    loop :: Int -> Cbpv.Data a -> Cbpv.Data a
+    loop :: Int -> Cbpv.Code a -> Cbpv.Code a
     loop 0 term = term
     loop n term =
-      let simplified = Cbpv.simplifyData term
+      let simplified = Cbpv.simplify term
           inlined = Cbpv.build (Cbpv.inline simplified)
        in loop (n - 1) inlined
 

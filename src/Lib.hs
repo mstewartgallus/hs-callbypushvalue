@@ -42,8 +42,8 @@ toCbpv env (SystemF.ApplyTerm f x) =
       x' = toCbpv env x
    in Cbpv.apply f' (Cbpv.delay x')
 
-toCallcc :: Cbpv.Data a -> Callcc.Code (F a)
-toCallcc x = Callcc.build $ toExplicitCatchThrowData VarMap.empty x
+toCallcc :: Cbpv.Code a -> Callcc.Code a
+toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
 
 toExplicitCatchThrow :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
 toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
@@ -87,14 +87,19 @@ toExplicitCatchThrowData env (Cbpv.ThunkData code) =
           )
           $ \binder -> Callcc.throw (F (StackType (F (StackType t)))) binder code'
 
-toContinuationPassingStyle :: Cps.Cps t => Callcc.Code (F a) -> t (U (F a))
+toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (U a)
 toContinuationPassingStyle = toCps' VarMap.empty
 
-toCps' :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> t (U (F a))
+toCps' :: Cps.Cps t => VarMap (Y t) -> Callcc.Code a -> t (U a)
 toCps' env act =
   let t = Callcc.typeOf act
-   in Cps.letTo (StackType t) $ \k ->
-        toCpsValue env act $ \x -> Cps.returns x k
+   in case t of
+        F _ -> Cps.letTo (StackType t) $ \k ->
+          toCpsValue env act $ \x ->
+            Cps.returns x k
+        _ :=> _ -> Cps.letTo (StackType t) $ \k ->
+          Cps.pop k $ \h t ->
+            toCpsFn env act h t
 
 toCpsValue :: Cps.Cps t => VarMap (Y t) -> Callcc.Code (F a) -> (t a -> t R) -> t R
 toCpsValue env a@(Callcc.ApplyCode f x) k =

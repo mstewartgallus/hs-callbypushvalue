@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (typeOf, build, Builder, Cbpv (..), Code (..), Data (..), simplifyData, intrinsify, inline) where
+module Cbpv (typeOf, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Constant (Constant)
@@ -156,8 +156,8 @@ count v = code
     value (ThunkData c) = code c
     value _ = 0
 
-inline :: Cbpv t => Data a -> t Data a
-inline = inlValue VarMap.empty
+inline :: Cbpv t => Code a -> t Code a
+inline = inlCode VarMap.empty
 
 inlCode :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
 inlCode env (LetBeCode term binder body) =
@@ -183,8 +183,8 @@ inlValue _ (ConstantData k) = constant k
 inlValue _ (GlobalData g) = global g
 
 -- Fixme... use a different file for this?
-intrinsify :: Cbpv t => Data a -> t Data a
-intrinsify = intrinsData VarMap.empty
+intrinsify :: Cbpv t => Code a -> t Code a
+intrinsify = intrins VarMap.empty
 
 intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
 intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
