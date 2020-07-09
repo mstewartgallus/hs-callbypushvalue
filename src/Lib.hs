@@ -46,52 +46,60 @@ toCbpv env (SystemF.ApplyTerm f x) =
    in Cbpv.apply f' (Cbpv.delay x')
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
-toCallcc x = Callcc.build $ toExplicitCatchThrow VarMap.empty x
+toCallcc x = Callcc.build $ callcc' VarMap.empty x
 
-toExplicitCatchThrow :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
-toExplicitCatchThrow env (Cbpv.LambdaCode binder@(Variable t _) body) =
+callcc' :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
+callcc' env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.lambda t $ \x ->
-    toExplicitCatchThrow (VarMap.insert binder x env) body
-toExplicitCatchThrow env (Cbpv.ApplyCode f x) =
-  let f' = toExplicitCatchThrow env f
-      x' = toExplicitCatchThrowData env x
+    callcc' (VarMap.insert binder x env) body
+callcc' env (Cbpv.ApplyCode f x) =
+  let f' = callcc' env f
+      x' = callccData env x
    in Callcc.letTo x' $ \val ->
         Callcc.apply f' val
-toExplicitCatchThrow env (Cbpv.LetToCode action binder body) =
-  let action' = toExplicitCatchThrow env action
+callcc' env (Cbpv.LetToCode action binder body) =
+  let action' = callcc' env action
    in Callcc.letTo action' $ \x ->
-        toExplicitCatchThrow (VarMap.insert binder x env) body
-toExplicitCatchThrow env (Cbpv.LetBeCode value binder body) =
-  let value' = toExplicitCatchThrowData env value
+        callcc' (VarMap.insert binder x env) body
+callcc' env (Cbpv.LetBeCode value binder body) =
+  let value' = callccData env value
    in Callcc.letTo value' $ \x ->
-        toExplicitCatchThrow (VarMap.insert binder x env) body
-toExplicitCatchThrow env (Cbpv.ReturnCode x) =
-  toExplicitCatchThrowData env x
-toExplicitCatchThrow env f@(Cbpv.ForceCode thunk) =
+        callcc' (VarMap.insert binder x env) body
+callcc' env (Cbpv.ReturnCode x) =
+  callccData env x
+callcc' env f@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf f
-      thunk' = toExplicitCatchThrowData env thunk
+      thunk' = callccData env thunk
    in Callcc.letTo thunk' $ \val ->
         Callcc.catch t $ \v ->
           Callcc.throw val v
 
-toExplicitCatchThrowData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Code (F a)
-toExplicitCatchThrowData _ (Cbpv.GlobalData x) = Callcc.returns (Callcc.global x)
-toExplicitCatchThrowData _ (Cbpv.ConstantData x) = Callcc.returns (Callcc.constant x)
-toExplicitCatchThrowData env (Cbpv.VariableData v) =
+callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Code (F a)
+callccData _ (Cbpv.GlobalData x) = Callcc.returns (Callcc.global x)
+callccData _ (Cbpv.ConstantData x) = Callcc.returns (Callcc.constant x)
+callccData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
    in Callcc.returns x
--- fixme... just special case all code types
-toExplicitCatchThrowData env (Cbpv.ThunkData code) =
-  let code' = toExplicitCatchThrow env code
-      t = Cbpv.typeOf code
+callccData env (Cbpv.ThunkData code) =
+  let t = Cbpv.typeOf code
    in case t of
-        F _ -> Callcc.catch (F (StackType (F (StackType t)))) $ \returner ->
-          Callcc.letTo
-            ( Callcc.catch (F (StackType t)) $ \label ->
-                Callcc.throw returner label
-            )
-            $ \binder -> Callcc.letTo code' $ \x ->
-              Callcc.throw binder x
+        F _ -> thunkValue env code
+        _ :=> _ -> thunkFn env code
+
+thunkValue :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code (F a) -> t Callcc.Code (F (U (F a)))
+thunkValue env code =
+  let code' = callcc' env code
+      t = Cbpv.typeOf code
+   in Callcc.catch (F (StackType (F (StackType t)))) $ \returner ->
+        Callcc.letTo
+          ( Callcc.catch (F (StackType t)) $ \label ->
+              Callcc.throw returner label
+          )
+          $ \binder -> Callcc.letTo code' $ \x ->
+            Callcc.throw binder x
+
+thunkFn :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code (a :=> b) -> t Callcc.Code (F (U (a :=> b)))
+thunkFn env code = undefined
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (U a)
 toContinuationPassingStyle = toCps' LabelMap.empty VarMap.empty
