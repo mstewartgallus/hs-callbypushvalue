@@ -14,8 +14,8 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-evaluate :: Data a -> a
-evaluate x = case abstractData x VarMap.empty of
+evaluate :: Term a -> a
+evaluate x = case abstract x VarMap.empty of
   Value value -> value
 
 newtype X a = Value a
@@ -34,35 +34,33 @@ instance Cps X where
 
 newtype Y t a = Y (t a)
 
-abstractData :: Cps t => Data a -> VarMap (Y t) -> t a
-abstractData (ConstantData k) = \_ -> constant k
-abstractData (VariableData v) = \env -> case VarMap.lookup v env of
+abstract :: Cps t => Term a -> VarMap (Y t) -> t a
+abstract (ConstantTerm k) = \_ -> constant k
+abstract (VariableTerm v) = \env -> case VarMap.lookup v env of
   Just (Y x) -> x
   Nothing -> error "variable not found in environment"
-abstractData (LetToData binder@(Variable t _) body) =
+abstract (LetToTerm binder@(Variable t _) body) =
   let body' = abstract body
    in \env ->
         letTo t $ \value ->
           body' (VarMap.insert binder (Y value) env)
-abstractData (PushData h t) =
-  let h' = abstractData h
-      t' = abstractData t
+abstract (PushTerm h t) =
+  let h' = abstract h
+      t' = abstract t
    in \env -> push (h' env) (t' env)
-abstractData (GlobalData g) =
+abstract (GlobalTerm g) =
   let g' = global g
    in \_ -> g'
-
-abstract :: Cps t => Code -> VarMap (Y t) -> t R
 abstract (ReturnCode value k) =
-  let value' = abstractData value
-      k' = abstractData k
+  let value' = abstract value
+      k' = abstract k
    in \env -> returns (value' env) (k' env)
 abstract (LetBeCode value binder body) =
-  let value' = abstractData value
+  let value' = abstract value
       body' = abstract body
    in \env -> body' (VarMap.insert binder (Y (value' env)) env)
 abstract (PopCode value h t body) =
-  let value' = abstractData value
+  let value' = abstract value
       body' = abstract body
    in \env ->
         pop (value' env) $ \x y ->
