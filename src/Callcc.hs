@@ -41,6 +41,7 @@ typeOfData (GlobalData (Global t _)) = t
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (LabelData (Label t _)) = StackType t
 typeOfData (ConstantData k) = Constant.typeOf k
+typeOfData (ThunkData (Label t _) _) = U t
 
 class Callcc t where
   constant :: Constant a -> t Data a
@@ -123,8 +124,8 @@ instance TextShow (Code a) where
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (CatchCode binder@(Label t _) body) =
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
-  showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
-  showb (ForceCode thunk stack) = fromString "! " <> showb thunk <> fromString ".\n" <> showb stack
+  showb (ThrowCode label body) = showb body <> fromString "\nthrow " <> showb label
+  showb (ForceCode thunk stack) = showb stack <> fromString "\n! " <> showb thunk
 
 instance TextShow (Data a) where
   showb (ThunkData binder@(Label t _) body) =
@@ -135,15 +136,26 @@ instance TextShow (Data a) where
   showb (LabelData b) = showb b
 
 simplify :: Code a -> Code a
-simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
-simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
-simplify (LambdaCode binder body) = LambdaCode binder (simplify body)
-simplify (ApplyCode f x) = ApplyCode (simplify f) x
-simplify (LetBeCode thing binder body) = LetBeCode thing binder (simplify body)
-simplify (LetToCode act binder body) = LetToCode (simplify act) binder (simplify body)
-simplify (CatchCode binder body) = CatchCode binder (simplify body)
-simplify (ThrowCode stack act) = ThrowCode stack act
-simplify x = x
+simplify = simpCode
+
+simpCode :: Code a -> Code a
+simpCode (LetToCode (ReturnCode value) binder body) = simpCode (LetBeCode value binder body)
+simpCode (ApplyCode (LambdaCode binder body) value) = simpCode (LetBeCode value binder body)
+simpCode (LambdaCode binder body) = LambdaCode binder (simpCode body)
+simpCode (ApplyCode f x) = ApplyCode (simpCode f) (simpData x)
+simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
+simpCode (LetToCode act binder body) = LetToCode (simpCode act) binder (simpCode body)
+simpCode (CatchCode binder body) = CatchCode binder (simpCode body)
+simpCode (ThrowCode stack act) = ThrowCode (simpData stack) (simpCode act)
+simpCode (ForceCode th stk) = ForceCode (simpData th) (simpData stk)
+simpCode (ReturnCode x) = ReturnCode (simpData x)
+
+simpData :: Data a -> Data a
+simpData (ThunkData label body) = ThunkData label (simpCode body)
+simpData g@(ConstantData _) = g
+simpData g@(VariableData _) = g
+simpData g@(LabelData _) = g
+simpData g@(GlobalData _) = g
 
 count :: Variable a -> Code b -> Int
 count v = code

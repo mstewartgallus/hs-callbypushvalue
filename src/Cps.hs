@@ -117,6 +117,8 @@ typeOf (PushTerm h t) =
    in StackType (a :=> b)
 
 simplify :: Term a -> Term a
+simplify (ForceTerm f x) = ForceTerm (simplify f) (simplify x)
+simplify (ThunkTerm binder body) = ThunkTerm binder (simplify body)
 simplify (LetToTerm binder body) = LetToTerm binder (simplify body)
 simplify (PushTerm h t) = PushTerm (simplify h) (simplify t)
 simplify (PopTerm value t body) = PopTerm (simplify value) t (simplify body)

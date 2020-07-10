@@ -60,13 +60,14 @@ callcc env (Cbpv.LetToCode action binder body) =
   Callcc.letTo (callcc env action) $ \x ->
     callcc (VarMap.insert binder x env) body
 callcc env (Cbpv.LetBeCode value binder body) =
-  let x = callccData env value
-   in callcc (VarMap.insert binder x env) body
+  Callcc.letBe (callccData env value) $ \x ->
+    callcc (VarMap.insert binder x env) body
 callcc env (Cbpv.ReturnCode x) = Callcc.returns (callccData env x)
 callcc env x@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf x
       thunk' = callccData env thunk
-   in Callcc.catch t (Callcc.force thunk')
+   in Callcc.catch t $ \x ->
+        Callcc.force thunk' x
 
 callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Data a
 callccData _ (Cbpv.GlobalData x) = Callcc.global x
