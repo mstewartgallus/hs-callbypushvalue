@@ -110,9 +110,8 @@ toCpsValue lenv env (Callcc.CatchCode binder@(Label (F t) _) body) k =
 
 toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t Cps.Code
 toCpsR lenv env (Callcc.ForceCode thunk stack) =
-  Cps.label (toCpsStack lenv env stack) $ \k ->
-    Cps.letBe (toCpsData lenv env thunk) $ \th ->
-      Cps.force th k
+  Cps.letBe (toCpsData lenv env thunk) $ \th ->
+    Cps.force th (toCpsStack lenv env stack)
 toCpsR lenv env (Callcc.ThrowCode k body) =
   let k' = toCpsStack lenv env k
    in toCps lenv env body k'
@@ -145,8 +144,8 @@ toCpsFn lenv env (Callcc.LetToCode action binder body) x k =
     let env' = VarMap.insert binder (Y y) env
      in toCpsFn lenv env' body x k
 toCpsFn lenv env (Callcc.CatchCode binder@(Label (a :=> b) _) body) x k =
-  Cps.letBe x $ \x' ->
-    Cps.label k $ \k' ->
+  Cps.label k $ \k' ->
+    Cps.letBe x $ \x' ->
       let lenv' = LabelMap.insert binder (L (Cps.push x' k')) lenv
        in toCpsR lenv' env body
 
