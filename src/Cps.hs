@@ -43,17 +43,16 @@ class Cps t where
   global :: Global a -> t (Term a)
 
   apply :: t (Stack (F a)) -> t (Term a) -> t Code
+  force :: t (Term (U a)) -> t (Stack a) -> t Code
 
   thunk :: Action a -> (t (Stack a) -> t Code) -> t (Term (U a))
-  force :: t (Term (U a)) -> t (Stack a) -> t Code
+  letTo :: Type a -> (t (Term a) -> t Code) -> t (Stack (F a))
 
   label :: t (Stack a) -> (t (Stack a) -> t Code) -> t Code
   letBe :: t (Term a) -> (t (Term a) -> t Code) -> t Code
 
-  pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t Code
-
   nilStack :: t (Stack R)
-  letTo :: Type a -> (t (Term a) -> t Code) -> t (Stack (F a))
+  pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t Code
   push :: t (Term a) -> t (Stack b) -> t (Stack (a :=> b))
 
 instance Cps Builder where
