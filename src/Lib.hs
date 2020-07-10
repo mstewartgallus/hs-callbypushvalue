@@ -104,13 +104,13 @@ toCpsValue lenv env (Callcc.LetToCode action binder body) k =
      in toCpsValue lenv env' body k
 toCpsValue lenv env (Callcc.ReturnCode value) k = k (toCpsData lenv env value)
 toCpsValue lenv env (Callcc.CatchCode binder@(Label (F t) _) body) k =
-  Cps.letBe (Cps.letTo t k) $ \k' ->
+  Cps.label (Cps.letTo t k) $ \k' ->
     let lenv' = LabelMap.insert binder (L k') lenv
      in toCpsR lenv' env body
 
 toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t Cps.Code
 toCpsR lenv env (Callcc.ForceCode thunk stack) =
-  Cps.letBe (toCpsStack lenv env stack) $ \k ->
+  Cps.label (toCpsStack lenv env stack) $ \k ->
     Cps.letBe (toCpsData lenv env thunk) $ \th ->
       Cps.force th k
 toCpsR lenv env (Callcc.ThrowCode k body) =
@@ -128,7 +128,7 @@ toCpsR lenv env (Callcc.LetToCode action binder body) =
     let env' = VarMap.insert binder (Y x) env
      in toCpsR lenv env' body
 
-toCpsFn :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (a :=> b) -> t (Cps.Term a) -> t (Cps.Term (Stack b)) -> t Cps.Code
+toCpsFn :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (a :=> b) -> t (Cps.Term a) -> t (Cps.Stack b) -> t Cps.Code
 toCpsFn lenv env a@(Callcc.ApplyCode f x) y k =
   let x' = toCpsData lenv env x
    in toCpsFn lenv env f x' $ Cps.push y k
@@ -146,11 +146,11 @@ toCpsFn lenv env (Callcc.LetToCode action binder body) x k =
      in toCpsFn lenv env' body x k
 toCpsFn lenv env (Callcc.CatchCode binder@(Label (a :=> b) _) body) x k =
   Cps.letBe x $ \x' ->
-    Cps.letBe k $ \k' ->
+    Cps.label k $ \k' ->
       let lenv' = LabelMap.insert binder (L (Cps.push x' k')) lenv
        in toCpsR lenv' env body
 
-toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Term (Stack a)) -> t Cps.Code
+toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Stack a) -> t Cps.Code
 toCps lenv env val k =
   case Callcc.typeOf val of
     R -> toCpsR lenv env val
@@ -160,11 +160,11 @@ toCps lenv env val k =
         Cps.letTo a $ \h ->
           toCpsFn lenv env val h t
 
-newtype L t a = L (t (Cps.Term (Stack a)))
+newtype L t a = L (t (Cps.Stack a))
 
 newtype Y t a = Y (t (Cps.Term a))
 
-toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Cps.Term (Stack a))
+toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Cps.Stack a)
 toCpsStack lenv _ (Callcc.LabelData v) =
   let Just (L x) = LabelMap.lookup v lenv
    in x

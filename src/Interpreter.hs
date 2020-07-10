@@ -24,69 +24,76 @@ evaluate x = case abstract x LabelMap.empty VarMap.empty of
 data X a where
   Value :: a -> X (Term a)
   Action :: R -> X Code
+  K :: Common.Stack a -> X (Cps.Stack a)
 
 instance Cps X where
-  letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
+  letTo _ f = K $ PopStack $ \x -> case f (Value x) of
     Action k -> k
-  apply (Value (PopStack k)) (Value x) = Action (k x)
+  apply (K (PopStack k)) (Value x) = Action (k x)
   letBe x f = f x
-  pop (Value (PushStack x k)) f = case f (Value k) of
-    Value (PopStack f') -> Action (f' x)
+  pop (K (PushStack x k)) f = case f (K k) of
+    K (PopStack f') -> Action (f' x)
   global g = case GlobalMap.lookup g globals of
     Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
-  push (Value h) (Value t) = Value (PushStack h t)
+  push (Value h) (K t) = K (PushStack h t)
   constant (IntegerConstant x) = Value x
-  thunk _ f = Value $ Thunk $ \x -> case f (Value x) of
+  thunk _ f = Value $ Thunk $ \x -> case f (K x) of
     Action k -> k
-  force (Value (Thunk f)) (Value x) = Action (f x)
+  force (Value (Thunk f)) (K x) = Action (f x)
 
 newtype Y t a = Y (t (Term a))
 
-newtype L t a = L (t (Term (Stack a)))
+newtype L t a = L (t (Cps.Stack a))
 
 abstract :: Cps t => Term a -> LabelMap (L t) -> VarMap (Y t) -> t (Term a)
 abstract (ConstantTerm k) = \_ _ -> constant k
 abstract (VariableTerm v) = \_ env -> case VarMap.lookup v env of
   Just (Y x) -> x
   Nothing -> error "variable not found in environment"
-abstract (LabelTerm v) = \lenv _ -> case LabelMap.lookup v lenv of
-  Just (L x) -> x
-  Nothing -> error "label not found in environment"
-abstract (LetToTerm binder@(Variable t _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        letTo t $ \value ->
-          body' lenv (VarMap.insert binder (Y value) env)
 abstract (ThunkTerm label@(Label t _) body) =
   let body' = abstCode body
    in \lenv env ->
         thunk t $ \k ->
           body' (LabelMap.insert label (L k) lenv) env
-abstract (PushTerm h t) =
-  let h' = abstract h
-      t' = abstract t
-   in \lenv env -> push (h' lenv env) (t' lenv env)
 abstract (GlobalTerm g) =
   let g' = global g
    in \_ _ -> g'
 
+abstStack :: Cps t => Cps.Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Cps.Stack a)
+abstStack (LabelTerm v) = \lenv _ -> case LabelMap.lookup v lenv of
+  Just (L x) -> x
+  Nothing -> error "label not found in environment"
+abstStack (LetToTerm binder@(Variable t _) body) =
+  let body' = abstCode body
+   in \lenv env ->
+        letTo t $ \value ->
+          body' lenv (VarMap.insert binder (Y value) env)
+abstStack (PushTerm h t) =
+  let h' = abstract h
+      t' = abstStack t
+   in \lenv env -> push (h' lenv env) (t' lenv env)
+
 abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (Y t) -> t Code
 abstCode (ApplyTerm k x) =
   let value' = abstract x
-      k' = abstract k
+      k' = abstStack k
    in \lenv env -> apply (k' lenv env) (value' lenv env)
 abstCode (ForceTerm k x) =
-  let value' = abstract x
+  let value' = abstStack x
       k' = abstract k
    in \lenv env -> force (k' lenv env) (value' lenv env)
 abstCode (LetBeTerm value binder body) =
   let value' = abstract value
       body' = abstCode body
    in \lenv env -> body' lenv (VarMap.insert binder (Y (value' lenv env)) env)
+abstCode (LetLabelTerm value binder body) =
+  let value' = abstStack value
+      body' = abstCode body
+   in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
 abstCode (PopTerm value t body) =
-  let value' = abstract value
-      body' = abstract body
+  let value' = abstStack value
+      body' = abstStack body
    in \lenv env ->
         pop (value' lenv env) $ \y ->
           body' (LabelMap.insert t (L y) lenv) env
