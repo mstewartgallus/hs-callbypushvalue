@@ -89,7 +89,7 @@ toCps' lenv env act =
   let t = Callcc.typeOf act
    in Cps.thunk t $ \k -> toCps lenv env act k
 
-toCpsValue :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (F a) -> (t (Cps.Term a) -> t (Cps.Term R)) -> t (Cps.Term R)
+toCpsValue :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (F a) -> (t (Cps.Term a) -> t Cps.Code) -> t Cps.Code
 toCpsValue lenv env a@(Callcc.ApplyCode f x) k =
   let F t = Callcc.typeOf a
       x' = toCpsData lenv env x
@@ -108,7 +108,7 @@ toCpsValue lenv env (Callcc.CatchCode binder@(Label (F t) _) body) k =
     let lenv' = LabelMap.insert binder (L k') lenv
      in toCpsR lenv' env body
 
-toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t (Cps.Term R)
+toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t Cps.Code
 toCpsR lenv env (Callcc.ForceCode thunk stack) =
   Cps.letBe (toCpsStack lenv env stack) $ \k ->
     Cps.letBe (toCpsData lenv env thunk) $ \th ->
@@ -128,7 +128,7 @@ toCpsR lenv env (Callcc.LetToCode action binder body) =
     let env' = VarMap.insert binder (Y x) env
      in toCpsR lenv env' body
 
-toCpsFn :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (a :=> b) -> t (Cps.Term a) -> t (Cps.Term (Stack b)) -> t (Cps.Term R)
+toCpsFn :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (a :=> b) -> t (Cps.Term a) -> t (Cps.Term (Stack b)) -> t Cps.Code
 toCpsFn lenv env a@(Callcc.ApplyCode f x) y k =
   let x' = toCpsData lenv env x
    in toCpsFn lenv env f x' $ Cps.push y k
@@ -150,7 +150,7 @@ toCpsFn lenv env (Callcc.CatchCode binder@(Label (a :=> b) _) body) x k =
       let lenv' = LabelMap.insert binder (L (Cps.push x' k')) lenv
        in toCpsR lenv' env body
 
-toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Term (Stack a)) -> t (Cps.Term R)
+toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Term (Stack a)) -> t Cps.Code
 toCps lenv env val k =
   case Callcc.typeOf val of
     R -> toCpsR lenv env val

@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Term (..), Builder (..), simplify, inline, typeOf) where
+module Cps (build, Cps (..), Code (..), Term (..), Builder (..), simplify, inline, typeOf) where
 
 import Common
 import Constant (Constant)
@@ -25,29 +25,31 @@ data Term a where
   ConstantTerm :: Constant a -> Term a
   VariableTerm :: Variable a -> Term a
   LabelTerm :: Label a -> Term (Stack a)
-  LetToTerm :: Variable a -> Term R -> Term (Stack (F a))
+  LetToTerm :: Variable a -> Code -> Term (Stack (F a))
   PushTerm :: Term a -> Term (Stack b) -> Term (Stack (a :=> b))
-  ApplyTerm :: Term (Stack (F a)) -> Term a -> Term R
-  PopTerm :: Term (Stack (a :=> b)) -> Label b -> Term (Stack (F a)) -> Term R
-  LetBeTerm :: Term a -> Variable a -> Term R -> Term R
-  ThunkTerm :: Label a -> Term R -> Term (U a)
-  ForceTerm :: Term (U a) -> Term (Stack a) -> Term R
+  ThunkTerm :: Label a -> Code -> Term (U a)
+
+data Code where
+  LetBeTerm :: Term a -> Variable a -> Code -> Code
+  ForceTerm :: Term (U a) -> Term (Stack a) -> Code
+  PopTerm :: Term (Stack (a :=> b)) -> Label b -> Term (Stack (F a)) -> Code
+  ApplyTerm :: Term (Stack (F a)) -> Term a -> Code
 
 class Cps t where
   constant :: Constant a -> t (Term a)
   global :: Global a -> t (Term a)
 
-  apply :: t (Term (Stack (F a))) -> t (Term a) -> t (Term R)
+  apply :: t (Term (Stack (F a))) -> t (Term a) -> t Code
 
-  thunk :: Action a -> (t (Term (Stack a)) -> t (Term R)) -> t (Term (U a))
-  force :: t (Term (U a)) -> t (Term (Stack a)) -> t (Term R)
+  thunk :: Action a -> (t (Term (Stack a)) -> t Code) -> t (Term (U a))
+  force :: t (Term (U a)) -> t (Term (Stack a)) -> t Code
 
-  letBe :: t (Term a) -> (t (Term a) -> t (Term R)) -> t (Term R)
+  letBe :: t (Term a) -> (t (Term a) -> t Code) -> t Code
 
-  pop :: t (Term (Stack (a :=> b))) -> (t (Term (Stack b)) -> t (Term (Stack (F a)))) -> t (Term R)
+  pop :: t (Term (Stack (a :=> b))) -> (t (Term (Stack b)) -> t (Term (Stack (F a)))) -> t Code
 
   nilStack :: t (Term (Stack R))
-  letTo :: Type a -> (t (Term a) -> t (Term R)) -> t (Term (Stack (F a)))
+  letTo :: Type a -> (t (Term a) -> t Code) -> t (Term (Stack (F a)))
   push :: t (Term a) -> t (Term (Stack b)) -> t (Term (Stack (a :=> b)))
 
 instance Cps Builder where
@@ -91,18 +93,20 @@ instance TextShow (Term a) where
   showb (LabelTerm v) = showb v
   showb (ConstantTerm k) = showb k
   showb (GlobalTerm k) = showb k
-  showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+  showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
+  showb (ThunkTerm binder@(Label t _) body) =
+    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
   showb (LetToTerm binder@(Variable t _) body) =
     fromString "to " <> showb binder <> fromString ": " <> showb t <> fromString ".\n" <> showb body
+
+instance TextShow Code where
+  showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (PopTerm value t body) =
     showb t <> fromString ":\n"
       <> fromString "pop "
       <> showb value
       <> fromString ".\n"
       <> showb body
-  showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
-  showb (ThunkTerm binder@(Label t _) body) =
-    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
   showb (ApplyTerm k x) = fromString "jump " <> showb k <> fromString " " <> showb x
   showb (ForceTerm thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 
@@ -124,47 +128,52 @@ typeOf (PushTerm h t) =
    in StackType (a :=> b)
 
 simplify :: Term a -> Term a
-simplify (ForceTerm f x) = ForceTerm (simplify f) (simplify x)
-simplify (ThunkTerm binder body) = ThunkTerm binder (simplify body)
-simplify (LetToTerm binder body) = LetToTerm binder (simplify body)
+simplify (ThunkTerm binder body) = ThunkTerm binder (simpCode body)
+simplify (LetToTerm binder body) = LetToTerm binder (simpCode body)
 simplify (PushTerm h t) = PushTerm (simplify h) (simplify t)
-simplify (PopTerm value t body) = PopTerm (simplify value) t (simplify body)
-simplify (LetBeTerm thing binder body) = LetBeTerm (simplify thing) binder (simplify body)
-simplify (ApplyTerm k x) = ApplyTerm (simplify k) (simplify x)
 simplify x = x
 
+simpCode :: Code -> Code
+simpCode (ForceTerm f x) = ForceTerm (simplify f) (simplify x)
+simpCode (PopTerm value t body) = PopTerm (simplify value) t (simplify body)
+simpCode (LetBeTerm thing binder body) = LetBeTerm (simplify thing) binder (simpCode body)
+simpCode (ApplyTerm k x) = ApplyTerm (simplify k) (simplify x)
+simpCode x = x
+
 inline :: Cps t => Term a -> t (Term a)
-inline = inline' LabelMap.empty VarMap.empty
+inline = inlValue LabelMap.empty VarMap.empty
 
 newtype X t a = X (t (Term a))
 
 newtype L t a = L (t (Term (Stack a)))
 
-inline' :: Cps t => LabelMap (L t) -> VarMap (X t) -> Term a -> t (Term a)
-inline' _ env (VariableTerm v) =
+inlValue :: Cps t => LabelMap (L t) -> VarMap (X t) -> Term a -> t (Term a)
+inlValue _ env (VariableTerm v) =
   let Just (X x) = VarMap.lookup v env
    in x
-inline' lenv _ (LabelTerm v) =
+inlValue lenv _ (LabelTerm v) =
   let Just (L x) = LabelMap.lookup v lenv
    in x
-inline' lenv env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value ->
+inlValue lenv env (PushTerm h t) = Cps.push (inlValue lenv env h) (inlValue lenv env t)
+inlValue lenv env (ThunkTerm binder@(Label t _) body) = thunk t $ \k ->
+  inlCode (LabelMap.insert binder (L k) lenv) env body
+inlValue _ _ (ConstantTerm k) = Cps.constant k
+inlValue _ _ (GlobalTerm g) = global g
+inlValue lenv env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value ->
   let env' = VarMap.insert binder (X value) env
-   in inline' lenv env' body
-inline' lenv env (PushTerm h t) = Cps.push (inline' lenv env h) (inline' lenv env t)
-inline' _ _ (ConstantTerm k) = Cps.constant k
-inline' _ _ (GlobalTerm g) = global g
-inline' lenv env (LetBeTerm term binder body)
+   in inlCode lenv env' body
+
+inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
+inlCode lenv env (LetBeTerm term binder body)
   | count binder body <= 1 || isSimple term =
-    let term' = inline' lenv env term
-     in inline' lenv (VarMap.insert binder (X term') env) body
-  | otherwise = letBe (inline' lenv env term) $ \x ->
-    inline' lenv (VarMap.insert binder (X x) env) body
-inline' lenv env (PopTerm value t body) = pop (inline' lenv env value) $ \y ->
-  inline' (LabelMap.insert t (L y) lenv) env body
-inline' lenv env (ApplyTerm k x) = apply (inline' lenv env k) (inline' lenv env x)
-inline' lenv env (ForceTerm k x) = force (inline' lenv env k) (inline' lenv env x)
-inline' lenv env (ThunkTerm binder@(Label t _) body) = thunk t $ \k ->
-  inline' (LabelMap.insert binder (L k) lenv) env body
+    let term' = inlValue lenv env term
+     in inlCode lenv (VarMap.insert binder (X term') env) body
+  | otherwise = letBe (inlValue lenv env term) $ \x ->
+    inlCode lenv (VarMap.insert binder (X x) env) body
+inlCode lenv env (PopTerm value t body) = pop (inlValue lenv env value) $ \y ->
+  inlValue (LabelMap.insert t (L y) lenv) env body
+inlCode lenv env (ApplyTerm k x) = apply (inlValue lenv env k) (inlValue lenv env x)
+inlCode lenv env (ForceTerm k x) = force (inlValue lenv env k) (inlValue lenv env x)
 
 isSimple :: Term a -> Bool
 isSimple (ConstantTerm _) = True
@@ -173,14 +182,16 @@ isSimple (LabelTerm _) = True
 isSimple (GlobalTerm _) = True
 isSimple _ = False
 
-count :: Variable a -> Term b -> Int
-count v = w
+count :: Variable a -> Code -> Int
+count v = code
   where
-    w :: Term b -> Int
-    w (LetBeTerm x binder body) = w x + if AnyVariable binder == AnyVariable v then 0 else w body
-    w (PopTerm x t body) = w x + w body
-    w (ApplyTerm k x) = w k + w x
-    w (LetToTerm binder body) = if AnyVariable binder == AnyVariable v then 0 else w body
-    w (PushTerm h t) = w h + w t
-    w (VariableTerm binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-    w _ = 0
+    value :: Term b -> Int
+    value (VariableTerm binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+    value (PushTerm h t) = value h + value t
+    value (LetToTerm binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    value _ = 0
+    code :: Code -> Int
+    code (LetBeTerm x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (PopTerm x t body) = value x + value body
+    code (ApplyTerm k x) = value k + value x
+    code _ = 0

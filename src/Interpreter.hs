@@ -23,22 +23,23 @@ evaluate x = case abstract x LabelMap.empty VarMap.empty of
 
 data X a where
   Value :: a -> X (Term a)
+  Action :: R -> X Code
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
-    Value k -> k
-  apply (Value (PopStack k)) (Value x) = Value (k x)
+    Action k -> k
+  apply (Value (PopStack k)) (Value x) = Action (k x)
   letBe x f = f x
   pop (Value (PushStack x k)) f = case f (Value k) of
-    Value (PopStack f') -> Value $ f' x
+    Value (PopStack f') -> Action (f' x)
   global g = case GlobalMap.lookup g globals of
     Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
   push (Value h) (Value t) = Value (PushStack h t)
   constant (IntegerConstant x) = Value x
   thunk _ f = Value $ Thunk $ \x -> case f (Value x) of
-    Value k -> k
-  force (Value (Thunk f)) (Value x) = Value (f x)
+    Action k -> k
+  force (Value (Thunk f)) (Value x) = Action (f x)
 
 newtype Y t a = Y (t (Term a))
 
@@ -53,12 +54,12 @@ abstract (LabelTerm v) = \lenv _ -> case LabelMap.lookup v lenv of
   Just (L x) -> x
   Nothing -> error "label not found in environment"
 abstract (LetToTerm binder@(Variable t _) body) =
-  let body' = abstract body
+  let body' = abstCode body
    in \lenv env ->
         letTo t $ \value ->
           body' lenv (VarMap.insert binder (Y value) env)
 abstract (ThunkTerm label@(Label t _) body) =
-  let body' = abstract body
+  let body' = abstCode body
    in \lenv env ->
         thunk t $ \k ->
           body' (LabelMap.insert label (L k) lenv) env
@@ -69,19 +70,21 @@ abstract (PushTerm h t) =
 abstract (GlobalTerm g) =
   let g' = global g
    in \_ _ -> g'
-abstract (ApplyTerm k x) =
+
+abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (Y t) -> t Code
+abstCode (ApplyTerm k x) =
   let value' = abstract x
       k' = abstract k
    in \lenv env -> apply (k' lenv env) (value' lenv env)
-abstract (ForceTerm k x) =
+abstCode (ForceTerm k x) =
   let value' = abstract x
       k' = abstract k
    in \lenv env -> force (k' lenv env) (value' lenv env)
-abstract (LetBeTerm value binder body) =
+abstCode (LetBeTerm value binder body) =
   let value' = abstract value
-      body' = abstract body
+      body' = abstCode body
    in \lenv env -> body' lenv (VarMap.insert binder (Y (value' lenv env)) env)
-abstract (PopTerm value t body) =
+abstCode (PopTerm value t body) =
   let value' = abstract value
       body' = abstract body
    in \lenv env ->
