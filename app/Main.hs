@@ -133,11 +133,11 @@ main = do
 
   let cpsData = Interpreter.evaluate optCps
 
-  let PopStack k = cpsData
+  let Thunk k = cpsData
   let MkR eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> MkR $ printT value
   eff
 
   return ()
 
 t :: a -> U (F a)
-t x = PopStack $ \(PopStack k) -> k x
+t x = Thunk $ \(PopStack k) -> k x

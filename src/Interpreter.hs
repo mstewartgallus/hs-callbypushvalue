@@ -35,6 +35,9 @@ instance Cps X where
     Nothing -> error "global not found in environment"
   push (Value h) (Value t) = Value (PushStack h t)
   constant (IntegerConstant x) = Value x
+  thunk _ f = Value $ Thunk $ \x -> case f (Value x) of
+    Value k -> k
+  force (Value (Thunk f)) (Value x) = Value (f x)
 
 newtype Y t a = Y (t a)
 
@@ -53,6 +56,11 @@ abstract (LetToTerm binder@(Variable t _) body) =
    in \lenv env ->
         letTo t $ \value ->
           body' lenv (VarMap.insert binder (Y value) env)
+abstract (ThunkTerm label@(Label t _) body) =
+  let body' = abstract body
+   in \lenv env ->
+        thunk t $ \k ->
+          body' (LabelMap.insert label (L k) lenv) env
 abstract (PushTerm h t) =
   let h' = abstract h
       t' = abstract t
@@ -64,6 +72,10 @@ abstract (ApplyTerm k x) =
   let value' = abstract x
       k' = abstract k
    in \lenv env -> apply (k' lenv env) (value' lenv env)
+abstract (ForceTerm k x) =
+  let value' = abstract x
+      k' = abstract k
+   in \lenv env -> force (k' lenv env) (value' lenv env)
 abstract (LetBeTerm value binder body) =
   let value' = abstract value
       body' = abstract body
@@ -83,5 +95,5 @@ globals =
     [ GlobalMap.Entry strictPlus (Id strictPlusImpl)
     ]
 
-strictPlusImpl :: Stack (F (Stack (Integer :=> Integer :=> F Integer)))
-strictPlusImpl = PopStack $ \(PushStack x (PushStack y (PopStack k))) -> k (x + y)
+strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
+strictPlusImpl = Thunk $ \(PushStack x (PushStack y (PopStack k))) -> k (x + y)

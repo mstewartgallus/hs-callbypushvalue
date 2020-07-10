@@ -30,12 +30,17 @@ data Term a where
   ApplyTerm :: Term (Stack (F a)) -> Term a -> Term R
   PopTerm :: Term (Stack (a :=> b)) -> Label b -> Term (Stack (F a)) -> Term R
   LetBeTerm :: Term a -> Variable a -> Term R -> Term R
+  ThunkTerm :: Label a -> Term R -> Term (U a)
+  ForceTerm :: Term (U a) -> Term (Stack a) -> Term R
 
 class Cps t where
   constant :: Constant a -> t a
   global :: Global a -> t a
 
   apply :: t (Stack (F a)) -> t a -> t R
+
+  thunk :: Action a -> (t (Stack a) -> t R) -> t (U a)
+  force :: t (U a) -> t (Stack a) -> t R
 
   letBe :: t a -> (t a -> t R) -> t R
 
@@ -69,6 +74,15 @@ instance Cps Builder where
     body <- builder (f ((Builder . pure) $ VariableTerm v))
     pure $ LetToTerm v body
 
+  thunk t f = Builder $ do
+    v <- pure (Label t) <*> Unique.uniqueId
+    body <- builder (f ((Builder . pure) $ LabelTerm v))
+    pure $ ThunkTerm v body
+
+  force thnk stk =
+    Builder $
+      pure ForceTerm <*> builder thnk <*> builder stk
+
   push x k = Builder $ do
     pure PushTerm <*> builder x <*> builder k
 
@@ -82,6 +96,8 @@ instance TextShow (Term a) where
   showb (LetToTerm binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
   showb (PopTerm value t body) = showb value <> fromString " pop " <> showb t <> fromString ".\n" <> showb body
   showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
+  showb (ThunkTerm binder body) = fromString "thunk " <> showb binder <> fromString ".\n" <> showb body
+  showb (ForceTerm thnk stk) = showb stk <> fromString "\n" <> showb thnk
 
 build :: Builder a -> Term a
 build (Builder s) = Unique.run s
@@ -91,6 +107,7 @@ newtype Builder a = Builder {builder :: Unique.State (Term a)}
 typeOf :: Term a -> Type a
 typeOf (GlobalTerm (Global t _)) = t
 typeOf (ConstantTerm k) = Constant.typeOf k
+typeOf (ThunkTerm (Label t _) _) = U t
 typeOf (VariableTerm (Variable t _)) = t
 typeOf (LabelTerm (Label t _)) = StackType t
 typeOf (LetToTerm (Variable t _) _) = StackType (F t)
@@ -136,6 +153,9 @@ inline' lenv env (LetBeTerm term binder body)
 inline' lenv env (PopTerm value t body) = pop (inline' lenv env value) $ \y ->
   inline' (LabelMap.insert t (L y) lenv) env body
 inline' lenv env (ApplyTerm k x) = apply (inline' lenv env k) (inline' lenv env x)
+inline' lenv env (ForceTerm k x) = force (inline' lenv env k) (inline' lenv env x)
+inline' lenv env (ThunkTerm binder@(Label t _) body) = thunk t $ \k ->
+  inline' (LabelMap.insert binder (L k) lenv) env body
 
 isSimple :: Term a -> Bool
 isSimple (ConstantTerm _) = True

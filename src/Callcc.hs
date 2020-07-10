@@ -54,6 +54,9 @@ class Callcc t where
   catch :: Action a -> (t Data (Stack a) -> t Code R) -> t Code a
   throw :: t Data (Stack a) -> t Code a -> t Code R
 
+  thunk :: Action a -> (t Data (Stack a) -> t Code R) -> t Data (U a)
+  force :: t Data (U a) -> t Data (Stack a) -> t Code R
+
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalData g
   returns value =
@@ -79,6 +82,14 @@ instance Callcc Builder where
     pure ApplyCode <*> builder f <*> builder x
   constant k = (Builder . pure) $ ConstantData k
 
+  thunk t f = Builder $ do
+    v <- pure (Label t) <*> Unique.uniqueId
+    body <- builder $ f ((Builder . pure) $ LabelData v)
+    pure $ ThunkData v body
+  force thunk stack =
+    Builder $
+      pure ForceCode <*> builder thunk <*> builder stack
+
   catch t f = Builder $ do
     v <- pure (Label t) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) $ LabelData v)
@@ -95,12 +106,14 @@ data Code a where
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   CatchCode :: Label a -> Code R -> Code a
   ThrowCode :: Data (Stack a) -> Code a -> Code R
+  ForceCode :: Data (U a) -> Data (Stack a) -> Code R
 
 data Data a where
   GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   LabelData :: Label a -> Data (Stack a)
+  ThunkData :: Label a -> Code R -> Data (U a)
 
 instance TextShow (Code a) where
   showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
@@ -111,8 +124,11 @@ instance TextShow (Code a) where
   showb (CatchCode binder@(Label t _) body) =
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode label body) = fromString "throw " <> showb label <> fromString ".\n" <> showb body
+  showb (ForceCode thunk stack) = fromString "! " <> showb thunk <> fromString ".\n" <> showb stack
 
 instance TextShow (Data a) where
+  showb (ThunkData binder@(Label t _) body) =
+    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (GlobalData g) = showb g
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
@@ -166,6 +182,7 @@ inlCode lenv env (ReturnCode val) = returns (inlValue lenv env val)
 inlCode lenv env (ThrowCode x f) = throw (inlValue lenv env x) (inlCode lenv env f)
 inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
+inlCode lenv env (ForceCode x f) = force (inlValue lenv env x) (inlValue lenv env f)
 
 inlValue :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Data x -> t Data x
 inlValue _ _ (GlobalData g) = global g
@@ -176,3 +193,5 @@ inlValue lenv _ (LabelData label) =
   let Just (L x) = LabelMap.lookup label lenv
    in x
 inlValue _ _ (ConstantData k) = constant k
+inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \x ->
+  inlCode (LabelMap.insert binder (L x) lenv) env body

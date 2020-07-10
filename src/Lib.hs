@@ -53,68 +53,31 @@ callcc env (Cbpv.LambdaCode binder@(Variable t _) body) =
   Callcc.lambda t $ \x ->
     callcc (VarMap.insert binder x env) body
 callcc env (Cbpv.ApplyCode f x) =
-  Callcc.letTo (callccData env x) $ \x' ->
-    Callcc.apply (callcc env f) x'
+  let x' = callccData env x
+      f' = (callcc env f)
+   in Callcc.apply f' x'
 callcc env (Cbpv.LetToCode action binder body) =
   Callcc.letTo (callcc env action) $ \x ->
     callcc (VarMap.insert binder x env) body
 callcc env (Cbpv.LetBeCode value binder body) =
-  Callcc.letTo (callccData env value) $ \x ->
-    callcc (VarMap.insert binder x env) body
-callcc env (Cbpv.ReturnCode x) = callccData env x
+  let x = callccData env value
+   in callcc (VarMap.insert binder x env) body
+callcc env (Cbpv.ReturnCode x) = Callcc.returns (callccData env x)
 callcc env x@(Cbpv.ForceCode thunk) =
   let t = Cbpv.typeOf x
-   in Callcc.letTo (callccData env thunk) $ \thunk' ->
-        Callcc.catch t $ \val ->
-          Callcc.throw thunk' (Callcc.returns val)
-callcc env x = Callcc.catch (Cbpv.typeOf x) $ \k ->
-  callccCps env x $ \x' ->
-    Callcc.throw k x'
+      thunk' = callccData env thunk
+   in Callcc.catch t (Callcc.force thunk')
 
-callccCps :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> (t Callcc.Code a -> t Callcc.Code R) -> t Callcc.Code R
-callccCps env (Cbpv.LambdaCode binder@(Variable t _) body) k =
-  k $ Callcc.lambda t $ \x ->
-    callcc (VarMap.insert binder x env) body
-callccCps env (Cbpv.ApplyCode f x) k =
-  callccDataCps env x $ \x' ->
-    k (Callcc.apply (callcc env f) x')
-callccCps env (Cbpv.LetToCode action binder body) k =
-  k $ Callcc.letTo (callcc env action) $ \x ->
-    callcc (VarMap.insert binder x env) body
-callccCps env (Cbpv.LetBeCode value binder body) k =
-  callccDataCps env value $ \x ->
-    k $ callcc (VarMap.insert binder x env) body
-callccCps env (Cbpv.ReturnCode x) k =
-  callccDataCps env x $ \x' -> k (Callcc.returns x')
-callccCps env x@(Cbpv.ForceCode thunk) k =
-  let t = Cbpv.typeOf x
-   in callccDataCps env thunk $ \thunk' ->
-        k $ Callcc.catch t $ \val ->
-          Callcc.throw thunk' (Callcc.returns val)
-
-callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Code (F a)
-callccData _ (Cbpv.GlobalData x) = Callcc.returns $ Callcc.global x
-callccData _ (Cbpv.ConstantData x) = Callcc.returns $ Callcc.constant x
+callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Data a
+callccData _ (Cbpv.GlobalData x) = Callcc.global x
+callccData _ (Cbpv.ConstantData x) = Callcc.constant x
 callccData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
-   in Callcc.returns x
-callccData env x =
-  let t = Cbpv.typeOfData x
-   in Callcc.catch (F t) $ \k ->
-        callccDataCps env x $ \x' ->
-          Callcc.throw k (Callcc.returns x')
-
-callccDataCps :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> (t Callcc.Data a -> t Callcc.Code R) -> t Callcc.Code R
-callccDataCps _ (Cbpv.GlobalData x) k = k (Callcc.global x)
-callccDataCps _ (Cbpv.ConstantData x) k = k (Callcc.constant x)
-callccDataCps env (Cbpv.VariableData v) k =
-  let Just x = VarMap.lookup v env
-   in k x
-callccDataCps env (Cbpv.ThunkData code) k =
+   in x
+callccData env (Cbpv.ThunkData code) =
   let t = Cbpv.typeOf code
-   in callccCps env code $ \code' ->
-        Callcc.letTo (Callcc.catch (F (StackType t)) k) $ \binder ->
-          Callcc.throw binder code'
+   in Callcc.thunk t $ \x ->
+        Callcc.throw x $ callcc env code
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (U a)
 toContinuationPassingStyle = toCps' LabelMap.empty VarMap.empty
@@ -122,14 +85,7 @@ toContinuationPassingStyle = toCps' LabelMap.empty VarMap.empty
 toCps' :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (U a)
 toCps' lenv env act =
   let t = Callcc.typeOf act
-   in case t of
-        F _ -> Cps.letTo (StackType t) $ \k ->
-          toCpsValue lenv env act $ \x ->
-            Cps.apply k x
-        a :=> _ -> Cps.letTo (StackType t) $ \k ->
-          Cps.pop k $ \t ->
-            Cps.letTo a $ \h ->
-              toCpsFn lenv env act h t
+   in Cps.thunk t $ \k -> toCps lenv env act k
 
 toCpsValue :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code (F a) -> (t a -> t R) -> t R
 toCpsValue lenv env a@(Callcc.ApplyCode f x) k =
@@ -151,6 +107,10 @@ toCpsValue lenv env (Callcc.CatchCode binder@(Label (F t) _) body) k =
      in toCpsR lenv' env body
 
 toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t R
+toCpsR lenv env (Callcc.ForceCode thunk stack) =
+  Cps.letBe (toCpsData lenv env stack) $ \k ->
+    Cps.letBe (toCpsData lenv env thunk) $ \th ->
+      Cps.force th k
 toCpsR lenv env (Callcc.ApplyCode f x) =
   let x' = toCpsData lenv env x
    in toCpsFn lenv env f x' Cps.nilStack
@@ -208,3 +168,7 @@ toCpsData _ env (Callcc.VariableData v) =
 toCpsData lenv _ (Callcc.LabelData v) =
   let Just (L x) = LabelMap.lookup v lenv
    in x
+toCpsData lenv env (Callcc.ThunkData label@(Label t _) body) =
+  Cps.thunk t $ \k ->
+    let lenv' = LabelMap.insert label (L k) lenv
+     in toCpsR lenv' env body
