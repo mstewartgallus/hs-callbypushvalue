@@ -24,15 +24,15 @@ evaluate x = case abstract x LabelMap.empty VarMap.empty of
 data X a where
   Value :: a -> X (Term a)
   Action :: R -> X Code
-  K :: Common.Stack a -> X (Cps.Stack a)
+  K :: a -> X (Cps.Stack a)
 
 instance Cps X where
-  letTo _ f = K $ PopStack $ \x -> case f (Value x) of
+  letTo _ f = K $ Returns $ \x -> case f (Value x) of
     Action k -> k
-  throw (K (PopStack k)) (Value x) = Action (k x)
+  throw (K (Returns k)) (Value x) = Action (k x)
   letBe x f = f x
   pop (K (x ::: k)) f = case f (K k) of
-    K (PopStack f') -> Action (f' x)
+    K (Returns f') -> Action (f' x)
   global g = case GlobalMap.lookup g globals of
     Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
@@ -114,4 +114,4 @@ globals =
     ]
 
 strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
-strictPlusImpl = Thunk $ \(x ::: y ::: PopStack k) -> k (x + y)
+strictPlusImpl = Thunk $ \(x ::: y ::: Returns k) -> k (x + y)

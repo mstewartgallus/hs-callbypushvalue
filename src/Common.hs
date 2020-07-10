@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (V, (:->), (:=>), F, U (..), R (..), Stack (..)) where
+module Common (V, (:->), (:=>) (..), F (..), U (..), R (..), Stack (..)) where
 
 data V a b
 
@@ -10,18 +10,16 @@ type a :-> b = U a :=> b
 
 infixr 9 :->
 
-newtype R = MkR (IO ())
+newtype R = Behaviour (IO ())
 
-data F a
+newtype F a = Returns (a -> R)
 
 infixr 9 :=>
 
-data a :=> b
+data a :=> b = a ::: b
 
-newtype U a = Thunk (Stack a -> R)
+infixr 0 :::
 
-data Stack a where
-  PopStack :: (a -> R) -> Stack (F a)
-  (:::) :: a -> Stack b -> Stack (a :=> b)
+newtype U a = Thunk (a -> R)
 
-infixr 9 :::
+data Stack a

@@ -135,10 +135,10 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let Thunk k = cpsData
-  let MkR eff = k (t 4 ::: t 8 ::: (PopStack $ \value -> MkR $ printT value))
+  let Behaviour eff = k $ t 4 ::: t 8 ::: Returns $ \value -> Behaviour $ printT value
   eff
 
   return ()
 
 t :: a -> U (F a)
-t x = Thunk $ \(PopStack k) -> k x
+t x = Thunk $ \(Returns k) -> k x
