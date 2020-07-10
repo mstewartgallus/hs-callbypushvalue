@@ -131,6 +131,7 @@ main = do
   putStrLn "\nOptimized Cps:"
   printT optCps
 
+  putStrLn "\nEvaluates to:"
   let cpsData = Interpreter.evaluate optCps
 
   let Thunk k = cpsData

@@ -54,7 +54,7 @@ callcc env (Cbpv.LambdaCode binder@(Variable t _) body) =
     callcc (VarMap.insert binder x env) body
 callcc env (Cbpv.ApplyCode f x) =
   let x' = callccData env x
-      f' = (callcc env f)
+      f' = callcc env f
    in Callcc.apply f' x'
 callcc env (Cbpv.LetToCode action binder body) =
   Callcc.letTo (callcc env action) $ \x ->
@@ -76,8 +76,9 @@ callccData env (Cbpv.VariableData v) =
    in x
 callccData env (Cbpv.ThunkData code) =
   let t = Cbpv.typeOf code
+      c = callcc env code
    in Callcc.thunk t $ \x ->
-        Callcc.throw x $ callcc env code
+        Callcc.throw x c
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (U a)
 toContinuationPassingStyle = toCps' LabelMap.empty VarMap.empty
