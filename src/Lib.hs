@@ -125,7 +125,7 @@ toCps' lenv env act =
    in case t of
         F _ -> Cps.letTo (StackType t) $ \k ->
           toCpsValue lenv env act $ \x ->
-            Cps.returns x k
+            Cps.apply k x
         a :=> _ -> Cps.letTo (StackType t) $ \k ->
           Cps.pop k $ \t ->
             Cps.letTo a $ \h ->
@@ -192,7 +192,7 @@ toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Stac
 toCps lenv env val k =
   case Callcc.typeOf val of
     R -> toCpsR lenv env val
-    F _ -> toCpsValue lenv env val $ \x -> Cps.returns x k
+    F _ -> toCpsValue lenv env val $ \x -> Cps.apply k x
     a :=> _ -> Cps.pop k $ \t -> Cps.letTo a $ \h -> toCpsFn lenv env val h t
 
 newtype L t a = L (t (Stack a))

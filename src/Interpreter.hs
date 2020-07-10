@@ -26,7 +26,7 @@ newtype X a = Value a
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
     Value k -> k
-  returns (Value x) (Value (PopStack k)) = Value (k x)
+  apply (Value (PopStack k)) (Value x) = Value (k x)
   letBe x f = f x
   pop (Value (PushStack x k)) f = case f (Value k) of
     Value (PopStack f') -> Value $ f' x
@@ -60,10 +60,10 @@ abstract (PushTerm h t) =
 abstract (GlobalTerm g) =
   let g' = global g
    in \_ _ -> g'
-abstract (ReturnTerm value k) =
-  let value' = abstract value
+abstract (ApplyTerm k x) =
+  let value' = abstract x
       k' = abstract k
-   in \lenv env -> returns (value' lenv env) (k' lenv env)
+   in \lenv env -> apply (k' lenv env) (value' lenv env)
 abstract (LetBeTerm value binder body) =
   let value' = abstract value
       body' = abstract body
