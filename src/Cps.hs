@@ -185,8 +185,14 @@ inlStack lenv env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value 
    in inlCode lenv env' body
 
 inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
-inlCode lenv env (LetLabelTerm term binder body) = label (inlStack lenv env term) $ \x ->
-  inlCode (LabelMap.insert binder (L x) lenv) env body
+inlCode lenv env (LetLabelTerm term binder body) = result
+  where
+    term' = inlStack lenv env term
+    result
+      | countLabel binder body <= 1 || isSimpleStack term =
+        inlCode (LabelMap.insert binder (L term') lenv) env body
+      | otherwise = label term' $ \x ->
+        inlCode (LabelMap.insert binder (L x) lenv) env body
 inlCode lenv env (LetBeTerm term binder body) = result
   where
     term' = inlValue lenv env term
@@ -206,6 +212,10 @@ isSimple (VariableTerm _) = True
 isSimple (GlobalTerm _) = True
 isSimple _ = False
 
+isSimpleStack :: Stack a -> Bool
+isSimpleStack (LabelTerm _) = True
+isSimpleStack _ = False
+
 count :: Variable a -> Code -> Int
 count v = code
   where
@@ -220,6 +230,25 @@ count v = code
     code :: Code -> Int
     code (LetLabelTerm x binder body) = stack x + code body
     code (LetBeTerm x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (PopTerm x _ body) = stack x + stack body
+    code (ApplyTerm k x) = stack k + value x
+    code (ForceTerm t k) = value t + stack k
+    code _ = 0
+
+countLabel :: Label a -> Code -> Int
+countLabel v = code
+  where
+    value :: Term b -> Int
+    value (ThunkTerm _ body) = code body
+    value _ = 0
+    stack :: Stack b -> Int
+    stack (LabelTerm binder) = if AnyLabel v == AnyLabel binder then 1 else 0
+    stack (PushTerm h t) = value h + stack t
+    stack (LetToTerm binder body) = code body
+    stack _ = 0
+    code :: Code -> Int
+    code (LetLabelTerm x binder body) = stack x + if AnyLabel binder == AnyLabel v then 0 else code body
+    code (LetBeTerm x binder body) = value x + code body
     code (PopTerm x _ body) = stack x + stack body
     code (ApplyTerm k x) = stack k + value x
     code (ForceTerm t k) = value t + stack k
