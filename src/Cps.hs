@@ -28,7 +28,7 @@ data Term a where
   LetToTerm :: Variable a -> Term R -> Term (Stack (F a))
   PushTerm :: Term a -> Term (Stack b) -> Term (Stack (a :=> b))
   ReturnTerm :: Term a -> Term (Stack (F a)) -> Term R
-  PopTerm :: Term (Stack (a :=> b)) -> Variable a -> Label b -> Term R -> Term R
+  PopTerm :: Term (Stack (a :=> b)) -> Label b -> Term (Stack (F a)) -> Term R
   LetBeTerm :: Term a -> Variable a -> Term R -> Term R
 
 class Cps t where
@@ -39,7 +39,7 @@ class Cps t where
 
   letBe :: t a -> (t a -> t R) -> t R
 
-  pop :: t (Stack (a :=> b)) -> (t a -> t (Stack b) -> t R) -> t R
+  pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t R
 
   nilStack :: t (Stack R)
   letTo :: Type a -> (t a -> t R) -> t (Stack (F a))
@@ -59,10 +59,9 @@ instance Cps Builder where
   pop x f = Builder $ do
     x' <- builder x
     let StackType (a :=> b) = typeOf x'
-    h <- pure (Variable a) <*> Unique.uniqueId
     t <- pure (Label b) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) (VariableTerm h)) ((Builder . pure) (LabelTerm t))
-    pure $ PopTerm x' h t body
+    body <- builder $ f ((Builder . pure) (LabelTerm t))
+    pure $ PopTerm x' t body
   constant k = (Builder . pure) $ ConstantTerm k
 
   letTo t f = Builder $ do
@@ -81,7 +80,7 @@ instance TextShow (Term a) where
   showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (ReturnTerm x k) = showb x <> fromString "\n" <> showb k
   showb (LetToTerm binder body) = fromString "to " <> showb binder <> fromString ".\n" <> showb body
-  showb (PopTerm value h t body) = showb value <> fromString " pop (" <> showb h <> fromString ", " <> showb t <> fromString ").\n" <> showb body
+  showb (PopTerm value t body) = showb value <> fromString " pop " <> showb t <> fromString ".\n" <> showb body
   showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
 
 build :: Builder a -> Term a
@@ -103,7 +102,7 @@ typeOf (PushTerm h t) =
 simplify :: Term a -> Term a
 simplify (LetToTerm binder body) = LetToTerm binder (simplify body)
 simplify (PushTerm h t) = PushTerm (simplify h) (simplify t)
-simplify (PopTerm value h t body) = PopTerm (simplify value) h t (simplify body)
+simplify (PopTerm value t body) = PopTerm (simplify value) t (simplify body)
 simplify (LetBeTerm thing binder body) = LetBeTerm (simplify thing) binder (simplify body)
 simplify (ReturnTerm value k) = ReturnTerm (simplify value) (simplify k)
 simplify x = x
@@ -134,8 +133,8 @@ inline' lenv env (LetBeTerm term binder body)
      in inline' lenv (VarMap.insert binder (X term') env) body
   | otherwise = letBe (inline' lenv env term) $ \x ->
     inline' lenv (VarMap.insert binder (X x) env) body
-inline' lenv env (PopTerm value h t body) = pop (inline' lenv env value) $ \x y ->
-  inline' (LabelMap.insert t (L y) lenv) (VarMap.insert h (X x) env) body
+inline' lenv env (PopTerm value t body) = pop (inline' lenv env value) $ \y ->
+  inline' (LabelMap.insert t (L y) lenv) env body
 inline' lenv env (ReturnTerm val k) = returns (inline' lenv env val) (inline' lenv env k)
 
 isSimple :: Term a -> Bool
@@ -150,7 +149,7 @@ count v = w
   where
     w :: Term b -> Int
     w (LetBeTerm x binder body) = w x + if AnyVariable binder == AnyVariable v then 0 else w body
-    w (PopTerm x h t body) = w x + if AnyVariable h == AnyVariable v then 0 else w body
+    w (PopTerm x t body) = w x + w body
     w (ReturnTerm x k) = w x + w k
     w (LetToTerm binder body) = if AnyVariable binder == AnyVariable v then 0 else w body
     w (PushTerm h t) = w h + w t

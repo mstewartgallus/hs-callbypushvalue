@@ -28,7 +28,8 @@ instance Cps X where
     Value k -> k
   returns (Value x) (Value (PopStack k)) = Value (k x)
   letBe x f = f x
-  pop (Value (PushStack x k)) f = f (Value x) (Value k)
+  pop (Value (PushStack x k)) f = case f (Value k) of
+    Value (PopStack f') -> Value $ f' x
   global g = case GlobalMap.lookup g globals of
     Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
@@ -67,12 +68,12 @@ abstract (LetBeTerm value binder body) =
   let value' = abstract value
       body' = abstract body
    in \lenv env -> body' lenv (VarMap.insert binder (Y (value' lenv env)) env)
-abstract (PopTerm value h t body) =
+abstract (PopTerm value t body) =
   let value' = abstract value
       body' = abstract body
    in \lenv env ->
-        pop (value' lenv env) $ \x y ->
-          body' (LabelMap.insert t (L y) lenv) (VarMap.insert h (Y x) env)
+        pop (value' lenv env) $ \y ->
+          body' (LabelMap.insert t (L y) lenv) env
 
 newtype Id a = Id a
 
