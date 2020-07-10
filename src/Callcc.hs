@@ -2,9 +2,9 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Code (..), Data (..), typeOf, inline, simplify) where
+module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, inline, simplify) where
 
-import Common
+import Common hiding (Stack)
 import Constant (Constant)
 import qualified Constant
 import Core
@@ -39,7 +39,6 @@ typeOf (ThrowCode _ _) = R
 typeOfData :: Data a -> Type a
 typeOfData (GlobalData (Global t _)) = t
 typeOfData (VariableData (Variable t _)) = t
-typeOfData (LabelData (Label t _)) = StackType t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData (Label t _) _) = U t
 
@@ -53,11 +52,11 @@ class Callcc t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
-  catch :: Action a -> (t Data (Stack a) -> t Code R) -> t Code a
-  throw :: t Data (Stack a) -> t Code a -> t Code R
+  catch :: Action a -> (t Stack a -> t Code R) -> t Code a
+  throw :: t Stack a -> t Code a -> t Code R
 
-  thunk :: Action a -> (t Data (Stack a) -> t Code R) -> t Data (U a)
-  force :: t Data (U a) -> t Data (Stack a) -> t Code R
+  thunk :: Action a -> (t Stack a -> t Code R) -> t Data (U a)
+  force :: t Data (U a) -> t Stack a -> t Code R
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalData g
@@ -107,14 +106,16 @@ data Code a where
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   CatchCode :: Label a -> Code R -> Code a
-  ThrowCode :: Data (Stack a) -> Code a -> Code R
-  ForceCode :: Data (U a) -> Data (Stack a) -> Code R
+  ThrowCode :: Stack a -> Code a -> Code R
+  ForceCode :: Data (U a) -> Stack a -> Code R
+
+data Stack a where
+  LabelData :: Label a -> Stack a
 
 data Data a where
   GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  LabelData :: Label a -> Data (Stack a)
   ThunkData :: Label a -> Code R -> Data (U a)
 
 instance TextShow (Code a) where
@@ -126,7 +127,7 @@ instance TextShow (Code a) where
   showb (CatchCode binder@(Label t _) body) =
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode label body) = showb body <> fromString "\nthrow " <> showb label
-  showb (ForceCode thunk stack) = showb stack <> fromString "\n! " <> showb thunk
+  showb (ForceCode thunk stack) = fromString "! " <> showb thunk <> fromString " " <> showb stack
 
 instance TextShow (Data a) where
   showb (ThunkData binder@(Label t _) body) =
@@ -134,6 +135,8 @@ instance TextShow (Data a) where
   showb (GlobalData g) = showb g
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
+
+instance TextShow (Stack a) where
   showb (LabelData b) = showb b
 
 simplify :: Code a -> Code a
@@ -147,15 +150,14 @@ simpCode (ApplyCode f x) = ApplyCode (simpCode f) (simpData x)
 simpCode (LetBeCode thing binder body) = LetBeCode (simpData thing) binder (simpCode body)
 simpCode (LetToCode act binder body) = LetToCode (simpCode act) binder (simpCode body)
 simpCode (CatchCode binder body) = CatchCode binder (simpCode body)
-simpCode (ThrowCode stack act) = ThrowCode (simpData stack) (simpCode act)
-simpCode (ForceCode th stk) = ForceCode (simpData th) (simpData stk)
+simpCode (ThrowCode stack act) = ThrowCode stack (simpCode act)
+simpCode (ForceCode th stk) = ForceCode (simpData th) stk
 simpCode (ReturnCode x) = ReturnCode (simpData x)
 
 simpData :: Data a -> Data a
 simpData (ThunkData label body) = ThunkData label (simpCode body)
 simpData g@(ConstantData _) = g
 simpData g@(VariableData _) = g
-simpData g@(LabelData _) = g
 simpData g@(GlobalData _) = g
 
 count :: Variable a -> Code b -> Int
@@ -166,7 +168,8 @@ count v = code
     code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
     code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
     code (ApplyCode f x) = code f + value x
-    code (ThrowCode x f) = value x + code f
+    code (ThrowCode _ f) = code f
+    code (ForceCode x _) = value x
     code (CatchCode _ body) = code body
     code (ReturnCode x) = value x
     code _ = 0
@@ -177,7 +180,7 @@ count v = code
 inline :: Callcc t => Code a -> t Code a
 inline = inlCode LabelMap.empty VarMap.empty
 
-newtype L t a = L (t Data (Stack a))
+newtype L t a = L (t Stack a)
 
 inlCode :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Code a -> t Code a
 inlCode lenv env (LetBeCode term binder body) =
@@ -192,19 +195,21 @@ inlCode lenv env (ApplyCode f x) = apply (inlCode lenv env f) (inlValue lenv env
 inlCode lenv env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode lenv (VarMap.insert binder x env) body
 inlCode lenv env (ReturnCode val) = returns (inlValue lenv env val)
-inlCode lenv env (ThrowCode x f) = throw (inlValue lenv env x) (inlCode lenv env f)
+inlCode lenv env (ThrowCode x f) = throw (inlStack lenv env x) (inlCode lenv env f)
 inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
-inlCode lenv env (ForceCode x f) = force (inlValue lenv env x) (inlValue lenv env f)
+inlCode lenv env (ForceCode x f) = force (inlValue lenv env x) (inlStack lenv env f)
 
 inlValue :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Data x -> t Data x
 inlValue _ _ (GlobalData g) = global g
 inlValue _ env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement
-inlValue lenv _ (LabelData label) =
-  let Just (L x) = LabelMap.lookup label lenv
-   in x
 inlValue _ _ (ConstantData k) = constant k
 inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
+
+inlStack :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Stack x -> t Stack x
+inlStack lenv _ (LabelData l) =
+  let Just (L x) = LabelMap.lookup l lenv
+   in x

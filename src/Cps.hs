@@ -93,11 +93,16 @@ instance TextShow (Term a) where
   showb (GlobalTerm k) = showb k
   showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetToTerm binder@(Variable t _) body) =
-    fromString "pop " <> showb binder <> fromString ": " <> showb t <> fromString ".\n" <> showb body
-  showb (PopTerm value t body) = showb t <> fromString ": " <> showb value <> fromString ".\n" <> showb body
+    fromString "to " <> showb binder <> fromString ": " <> showb t <> fromString ".\n" <> showb body
+  showb (PopTerm value t body) =
+    showb t <> fromString ":\n"
+      <> fromString "pop "
+      <> showb value
+      <> fromString ".\n"
+      <> showb body
   showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
   showb (ThunkTerm binder@(Label t _) body) =
-    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
+    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
   showb (ApplyTerm k x) = fromString "jump " <> showb k <> fromString " " <> showb x
   showb (ForceTerm thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 

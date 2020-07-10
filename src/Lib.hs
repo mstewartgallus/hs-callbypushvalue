@@ -110,11 +110,11 @@ toCpsValue lenv env (Callcc.CatchCode binder@(Label (F t) _) body) k =
 
 toCpsR :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code R -> t R
 toCpsR lenv env (Callcc.ForceCode thunk stack) =
-  Cps.letBe (toCpsData lenv env stack) $ \k ->
+  Cps.letBe (toCpsStack lenv env stack) $ \k ->
     Cps.letBe (toCpsData lenv env thunk) $ \th ->
       Cps.force th k
 toCpsR lenv env (Callcc.ThrowCode k body) =
-  let k' = toCpsData lenv env k
+  let k' = toCpsStack lenv env k
    in toCps lenv env body k'
 toCpsR lenv env (Callcc.ApplyCode f x) =
   let x' = toCpsData lenv env x
@@ -164,14 +164,16 @@ newtype L t a = L (t (Stack a))
 
 newtype Y t a = Y (t a)
 
+toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Stack a)
+toCpsStack lenv _ (Callcc.LabelData v) =
+  let Just (L x) = LabelMap.lookup v lenv
+   in x
+
 toCpsData :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Data a -> t a
 toCpsData _ _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData _ _ (Callcc.GlobalData x) = Cps.global x
 toCpsData _ env (Callcc.VariableData v) =
   let Just (Y x) = VarMap.lookup v env
-   in x
-toCpsData lenv _ (Callcc.LabelData v) =
-  let Just (L x) = LabelMap.lookup v lenv
    in x
 toCpsData lenv env (Callcc.ThunkData label@(Label t _) body) =
   Cps.thunk t $ \k ->
