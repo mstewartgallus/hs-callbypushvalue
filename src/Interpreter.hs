@@ -40,6 +40,8 @@ instance Cps X where
   constant (IntegerConstant x) = Value x
   thunk _ f = Value $ Thunk $ \x -> case f (K x) of
     Action k -> k
+  lambda _ f = Value $ Thunk $ \(PushStack x t) -> case f (Value x) of
+    Value (Thunk k) -> k t
   force (Value (Thunk f)) (K x) = Action (f x)
 
 newtype Y t a = Y (t (Term a))
@@ -56,6 +58,11 @@ abstract (ThunkTerm label@(Label t _) body) =
    in \lenv env ->
         thunk t $ \k ->
           body' (LabelMap.insert label (L k) lenv) env
+abstract (LambdaTerm label@(Variable t _) body) =
+  let body' = abstract body
+   in \lenv env ->
+        lambda t $ \k ->
+          body' lenv (VarMap.insert label (Y k) env)
 abstract (GlobalTerm g) =
   let g' = global g
    in \_ _ -> g'

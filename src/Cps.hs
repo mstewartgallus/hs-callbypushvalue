@@ -25,6 +25,7 @@ data Term a where
   ConstantTerm :: Constant a -> Term a
   VariableTerm :: Variable a -> Term a
   ThunkTerm :: Label a -> Code -> Term (U a)
+  LambdaTerm :: Variable a -> Term (U b) -> Term (U (a :=> b))
 
 data Code where
   LetLabelTerm :: Stack a -> Label a -> Code -> Code
@@ -51,9 +52,13 @@ class Cps t where
   label :: t (Stack a) -> (t (Stack a) -> t Code) -> t Code
   letBe :: t (Term a) -> (t (Term a) -> t Code) -> t Code
 
-  nilStack :: t (Stack R)
+  mp :: t (Term (U (a :=> b))) -> t (Term a) -> t (Stack b) -> t Code
   pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t Code
+
+  lambda :: Type a -> (t (Term a) -> t (Term (U b))) -> t (Term (U (a :=> b)))
   push :: t (Term a) -> t (Stack b) -> t (Stack (a :=> b))
+
+  nilStack :: t (Stack R)
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalTerm g
@@ -94,6 +99,10 @@ instance Cps Builder where
     Builder $
       pure ForceTerm <*> builder thnk <*> builder stk
 
+  lambda t f = Builder $ do
+    v <- pure (Variable t) <*> Unique.uniqueId
+    body <- builder (f ((Builder . pure) $ VariableTerm v))
+    pure $ LambdaTerm v body
   push x k = Builder $ do
     pure PushTerm <*> builder x <*> builder k
 
@@ -103,6 +112,8 @@ instance TextShow (Term a) where
   showb (GlobalTerm k) = showb k
   showb (ThunkTerm binder@(Label t _) body) =
     fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
+  showb (LambdaTerm binder@(Variable t _) body) =
+    fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString "\n" <> showb body
 
 instance TextShow (Stack a) where
   showb (LetToTerm binder@(Variable t _) body) =
@@ -171,6 +182,8 @@ inlValue _ env (VariableTerm v) =
    in x
 inlValue lenv env (ThunkTerm binder@(Label t _) body) = thunk t $ \k ->
   inlCode (LabelMap.insert binder (L k) lenv) env body
+inlValue lenv env (LambdaTerm binder@(Variable t _) body) = lambda t $ \k ->
+  inlValue lenv (VarMap.insert binder (X k) env) body
 inlValue _ _ (ConstantTerm k) = Cps.constant k
 inlValue _ _ (GlobalTerm g) = global g
 
