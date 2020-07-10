@@ -21,7 +21,8 @@ evaluate :: Term a -> a
 evaluate x = case abstract x LabelMap.empty VarMap.empty of
   Value value -> value
 
-newtype X a = Value a
+data X a where
+  Value :: a -> X (Term a)
 
 instance Cps X where
   letTo _ f = Value $ PopStack $ \x -> case f (Value x) of
@@ -39,11 +40,11 @@ instance Cps X where
     Value k -> k
   force (Value (Thunk f)) (Value x) = Value (f x)
 
-newtype Y t a = Y (t a)
+newtype Y t a = Y (t (Term a))
 
-newtype L t a = L (t (Stack a))
+newtype L t a = L (t (Term (Stack a)))
 
-abstract :: Cps t => Term a -> LabelMap (L t) -> VarMap (Y t) -> t a
+abstract :: Cps t => Term a -> LabelMap (L t) -> VarMap (Y t) -> t (Term a)
 abstract (ConstantTerm k) = \_ _ -> constant k
 abstract (VariableTerm v) = \_ env -> case VarMap.lookup v env of
   Just (Y x) -> x

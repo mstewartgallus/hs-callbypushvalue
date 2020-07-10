@@ -34,21 +34,21 @@ data Term a where
   ForceTerm :: Term (U a) -> Term (Stack a) -> Term R
 
 class Cps t where
-  constant :: Constant a -> t a
-  global :: Global a -> t a
+  constant :: Constant a -> t (Term a)
+  global :: Global a -> t (Term a)
 
-  apply :: t (Stack (F a)) -> t a -> t R
+  apply :: t (Term (Stack (F a))) -> t (Term a) -> t (Term R)
 
-  thunk :: Action a -> (t (Stack a) -> t R) -> t (U a)
-  force :: t (U a) -> t (Stack a) -> t R
+  thunk :: Action a -> (t (Term (Stack a)) -> t (Term R)) -> t (Term (U a))
+  force :: t (Term (U a)) -> t (Term (Stack a)) -> t (Term R)
 
-  letBe :: t a -> (t a -> t R) -> t R
+  letBe :: t (Term a) -> (t (Term a) -> t (Term R)) -> t (Term R)
 
-  pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t R
+  pop :: t (Term (Stack (a :=> b))) -> (t (Term (Stack b)) -> t (Term (Stack (F a)))) -> t (Term R)
 
-  nilStack :: t (Stack R)
-  letTo :: Type a -> (t a -> t R) -> t (Stack (F a))
-  push :: t a -> t (Stack b) -> t (Stack (a :=> b))
+  nilStack :: t (Term (Stack R))
+  letTo :: Type a -> (t (Term a) -> t (Term R)) -> t (Term (Stack (F a)))
+  push :: t (Term a) -> t (Term (Stack b)) -> t (Term (Stack (a :=> b)))
 
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalTerm g
@@ -106,10 +106,10 @@ instance TextShow (Term a) where
   showb (ApplyTerm k x) = fromString "jump " <> showb k <> fromString " " <> showb x
   showb (ForceTerm thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 
-build :: Builder a -> Term a
+build :: Builder a -> a
 build (Builder s) = Unique.run s
 
-newtype Builder a = Builder {builder :: Unique.State (Term a)}
+newtype Builder a = Builder {builder :: Unique.State a}
 
 typeOf :: Term a -> Type a
 typeOf (GlobalTerm (Global t _)) = t
@@ -133,14 +133,14 @@ simplify (LetBeTerm thing binder body) = LetBeTerm (simplify thing) binder (simp
 simplify (ApplyTerm k x) = ApplyTerm (simplify k) (simplify x)
 simplify x = x
 
-inline :: Cps t => Term a -> t a
+inline :: Cps t => Term a -> t (Term a)
 inline = inline' LabelMap.empty VarMap.empty
 
-newtype X t a = X (t a)
+newtype X t a = X (t (Term a))
 
-newtype L t a = L (t (Stack a))
+newtype L t a = L (t (Term (Stack a)))
 
-inline' :: Cps t => LabelMap (L t) -> VarMap (X t) -> Term a -> t a
+inline' :: Cps t => LabelMap (L t) -> VarMap (X t) -> Term a -> t (Term a)
 inline' _ env (VariableTerm v) =
   let Just (X x) = VarMap.lookup v env
    in x
