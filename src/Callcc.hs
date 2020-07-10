@@ -49,6 +49,7 @@ class Callcc t where
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
+
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
