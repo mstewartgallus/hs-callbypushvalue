@@ -22,4 +22,6 @@ newtype U a = Thunk (Stack a -> R)
 
 data Stack a where
   PopStack :: (a -> R) -> Stack (F a)
-  PushStack :: a -> Stack b -> Stack (a :=> b)
+  (:::) :: a -> Stack b -> Stack (a :=> b)
+
+infixr 9 :::

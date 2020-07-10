@@ -29,18 +29,18 @@ data X a where
 instance Cps X where
   letTo _ f = K $ PopStack $ \x -> case f (Value x) of
     Action k -> k
-  apply (K (PopStack k)) (Value x) = Action (k x)
+  throw (K (PopStack k)) (Value x) = Action (k x)
   letBe x f = f x
-  pop (K (PushStack x k)) f = case f (K k) of
+  pop (K (x ::: k)) f = case f (K k) of
     K (PopStack f') -> Action (f' x)
   global g = case GlobalMap.lookup g globals of
     Just (Id x) -> Value x
     Nothing -> error "global not found in environment"
-  push (Value h) (K t) = K (PushStack h t)
+  push (Value h) (K t) = K (h ::: t)
   constant (IntegerConstant x) = Value x
   thunk _ f = Value $ Thunk $ \x -> case f (K x) of
     Action k -> k
-  lambda _ f = Value $ Thunk $ \(PushStack x t) -> case f (Value x) of
+  lambda _ f = Value $ Thunk $ \(x ::: t) -> case f (Value x) of
     Value (Thunk k) -> k t
   force (Value (Thunk f)) (K x) = Action (f x)
 
@@ -68,37 +68,37 @@ abstract (GlobalTerm g) =
    in \_ _ -> g'
 
 abstStack :: Cps t => Cps.Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Cps.Stack a)
-abstStack (LabelTerm v) = \lenv _ -> case LabelMap.lookup v lenv of
+abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
   Just (L x) -> x
   Nothing -> error "label not found in environment"
-abstStack (LetToTerm binder@(Variable t _) body) =
+abstStack (ToStack binder@(Variable t _) body) =
   let body' = abstCode body
    in \lenv env ->
         letTo t $ \value ->
           body' lenv (VarMap.insert binder (Y value) env)
-abstStack (PushTerm h t) =
+abstStack (PushStack h t) =
   let h' = abstract h
       t' = abstStack t
    in \lenv env -> push (h' lenv env) (t' lenv env)
 
 abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (Y t) -> t Code
-abstCode (ApplyTerm k x) =
+abstCode (ThrowCode k x) =
   let value' = abstract x
       k' = abstStack k
-   in \lenv env -> apply (k' lenv env) (value' lenv env)
-abstCode (ForceTerm k x) =
+   in \lenv env -> throw (k' lenv env) (value' lenv env)
+abstCode (ForceCode k x) =
   let value' = abstStack x
       k' = abstract k
    in \lenv env -> force (k' lenv env) (value' lenv env)
-abstCode (LetBeTerm value binder body) =
+abstCode (LetBeCode value binder body) =
   let value' = abstract value
       body' = abstCode body
    in \lenv env -> body' lenv (VarMap.insert binder (Y (value' lenv env)) env)
-abstCode (LetLabelTerm value binder body) =
+abstCode (LetLabelCode value binder body) =
   let value' = abstStack value
       body' = abstCode body
    in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
-abstCode (PopTerm value t body) =
+abstCode (PopCode value t body) =
   let value' = abstStack value
       body' = abstStack body
    in \lenv env ->
@@ -114,4 +114,4 @@ globals =
     ]
 
 strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
-strictPlusImpl = Thunk $ \(PushStack x (PushStack y (PopStack k))) -> k (x + y)
+strictPlusImpl = Thunk $ \(x ::: y ::: PopStack k) -> k (x + y)

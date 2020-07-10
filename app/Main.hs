@@ -135,7 +135,7 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let Thunk k = cpsData
-  let MkR eff = k $ PushStack (t 4) $ PushStack (t 8) $ PopStack $ \value -> MkR $ printT value
+  let MkR eff = k (t 4 ::: t 8 ::: (PopStack $ \value -> MkR $ printT value))
   eff
 
   return ()
