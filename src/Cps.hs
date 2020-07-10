@@ -112,7 +112,7 @@ instance TextShow (Stack a) where
   showb (PushTerm x f) = showb x <> fromString " :: " <> showb f
 
 instance TextShow Code where
-  showb (LetLabelTerm value binder body) = showb value <> fromString " lbl " <> showb binder <> fromString ".\n" <> showb body
+  showb (LetLabelTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeTerm value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (PopTerm value t body) =
     showb t <> fromString ":\n"
@@ -187,12 +187,14 @@ inlStack lenv env (LetToTerm binder@(Variable t _) body) = Cps.letTo t $ \value 
 inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
 inlCode lenv env (LetLabelTerm term binder body) = label (inlStack lenv env term) $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
-inlCode lenv env (LetBeTerm term binder body)
-  | count binder body <= 1 || isSimple term =
-    let term' = inlValue lenv env term
-     in inlCode lenv (VarMap.insert binder (X term') env) body
-  | otherwise = letBe (inlValue lenv env term) $ \x ->
-    inlCode lenv (VarMap.insert binder (X x) env) body
+inlCode lenv env (LetBeTerm term binder body) = result
+  where
+    term' = inlValue lenv env term
+    result
+      | count binder body <= 1 || isSimple term =
+        inlCode lenv (VarMap.insert binder (X term') env) body
+      | otherwise = letBe term' $ \x ->
+        inlCode lenv (VarMap.insert binder (X x) env) body
 inlCode lenv env (PopTerm value t body) = pop (inlStack lenv env value) $ \y ->
   inlStack (LabelMap.insert t (L y) lenv) env body
 inlCode lenv env (ApplyTerm k x) = apply (inlStack lenv env k) (inlValue lenv env x)
