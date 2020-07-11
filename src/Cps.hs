@@ -136,12 +136,18 @@ instance TextShow Code where
   showb (GlobalCode g k) = showb g <> fromString " " <> showb k
   showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (PopCode value t body) =
-    showb t <> fromString ":\n"
-      <> fromString "pop "
-      <> showb value
-      <> fromString ".\n"
+  showb (PopCode value label body) =
+    showb value
+      <> fromString " pop "
+      <> showb label
+      <> fromString " "
       <> showb body
+  showb (ApplyCode f x k) =
+    showb f
+      <> fromString " "
+      <> showb x
+      <> fromString " "
+      <> showb k
   showb (ThrowCode k x) = fromString "jump " <> showb k <> fromString " " <> showb x
   showb (ForceCode thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 
