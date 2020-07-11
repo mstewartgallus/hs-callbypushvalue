@@ -30,7 +30,7 @@ toCbpv env (SystemF.LabelTerm x) =
   let Just x' = LabelMap.lookup x env
    in x'
 toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
-toCbpv _ (SystemF.GlobalTerm x) = Cbpv.force (Cbpv.global x)
+toCbpv _ (SystemF.GlobalTerm x) = Cbpv.global x
 toCbpv env (SystemF.LetTerm term binder body) =
   let term' = toCbpv env term
    in Cbpv.letBe (Cbpv.delay term') $ \value ->
@@ -68,9 +68,9 @@ callcc env x@(Cbpv.ForceCode thunk) =
       thunk' = callccData env thunk
    in Callcc.catch t $ \x ->
         Callcc.force thunk' x
+callcc _ (Cbpv.GlobalCode x) = Callcc.global x
 
 callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Data a
-callccData _ (Cbpv.GlobalData x) = Callcc.global x
 callccData _ (Cbpv.ConstantData x) = Callcc.constant x
 callccData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
@@ -113,6 +113,7 @@ toCps lenv env (Callcc.CatchCode binder@(Label t _) body) k =
   Cps.label k $ \k' ->
     let lenv' = LabelMap.insert binder (L k') lenv
      in toCps lenv' env body Cps.nilStack
+toCps _ _ (Callcc.GlobalCode x) k = Cps.global x k
 toCps lenv env (Callcc.ForceCode thunk stack) _ =
   Cps.letBe (toCpsData lenv env thunk) $ \th ->
     Cps.force th (toCpsStack lenv env stack)
@@ -131,7 +132,6 @@ toCpsStack lenv _ (Callcc.LabelData v) =
 
 toCpsData :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Data a -> t (Cps.Data a)
 toCpsData _ _ (Callcc.ConstantData x) = Cps.constant x
-toCpsData _ _ (Callcc.GlobalData x) = Cps.global x
 toCpsData _ env (Callcc.VariableData v) =
   let Just (Y x) = VarMap.lookup v env
    in x

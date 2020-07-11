@@ -21,13 +21,13 @@ import qualified VarMap
 import Variable
 
 data Data a where
-  GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code -> Data (U a)
   LambdaData :: Variable a -> Data (U b) -> Data (U (a :=> b))
 
 data Code where
+  GlobalCode :: Global a -> Stack a -> Code
   LetLabelCode :: Stack a -> Label a -> Code -> Code
   LetBeCode :: Data a -> Variable a -> Code -> Code
   ApplyCode :: Data (U (a :=> b)) -> Data a -> Stack b -> Code
@@ -42,7 +42,7 @@ data Stack a where
 
 class Cps t where
   constant :: Constant a -> t (Data a)
-  global :: Global a -> t (Data a)
+  global :: Global a -> t (Stack a) -> t Code
 
   throw :: t (Stack (F a)) -> t (Data a) -> t Code
   force :: t (Data (U a)) -> t (Stack a) -> t Code
@@ -67,7 +67,9 @@ class Cps t where
   second :: t (Data (a :*: b)) -> t (Data b)
 
 instance Cps Builder where
-  global g = (Builder . pure) $ GlobalData g
+  global g k =
+    Builder $
+      pure (GlobalCode g) <*> builder k
   throw k x =
     Builder $
       pure ThrowCode <*> builder k <*> builder x
@@ -119,7 +121,6 @@ instance Cps Builder where
 instance TextShow (Data a) where
   showb (VariableData v) = showb v
   showb (ConstantData k) = showb k
-  showb (GlobalData k) = showb k
   showb (ThunkData binder@(Label t _) body) =
     fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
   showb (LambdaData binder@(Variable t _) body) =
@@ -132,6 +133,7 @@ instance TextShow (Stack a) where
   showb (PushStack x f) = showb x <> fromString " :: " <> showb f
 
 instance TextShow Code where
+  showb (GlobalCode g k) = showb g <> fromString " " <> showb k
   showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (PopCode value t body) =
@@ -149,7 +151,6 @@ build (Builder s) = Unique.run s
 newtype Builder a = Builder {builder :: Unique.State a}
 
 typeOf :: Data a -> Type a
-typeOf (GlobalData (Global t _)) = t
 typeOf (ConstantData k) = Constant.typeOf k
 typeOf (ThunkData (Label t _) _) = U t
 typeOf (VariableData (Variable t _)) = t
@@ -195,7 +196,6 @@ inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \k ->
 inlValue lenv env (LambdaData binder@(Variable t _) body) = lambda t $ \k ->
   inlValue lenv (VarMap.insert binder (X k) env) body
 inlValue _ _ (ConstantData k) = Cps.constant k
-inlValue _ _ (GlobalData g) = global g
 
 inlStack :: Cps t => LabelMap (L t) -> VarMap (X t) -> Stack a -> t (Stack a)
 inlStack lenv _ (LabelStack v) =
@@ -227,11 +227,11 @@ inlCode lenv env (PopCode value t body) = pop (inlStack lenv env value) $ \y ->
   inlStack (LabelMap.insert t (L y) lenv) env body
 inlCode lenv env (ThrowCode k x) = throw (inlStack lenv env k) (inlValue lenv env x)
 inlCode lenv env (ForceCode k x) = force (inlValue lenv env k) (inlStack lenv env x)
+inlCode lenv env (GlobalCode g k) = global g (inlStack lenv env k)
 
 isSimple :: Data a -> Bool
 isSimple (ConstantData _) = True
 isSimple (VariableData _) = True
-isSimple (GlobalData _) = True
 isSimple _ = False
 
 isSimpleStack :: Stack a -> Bool
@@ -255,6 +255,7 @@ count v = code
     code (PopCode x _ body) = stack x + stack body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
+    code (GlobalCode _ k) = stack k
     code _ = 0
 
 countLabel :: Label a -> Code -> Int
@@ -274,4 +275,5 @@ countLabel v = code
     code (PopCode x _ body) = stack x + stack body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
+    code (GlobalCode _ k) = stack k
     code _ = 0

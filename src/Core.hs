@@ -34,12 +34,12 @@ thunk' = Name (T.pack "core") (T.pack "U")
 int :: Type Integer
 int = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
-plus :: Global (U (F Integer :-> F Integer :-> F Integer))
-plus = Global (U (U (F int) :=> U (F int) :=> F int)) $ Name (T.pack "core") (T.pack "+")
+plus :: Global (F Integer :-> F Integer :-> F Integer)
+plus = Global (U (F int) :=> U (F int) :=> F int) $ Name (T.pack "core") (T.pack "+")
 
 -- fixme...
-strictPlus :: Global (U (Integer :=> Integer :=> F Integer))
-strictPlus = Global (U (int :=> int :=> F int)) $ Name (T.pack "core") (T.pack "+!")
+strictPlus :: Global (Integer :=> Integer :=> F Integer)
+strictPlus = Global (int :=> int :=> F int) $ Name (T.pack "core") (T.pack "+!")
 
 pattern IntType :: Type Integer
 pattern IntType <-

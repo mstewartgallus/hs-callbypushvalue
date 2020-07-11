@@ -35,16 +35,16 @@ typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
 typeOf (ThrowCode _ _) = R
+typeOf (GlobalCode (Global t _)) = t
 
 typeOfData :: Data a -> Type a
-typeOfData (GlobalData (Global t _)) = t
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData (Label t _) _) = U t
 
 class Callcc t where
   constant :: Constant a -> t Data a
-  global :: Global a -> t Data a
+  global :: Global a -> t Code a
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
   letBe :: t Data a -> (t Data a -> t Code b) -> t Code b
@@ -59,7 +59,7 @@ class Callcc t where
   force :: t Data (U a) -> t Stack a -> t Code R
 
 instance Callcc Builder where
-  global g = (Builder . pure) $ GlobalData g
+  global g = (Builder . pure) $ GlobalCode g
   returns value =
     Builder $
       pure ReturnCode <*> builder value
@@ -100,6 +100,7 @@ instance Callcc Builder where
       pure ThrowCode <*> builder x <*> builder f
 
 data Code a where
+  GlobalCode :: Global a -> Code a
   LambdaCode :: Variable a -> Code b -> Code (a :=> b)
   ApplyCode :: Code (a :=> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
@@ -113,12 +114,12 @@ data Stack a where
   LabelData :: Label a -> Stack a
 
 data Data a where
-  GlobalData :: Global a -> Data a
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code R -> Data (U a)
 
 instance TextShow (Code a) where
+  showb (GlobalCode g) = showb g
   showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
   showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
   showb (ReturnCode value) = fromString "return " <> showb value
@@ -132,7 +133,6 @@ instance TextShow (Code a) where
 instance TextShow (Data a) where
   showb (ThunkData binder@(Label t _) body) =
     fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
-  showb (GlobalData g) = showb g
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
 
@@ -153,12 +153,12 @@ simpCode (CatchCode binder body) = CatchCode binder (simpCode body)
 simpCode (ThrowCode stack act) = ThrowCode stack (simpCode act)
 simpCode (ForceCode th stk) = ForceCode (simpData th) stk
 simpCode (ReturnCode x) = ReturnCode (simpData x)
+simpCode g@(GlobalCode _) = g
 
 simpData :: Data a -> Data a
 simpData (ThunkData label body) = ThunkData label (simpCode body)
 simpData g@(ConstantData _) = g
 simpData g@(VariableData _) = g
-simpData g@(GlobalData _) = g
 
 count :: Variable a -> Code b -> Int
 count v = code
@@ -199,9 +199,9 @@ inlCode lenv env (ThrowCode x f) = throw (inlStack lenv env x) (inlCode lenv env
 inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
 inlCode lenv env (ForceCode x f) = force (inlValue lenv env x) (inlStack lenv env f)
+inlCode _ _ (GlobalCode g) = global g
 
 inlValue :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Data x -> t Data x
-inlValue _ _ (GlobalData g) = global g
 inlValue _ env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement

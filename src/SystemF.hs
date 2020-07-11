@@ -23,7 +23,9 @@ import qualified Unique
 
 class SystemF t where
   constant :: Constant a -> t (F a)
-  global :: Global (U a) -> t a
+
+  global :: Global a -> t a
+
   lambda :: Action a -> (t a -> t b) -> t (a :-> b)
   apply :: t (a :-> b) -> t a -> t b
   letBe :: t a -> (t a -> t b) -> t b
@@ -66,7 +68,7 @@ instance SystemF Builder where
 data Term a where
   LabelTerm :: Label a -> Term a
   ConstantTerm :: Constant a -> Term (F a)
-  GlobalTerm :: Global (U a) -> Term a
+  GlobalTerm :: Global a -> Term a
   LetTerm :: Term a -> Label a -> Term b -> Term b
   LambdaTerm :: Label a -> Term b -> Term (a :-> b)
   ForallTerm :: TypeVariable a -> Term b -> Term (V a b)
@@ -76,7 +78,7 @@ data Term a where
 typeOf :: Term a -> Action a
 typeOf (LabelTerm (Label t _)) = t
 typeOf (ConstantTerm k) = F (Constant.typeOf k)
-typeOf (GlobalTerm (Global (U t) _)) = t
+typeOf (GlobalTerm (Global t _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
 typeOf (LambdaTerm (Label t _) body) = U t :=> typeOf body
 typeOf (ApplyTerm f _) =

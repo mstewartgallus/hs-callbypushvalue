@@ -27,6 +27,7 @@ typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
+typeOf (GlobalCode (Global t _)) = t
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
@@ -35,7 +36,6 @@ typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData code) = U (typeOf code)
-typeOfData (GlobalData (Global t _)) = t
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
@@ -43,7 +43,7 @@ build :: Builder t a -> t a
 build (Builder s) = Unique.run s
 
 class Cbpv t where
-  global :: Global a -> t Data a
+  global :: Global a -> t Code a
   force :: t Data (U a) -> t Code a
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
@@ -54,7 +54,7 @@ class Cbpv t where
   delay :: t Code a -> t Data (U a)
 
 instance Cbpv Builder where
-  global g = (Builder . pure) $ GlobalData g
+  global g = (Builder . pure) $ GlobalCode g
   force thunk =
     Builder $
       pure ForceCode <*> builder thunk
@@ -92,9 +92,9 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
+  GlobalCode :: Global a -> Code a
 
 data Data a where
-  GlobalData :: Global a -> Data a
   VariableData :: Variable a -> Data a
   ConstantData :: Constant a -> Data a
   ThunkData :: Code a -> Data (U a)
@@ -106,9 +106,9 @@ instance TextShow (Code a) where
   showb (ReturnCode value) = fromString "return " <> showb value
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+  showb (GlobalCode g) = showb g
 
 instance TextShow (Data a) where
-  showb (GlobalData g) = showb g
   showb (VariableData v) = showb v
   showb (ConstantData k) = showb k
   showb (ThunkData code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
@@ -173,6 +173,7 @@ inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
   inlCode (VarMap.insert binder x env) body
 inlCode env (ForceCode th) = force (inlValue env th)
 inlCode env (ReturnCode val) = returns (inlValue env val)
+inlCode _ (GlobalCode g) = global g
 
 inlValue :: Cbpv t => VarMap (t Data) -> Data x -> t Data x
 inlValue env (VariableData variable) =
@@ -180,13 +181,15 @@ inlValue env (VariableData variable) =
    in replacement
 inlValue env (ThunkData c) = delay (inlCode env c)
 inlValue _ (ConstantData k) = constant k
-inlValue _ (GlobalData g) = global g
 
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> t Code a
 intrinsify = intrins VarMap.empty
 
 intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
+intrins _ (GlobalCode g) = case GlobalMap.lookup g intrinsics of
+  Nothing -> global g
+  Just (Intrinsic intrinsic) -> intrinsic
 intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
 intrins env (ForceCode x) = force (intrinsData env x)
 intrins env (ReturnCode x) = returns (intrinsData env x)
@@ -201,16 +204,13 @@ intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value
    in intrins env' body
 
 intrinsData :: Cbpv t => VarMap (t Data) -> Data a -> t Data a
-intrinsData _ (GlobalData g) = case GlobalMap.lookup g intrinsics of
-  Nothing -> global g
-  Just (Intrinsic intrinsic) -> intrinsic
 intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just x = VarMap.lookup binder env
    in x
 intrinsData _ (ConstantData x) = constant x
 
-newtype Intrinsic t a = Intrinsic (t Data a)
+newtype Intrinsic t a = Intrinsic (t Code a)
 
 intrinsics :: Cbpv t => GlobalMap (Intrinsic t)
 intrinsics =
@@ -218,11 +218,10 @@ intrinsics =
     [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
     ]
 
-plusIntrinsic :: Cbpv t => t Data (U (F Integer :-> F Integer :-> F Integer))
-plusIntrinsic = delay
-  $ lambda (U (F IntType))
-  $ \x' ->
+plusIntrinsic :: Cbpv t => t Code (F Integer :-> F Integer :-> F Integer)
+plusIntrinsic = lambda (U (F IntType)) $
+  \x' ->
     lambda (U (F IntType)) $ \y' ->
       letTo (force x') $ \x'' ->
         letTo (force y') $ \y'' ->
-          apply (apply (force (global strictPlus)) x'') y''
+          apply (apply (global strictPlus) x'') y''

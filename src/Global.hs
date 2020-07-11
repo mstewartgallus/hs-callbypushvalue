@@ -4,9 +4,9 @@ module Global (Global (..)) where
 
 import Name (Name)
 import TextShow
-import Type (Type)
+import Type (Action)
 
-data Global a = Global (Type a) Name
+data Global a = Global (Action a) Name
 
 instance Eq (Global a) where
   (Global _ n) == (Global _ n') = n == n && n == n'

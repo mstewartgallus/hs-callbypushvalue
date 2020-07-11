@@ -47,8 +47,8 @@ instance Cps X where
   push (V h) (K t) = K (h ::: t)
 
   nilStack = K $ Behaviour (return ())
-  global g = case GlobalMap.lookup g globals of
-    Just (Id x) -> V x
+  global g (K k) = case GlobalMap.lookup g globals of
+    Just (Thunk x) -> C (x k)
     Nothing -> error "global not found in environment"
   constant (IntegerConstant x) = V x
 
@@ -71,9 +71,6 @@ abstract (LambdaData label@(Variable t _) body) =
    in \lenv env ->
         lambda t $ \k ->
           body' lenv (VarMap.insert label (Y k) env)
-abstract (GlobalData g) =
-  let g' = global g
-   in \_ _ -> g'
 
 abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Stack a)
 abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
@@ -90,6 +87,9 @@ abstStack (PushStack h t) =
    in \lenv env -> push (h' lenv env) (t' lenv env)
 
 abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (Y t) -> t Code
+abstCode (GlobalCode g k) =
+  let k' = abstStack k
+   in \lenv env -> global g (k' lenv env)
 abstCode (ThrowCode k x) =
   let value' = abstract x
       k' = abstStack k
@@ -113,12 +113,10 @@ abstCode (PopCode value t body) =
         pop (value' lenv env) $ \y ->
           body' (LabelMap.insert t (L y) lenv) env
 
-newtype Id a = Id a
-
-globals :: GlobalMap Id
+globals :: GlobalMap U
 globals =
   GlobalMap.fromList
-    [ GlobalMap.Entry strictPlus (Id strictPlusImpl)
+    [ GlobalMap.Entry strictPlus strictPlusImpl
     ]
 
 strictPlusImpl :: U (Integer :=> Integer :=> F Integer)

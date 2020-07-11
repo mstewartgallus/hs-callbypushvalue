@@ -11,7 +11,7 @@ import Name (Name)
 import Type
 
 data Dyn t where
-  Dyn :: Type a -> t a -> Dyn t
+  Dyn :: Action a -> t a -> Dyn t
 
 newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 
@@ -19,7 +19,7 @@ newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 lookup :: Global a -> GlobalMap t -> Maybe (t a)
 lookup (Global t name) (GlobalMap m) = case Map.lookup name m of
   Nothing -> Nothing
-  Just (Dyn t' x) -> case equalType t t' of
+  Just (Dyn t' x) -> case equalAction t t' of
     Just Refl -> Just x
     Nothing -> error "Global not equal in type to lookup"
 
