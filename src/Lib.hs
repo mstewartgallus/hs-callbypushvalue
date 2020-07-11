@@ -90,6 +90,9 @@ toCpsThunk lenv env act =
    in Cps.thunk t $ \k -> toCps lenv env act k
 
 toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Stack a) -> t Cps.Code
+toCps lenv env (Callcc.ReturnCode x) k =
+  let x' = toCpsData lenv env x
+   in Cps.throw k x'
 toCps lenv env (Callcc.ApplyCode f x) k =
   let x' = toCpsData lenv env x
    in toCps lenv env f (Cps.push x' k)

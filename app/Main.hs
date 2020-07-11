@@ -32,7 +32,7 @@ mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
   SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
-      SystemF.plus
+      SystemF.minus
         (SystemF.constant (Constant.IntegerConstant 4))
         (SystemF.plus y x)
 

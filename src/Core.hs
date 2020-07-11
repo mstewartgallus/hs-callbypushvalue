@@ -6,6 +6,7 @@
 module Core
   ( pattern U,
     pattern IntType,
+    minus,
     plus,
     strictPlus,
   )
@@ -36,6 +37,9 @@ int = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (U (F int) :=> U (F int) :=> F int) $ Name (T.pack "core") (T.pack "+")
+
+minus :: Global (F Integer :-> F Integer :-> F Integer)
+minus = Global (U (F int) :=> U (F int) :=> F int) $ Name (T.pack "core") (T.pack "-")
 
 -- fixme...
 strictPlus :: Global (Integer :=> Integer :=> F Integer)

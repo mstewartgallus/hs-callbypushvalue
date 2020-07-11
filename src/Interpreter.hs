@@ -103,8 +103,15 @@ abstCode (LetLabelCode value binder body) =
 globals :: GlobalMap U
 globals =
   GlobalMap.fromList
-    [ GlobalMap.Entry strictPlus strictPlusImpl
+    [ GlobalMap.Entry strictPlus strictPlusImpl,
+      GlobalMap.Entry minus minusImpl
     ]
 
 strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
 strictPlusImpl = Thunk $ \(x ::: y ::: Returns k) -> k (x + y)
+
+minusImpl :: U (U (F Integer) :=> U (F Integer) :=> F Integer)
+minusImpl = Thunk $ \(Thunk x ::: Thunk y ::: Returns k) ->
+  x $ Returns $ \x' ->
+    y $ Returns $ \y' ->
+      k (x' - y')
