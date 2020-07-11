@@ -44,8 +44,8 @@ phases ::
     Cbpv.Code a,
     Callcc.Code a,
     Callcc.Code a,
-    Cps.Term (U a),
-    Cps.Term (U a)
+    Cps.Data (U a),
+    Cps.Data (U a)
   )
 phases term =
   let optTerm = optimizeTerm term
@@ -88,10 +88,10 @@ optimizeCallcc = loop iterCallcc
           inlined = Callcc.build (Callcc.inline simplified)
        in loop (n - 1) inlined
 
-optimizeCps :: Cps.Term a -> Cps.Term a
+optimizeCps :: Cps.Data a -> Cps.Data a
 optimizeCps = loop iterCps
   where
-    loop :: Int -> Cps.Term a -> Cps.Term a
+    loop :: Int -> Cps.Data a -> Cps.Data a
     loop 0 term = term
     loop n term =
       let simplified = Cps.simplify term

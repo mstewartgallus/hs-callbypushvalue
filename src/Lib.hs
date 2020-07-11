@@ -81,10 +81,10 @@ callccData env (Cbpv.ThunkData code) =
    in Callcc.thunk t $ \x ->
         Callcc.throw x c
 
-toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Term (U a))
+toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Data (U a))
 toContinuationPassingStyle = toCpsThunk LabelMap.empty VarMap.empty
 
-toCpsThunk :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Term (U a))
+toCpsThunk :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Data (U a))
 toCpsThunk lenv env act =
   let t = Callcc.typeOf act
    in Cps.thunk t $ \k -> toCps lenv env act k
@@ -122,14 +122,14 @@ toCps lenv env (Callcc.ThrowCode k body) _ =
 
 newtype L t a = L (t (Cps.Stack a))
 
-newtype Y t a = Y (t (Cps.Term a))
+newtype Y t a = Y (t (Cps.Data a))
 
 toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Cps.Stack a)
 toCpsStack lenv _ (Callcc.LabelData v) =
   let Just (L x) = LabelMap.lookup v lenv
    in x
 
-toCpsData :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Data a -> t (Cps.Term a)
+toCpsData :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Data a -> t (Cps.Data a)
 toCpsData _ _ (Callcc.ConstantData x) = Cps.constant x
 toCpsData _ _ (Callcc.GlobalData x) = Cps.global x
 toCpsData _ env (Callcc.VariableData v) =

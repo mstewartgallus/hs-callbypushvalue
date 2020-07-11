@@ -17,13 +17,13 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-evaluate :: Term a -> a
+evaluate :: Data a -> a
 evaluate x = case abstract x LabelMap.empty VarMap.empty of
   V value -> value
 
 data X a where
   C :: R -> X Code
-  V :: a -> X (Term a)
+  V :: a -> X (Data a)
   K :: a -> X (Stack a)
 
 instance Cps X where
@@ -52,26 +52,26 @@ instance Cps X where
     Nothing -> error "global not found in environment"
   constant (IntegerConstant x) = V x
 
-newtype Y t a = Y (t (Term a))
+newtype Y t a = Y (t (Data a))
 
 newtype L t a = L (t (Stack a))
 
-abstract :: Cps t => Term a -> LabelMap (L t) -> VarMap (Y t) -> t (Term a)
-abstract (ConstantTerm k) = \_ _ -> constant k
-abstract (VariableTerm v) = \_ env -> case VarMap.lookup v env of
+abstract :: Cps t => Data a -> LabelMap (L t) -> VarMap (Y t) -> t (Data a)
+abstract (ConstantData k) = \_ _ -> constant k
+abstract (VariableData v) = \_ env -> case VarMap.lookup v env of
   Just (Y x) -> x
   Nothing -> error "variable not found in environment"
-abstract (ThunkTerm label@(Label t _) body) =
+abstract (ThunkData label@(Label t _) body) =
   let body' = abstCode body
    in \lenv env ->
         thunk t $ \k ->
           body' (LabelMap.insert label (L k) lenv) env
-abstract (LambdaTerm label@(Variable t _) body) =
+abstract (LambdaData label@(Variable t _) body) =
   let body' = abstract body
    in \lenv env ->
         lambda t $ \k ->
           body' lenv (VarMap.insert label (Y k) env)
-abstract (GlobalTerm g) =
+abstract (GlobalData g) =
   let g' = global g
    in \_ _ -> g'
 
