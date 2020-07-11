@@ -109,7 +109,7 @@ instance TextShow (Stack a) where
   showb (PushStack x f) = showb x <> fromString " :: " <> showb f
 
 instance TextShow Code where
-  showb (GlobalCode g k) = showb g <> fromString " " <> showb k
+  showb (GlobalCode g k) = fromString "call " <> showb g <> fromString " " <> showb k
   showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (ThrowCode k x) = fromString "throw " <> showb k <> fromString " " <> showb x

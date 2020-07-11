@@ -32,9 +32,10 @@ mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
   SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
-      SystemF.minus
-        (SystemF.constant (Constant.IntegerConstant 4))
-        (SystemF.plus y x)
+      SystemF.letBe (SystemF.plus y x) $ \z ->
+        SystemF.letBe (SystemF.plus z (SystemF.constant (Constant.IntegerConstant 4))) $ \w ->
+          SystemF.letBe (SystemF.plus w w) $ \m ->
+            SystemF.plus (SystemF.constant (Constant.IntegerConstant 8)) m
 
 phases ::
   SystemF.Term a ->
