@@ -4,7 +4,7 @@
 
 module Cps (build, Cps (..), Stack (..), Code (..), Term (..), Builder (..), simplify, inline, typeOf) where
 
-import Common hiding (Stack (..))
+import Common
 import Constant (Constant)
 import qualified Constant
 import Core

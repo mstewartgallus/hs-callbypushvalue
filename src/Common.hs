@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (V, (:->), (:=>) (..), F (..), U (..), R (..), Stack (..)) where
+module Common (V, (:->), (:=>) (..), F (..), U (..), R (..)) where
 
 data V a b
 
@@ -21,5 +21,3 @@ data a :=> b = a ::: b
 infixr 0 :::
 
 newtype U a = Thunk (a -> R)
-
-data Stack a

@@ -4,7 +4,7 @@
 
 module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, inline, simplify) where
 
-import Common hiding (Stack)
+import Common
 import Constant (Constant)
 import qualified Constant
 import Core

@@ -4,8 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Core
-  ( pattern StackType,
-    pattern U,
+  ( pattern U,
     pattern IntType,
     plus,
     strictPlus,
@@ -35,12 +34,6 @@ thunk' = Name (T.pack "core") (T.pack "U")
 int :: Type Integer
 int = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
-stack :: Type (V a (Stack a))
-stack = NominalType (TypeKind `FunKind` TypeKind) stack'
-
-stack' :: Name
-stack' = Name (T.pack "core") (T.pack "stack")
-
 plus :: Global (U (F Integer :-> F Integer :-> F Integer))
 plus = Global (U (U (F int) :=> U (F int) :=> F int)) $ Name (T.pack "core") (T.pack "+")
 
@@ -53,12 +46,6 @@ pattern IntType <-
   ((equalType int) -> Just Refl)
   where
     IntType = int
-
-pattern StackType :: (b ~ Stack a) => Action a -> Type b
-pattern StackType x <-
-  (ApplyAction ((equalType stack) -> Just Refl) x)
-  where
-    StackType x = ApplyAction stack x
 
 pattern U :: (b ~ U a) => Action a -> Type b
 pattern U x <-
