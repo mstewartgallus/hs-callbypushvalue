@@ -19,34 +19,42 @@ import Variable
 
 evaluate :: Term a -> a
 evaluate x = case abstract x LabelMap.empty VarMap.empty of
-  Value value -> value
+  V value -> value
 
 data X a where
-  Value :: a -> X (Term a)
-  Action :: R -> X Code
-  K :: a -> X (Cps.Stack a)
+  C :: R -> X Code
+  V :: a -> X (Term a)
+  K :: a -> X (Stack a)
 
 instance Cps X where
-  letTo _ f = K $ Returns $ \x -> case f (Value x) of
-    Action k -> k
-  throw (K (Returns k)) (Value x) = Action (k x)
+  label x f = f x
   letBe x f = f x
+
+  throw (K (Returns k)) (V x) = C (k x)
+  force (V (Thunk f)) (K x) = C (f x)
+
+  thunk _ f = V $ Thunk $ \x -> case f (K x) of
+    C k -> k
+  letTo _ f = K $ Returns $ \x -> case f (V x) of
+    C k -> k
+
+  apply (V (Thunk f)) (V x) (K k) = C $ f (x ::: k)
   pop (K (x ::: k)) f = case f (K k) of
-    K (Returns f') -> Action (f' x)
+    K (Returns g) -> C (g x)
+
+  lambda _ f = V $ Thunk $ \(x ::: t) -> case f (V x) of
+    V (Thunk k) -> k t
+  push (V h) (K t) = K (h ::: t)
+
+  nilStack = K $ Behaviour (return ())
   global g = case GlobalMap.lookup g globals of
-    Just (Id x) -> Value x
+    Just (Id x) -> V x
     Nothing -> error "global not found in environment"
-  push (Value h) (K t) = K (h ::: t)
-  constant (IntegerConstant x) = Value x
-  thunk _ f = Value $ Thunk $ \x -> case f (K x) of
-    Action k -> k
-  lambda _ f = Value $ Thunk $ \(x ::: t) -> case f (Value x) of
-    Value (Thunk k) -> k t
-  force (Value (Thunk f)) (K x) = Action (f x)
+  constant (IntegerConstant x) = V x
 
 newtype Y t a = Y (t (Term a))
 
-newtype L t a = L (t (Cps.Stack a))
+newtype L t a = L (t (Stack a))
 
 abstract :: Cps t => Term a -> LabelMap (L t) -> VarMap (Y t) -> t (Term a)
 abstract (ConstantTerm k) = \_ _ -> constant k
@@ -67,7 +75,7 @@ abstract (GlobalTerm g) =
   let g' = global g
    in \_ _ -> g'
 
-abstStack :: Cps t => Cps.Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Cps.Stack a)
+abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Stack a)
 abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
   Just (L x) -> x
   Nothing -> error "label not found in environment"
