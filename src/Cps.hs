@@ -32,7 +32,7 @@ data Code where
   LetBeCode :: Data a -> Variable a -> Code -> Code
   ApplyCode :: Data (U (a :=> b)) -> Data a -> Stack b -> Code
   ForceCode :: Data (U a) -> Stack a -> Code
-  PopCode :: Stack (a :=> b) -> Label b -> Stack (F a) -> Code
+  PopCode :: Stack (a :=> b) -> Variable a -> Data (U b) -> Code
   ThrowCode :: Stack (F a) -> Data a -> Code
 
 data Stack a where
@@ -54,7 +54,8 @@ class Cps t where
   letBe :: t (Data a) -> (t (Data a) -> t Code) -> t Code
 
   apply :: t (Data (U (a :=> b))) -> t (Data a) -> t (Stack b) -> t Code
-  pop :: t (Stack (a :=> b)) -> (t (Stack b) -> t (Stack (F a))) -> t Code
+
+  pop :: t (Stack (a :=> b)) -> (t (Data a) -> t (Data (U b))) -> t Code
 
   lambda :: Type a -> (t (Data a) -> t (Data (U b))) -> t (Data (U (a :=> b)))
   push :: t (Data a) -> t (Stack b) -> t (Stack (a :=> b))
@@ -88,9 +89,9 @@ instance Cps Builder where
   pop x f = Builder $ do
     x' <- builder x
     let (a :=> b) = typeOfStack x'
-    t <- pure (Label b) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) (LabelStack t))
-    pure $ PopCode x' t body
+    v <- pure (Variable a) <*> Unique.uniqueId
+    body <- builder $ f ((Builder . pure) (VariableData v))
+    pure $ PopCode x' v body
   apply f x k =
     Builder $
       pure ApplyCode <*> builder f <*> builder x <*> builder k
@@ -180,7 +181,7 @@ simpStack x = x
 
 simpCode :: Code -> Code
 simpCode (ForceCode f x) = ForceCode (simplify f) (simpStack x)
-simpCode (PopCode value t body) = PopCode (simpStack value) t (simpStack body)
+simpCode (PopCode value t body) = PopCode (simpStack value) t (simplify body)
 simpCode (LetLabelCode thing binder body) = LetLabelCode (simpStack thing) binder (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simpCode body)
 simpCode (ThrowCode k x) = ThrowCode (simpStack k) (simplify x)
@@ -230,7 +231,7 @@ inlCode lenv env (LetBeCode term binder body) = result
       | otherwise = letBe term' $ \x ->
         inlCode lenv (VarMap.insert binder (X x) env) body
 inlCode lenv env (PopCode value t body) = pop (inlStack lenv env value) $ \y ->
-  inlStack (LabelMap.insert t (L y) lenv) env body
+  inlValue lenv (VarMap.insert t (X y) env) body
 inlCode lenv env (ThrowCode k x) = throw (inlStack lenv env k) (inlValue lenv env x)
 inlCode lenv env (ForceCode k x) = force (inlValue lenv env k) (inlStack lenv env x)
 inlCode lenv env (GlobalCode g k) = global g (inlStack lenv env k)
@@ -258,7 +259,7 @@ count v = code
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + code body
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (PopCode x _ body) = stack x + stack body
+    code (PopCode x binder body) = stack x + if AnyVariable binder == AnyVariable v then 0 else value body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
@@ -278,7 +279,7 @@ countLabel v = code
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + if AnyLabel binder == AnyLabel v then 0 else code body
     code (LetBeCode x binder body) = value x + code body
-    code (PopCode x _ body) = stack x + stack body
+    code (PopCode x _ body) = stack x + value body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k

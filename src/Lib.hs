@@ -98,10 +98,9 @@ toCps lenv env (Callcc.LetBeCode value binder body) k =
     let env' = VarMap.insert binder (Y val) env
      in toCps lenv env' body k
 toCps lenv env (Callcc.LambdaCode binder@(Variable t _) body) k =
-  Cps.pop k $ \n ->
-    Cps.letTo t $ \x ->
-      let env' = VarMap.insert binder (Y x) env
-       in toCps lenv env' body n
+  Cps.pop k $ \x ->
+    let env' = VarMap.insert binder (Y x) env
+     in toCpsThunk lenv env' body
 toCps lenv env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps lenv env action $ Cps.letTo t $ \y ->
     let env' = VarMap.insert binder (Y y) env

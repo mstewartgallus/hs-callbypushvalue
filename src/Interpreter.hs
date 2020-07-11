@@ -39,8 +39,8 @@ instance Cps X where
     C k -> k
 
   apply (V (Thunk f)) (V x) (K k) = C $ f (x ::: k)
-  pop (K (x ::: k)) f = case f (K k) of
-    K (Returns g) -> C (g x)
+  pop (K (x ::: k)) f = case f (V x) of
+    V (Thunk th) -> C (th k)
 
   lambda _ f = V $ Thunk $ \(x ::: t) -> case f (V x) of
     V (Thunk k) -> k t
@@ -108,10 +108,10 @@ abstCode (LetLabelCode value binder body) =
    in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
 abstCode (PopCode value t body) =
   let value' = abstStack value
-      body' = abstStack body
+      body' = abstract body
    in \lenv env ->
         pop (value' lenv env) $ \y ->
-          body' (LabelMap.insert t (L y) lenv) env
+          body' lenv (VarMap.insert t (Y y) env)
 
 globals :: GlobalMap U
 globals =
