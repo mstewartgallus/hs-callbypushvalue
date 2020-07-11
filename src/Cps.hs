@@ -112,7 +112,7 @@ instance TextShow Code where
   showb (GlobalCode g k) = showb g <> fromString " " <> showb k
   showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (ThrowCode k x) = fromString "jump " <> showb k <> fromString " " <> showb x
+  showb (ThrowCode k x) = fromString "throw " <> showb k <> fromString " " <> showb x
   showb (ForceCode thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 
 build :: Builder a -> a
@@ -150,6 +150,7 @@ simpCode (ThrowCode k x) = ThrowCode (simpStack k) (simplify x)
 simpCode (ForceCode f x) = ForceCode (simplify f) (simpStack x)
 simpCode (LetLabelCode thing binder body) = LetLabelCode (simpStack thing) binder (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simpCode body)
+simpCode (GlobalCode g k) = GlobalCode g (simpStack k)
 simpCode x = x
 
 inline :: Cps t => Data a -> t (Data a)
