@@ -35,9 +35,8 @@ instance Cps X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
 
-  lambda _ _ f = V $ Thunk $ \(x ::: t) -> case f (V x) (K t) of
-    C act -> act
-  push (V h) (K t) = K (h ::: t)
+  lambda (K (x ::: t)) _ _ f = f (V x) (K t)
+  apply (V h) (K t) = K (h ::: t)
 
   nilStack = K Void
   global g (K k) = case GlobalMap.lookup g globals of

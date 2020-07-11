@@ -65,15 +65,16 @@ instance Cps.Cps X where
     body <- build (f (X $ pure v))
     pure $ node $ atom "to" <> ws <> v <> ws <> pType t <> ws <> body
 
-  lambda t a f = X $ do
+  lambda (X k) theType a f = X $ do
+    k' <- k
     x <- fresh
-    k <- fresh
-    body <- build (f (X $ pure x) (X $ pure k))
-    pure $ node $ atom "lambda" <> ws <> x <> ws <> pType t <> ws <> k <> ws <> pAction a <> ws <> body
-  push (X h) (X t) = X $ do
+    t <- fresh
+    body <- build (f (X $ pure x) (X $ pure t))
+    pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> pType theType <> ws <> t <> ws <> pAction a <> ws <> body
+  apply (X h) (X t) = X $ do
     h' <- h
     t' <- t
-    pure $ node $ atom "push" <> ws <> h' <> ws <> t'
+    pure $ node $ atom "apply" <> ws <> h' <> ws <> t'
 
   nilStack = X $ pure $ atom "nil"
   global g (X k) = X $ do

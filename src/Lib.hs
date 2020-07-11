@@ -95,7 +95,7 @@ toCps lenv env (Callcc.ReturnCode x) k =
    in Cps.throw k x'
 toCps lenv env (Callcc.ApplyCode f x) k =
   let x' = toCpsData lenv env x
-   in toCps lenv env f (Cps.push x' k)
+   in toCps lenv env f (Cps.apply x' k)
 toCps lenv env (Callcc.LetBeCode value binder@(Variable t _) body) k =
   Cps.throw
     ( Cps.letTo t $ \val ->
@@ -105,12 +105,9 @@ toCps lenv env (Callcc.LetBeCode value binder@(Variable t _) body) k =
     (toCpsData lenv env value)
 toCps lenv env (Callcc.LambdaCode binder@(Variable t _) body) k =
   let a = Callcc.typeOf body
-   in Cps.force
-        ( Cps.lambda t a $ \x t ->
-            let env' = VarMap.insert binder (Y x) env
-             in toCps lenv env' body t
-        )
-        k
+   in Cps.lambda k t a $ \x t ->
+        let env' = VarMap.insert binder (Y x) env
+         in toCps lenv env' body t
 toCps lenv env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps lenv env action $ Cps.letTo t $ \y ->
     let env' = VarMap.insert binder (Y y) env
