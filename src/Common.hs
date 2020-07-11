@@ -2,13 +2,15 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (V, (:->), (:*:) (..), (:=>) (..), F (..), U (..), R (..)) where
+module Common (V, (:->), (:*:) (..), (:=>) (..), Void (..), F (..), U (..), R (..)) where
 
 data V a b
 
 type a :-> b = U a :=> b
 
 infixr 9 :->
+
+data Void = Void
 
 newtype R = Behaviour (IO ())
 

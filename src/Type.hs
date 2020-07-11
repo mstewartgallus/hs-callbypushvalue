@@ -23,7 +23,7 @@ infixr 9 :=>
 data Action a where
   F :: Type a -> Action (F a)
   (:=>) :: Type a -> Action b -> Action (a :=> b)
-  R :: Action R
+  VoidType :: Action Void
 
 applyType :: Type (V a b) -> Type a -> Type b
 applyType = ApplyType
@@ -59,7 +59,7 @@ instance TextShow (Type a) where
   showb x = fromString "(" <> loop x <> fromString ")"
 
 instance TextShow (Action a) where
-  showb R = fromString "R"
+  showb VoidType = fromString "Void"
   showb x = fromString "(" <> loopAct x <> fromString ")"
 
 loop :: Type a -> Builder
@@ -70,4 +70,4 @@ loop x = showb x
 loopAct :: Action a -> Builder
 loopAct (F x) = fromString "F " <> showb x
 loopAct (a :=> b) = showb a <> fromString " → " <> loopAct b
-loopAct R = fromString "R"
+loopAct VoidType = fromString "Void"

@@ -34,7 +34,7 @@ typeOf (CatchCode (Label t _) _) = t
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
-typeOf (ThrowCode _ _) = R
+typeOf (ThrowCode _ _) = VoidType
 typeOf (GlobalCode (Global t _)) = t
 
 typeOfData :: Data a -> Type a
@@ -52,11 +52,11 @@ class Callcc t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
-  catch :: Action a -> (t Stack a -> t Code R) -> t Code a
-  throw :: t Stack a -> t Code a -> t Code R
+  catch :: Action a -> (t Stack a -> t Code Void) -> t Code a
+  throw :: t Stack a -> t Code a -> t Code Void
 
-  thunk :: Action a -> (t Stack a -> t Code R) -> t Data (U a)
-  force :: t Data (U a) -> t Stack a -> t Code R
+  thunk :: Action a -> (t Stack a -> t Code Void) -> t Data (U a)
+  force :: t Data (U a) -> t Stack a -> t Code Void
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalCode g
@@ -106,9 +106,9 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Label a -> Code R -> Code a
-  ThrowCode :: Stack a -> Code a -> Code R
-  ForceCode :: Data (U a) -> Stack a -> Code R
+  CatchCode :: Label a -> Code Void -> Code a
+  ThrowCode :: Stack a -> Code a -> Code Void
+  ForceCode :: Data (U a) -> Stack a -> Code Void
 
 data Stack a where
   LabelData :: Label a -> Stack a
@@ -116,7 +116,7 @@ data Stack a where
 data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
-  ThunkData :: Label a -> Code R -> Data (U a)
+  ThunkData :: Label a -> Code Void -> Data (U a)
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g

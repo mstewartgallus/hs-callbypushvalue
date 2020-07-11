@@ -57,7 +57,7 @@ class Cps t where
   lambda :: Type a -> Action b -> (t (Data a) -> t (Stack b) -> t Code) -> t (Data (U (a :=> b)))
   push :: t (Data a) -> t (Stack b) -> t (Stack (a :=> b))
 
-  nilStack :: t (Stack R)
+  nilStack :: t (Stack Void)
 
   pair :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
   mupair :: Type a -> Type b -> (t (Data a) -> t (Data b) -> t Code) -> t (Stack (F (a :*: b)))

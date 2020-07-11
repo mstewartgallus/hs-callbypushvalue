@@ -39,7 +39,7 @@ instance Cps X where
     C act -> act
   push (V h) (K t) = K (h ::: t)
 
-  nilStack = K $ Behaviour (return ())
+  nilStack = K Void
   global g (K k) = case GlobalMap.lookup g globals of
     Just (Thunk x) -> C (x k)
     Nothing -> error "global not found in environment"
