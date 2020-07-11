@@ -30,6 +30,7 @@ data Data a where
 data Code where
   LetLabelCode :: Stack a -> Label a -> Code -> Code
   LetBeCode :: Data a -> Variable a -> Code -> Code
+  ApplyCode :: Data (U (a :=> b)) -> Data a -> Stack b -> Code
   ForceCode :: Data (U a) -> Stack a -> Code
   PopCode :: Stack (a :=> b) -> Label b -> Stack (F a) -> Code
   ThrowCode :: Stack (F a) -> Data a -> Code
@@ -60,6 +61,11 @@ class Cps t where
 
   nilStack :: t (Stack R)
 
+  pair :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
+
+  first :: t (Data (a :*: b)) -> t (Data a)
+  second :: t (Data (a :*: b)) -> t (Data b)
+
 instance Cps Builder where
   global g = (Builder . pure) $ GlobalData g
   throw k x =
@@ -83,6 +89,10 @@ instance Cps Builder where
     t <- pure (Label b) <*> Unique.uniqueId
     body <- builder $ f ((Builder . pure) (LabelStack t))
     pure $ PopCode x' t body
+  apply f x k =
+    Builder $
+      pure ApplyCode <*> builder f <*> builder x <*> builder k
+
   constant k = (Builder . pure) $ ConstantData k
 
   letTo t f = Builder $ do
