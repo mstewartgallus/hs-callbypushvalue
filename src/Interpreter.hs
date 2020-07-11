@@ -27,9 +27,6 @@ data X a where
   K :: a -> X (Stack a)
 
 instance Cps X where
-  label x f = f x
-  letBe x f = f x
-
   throw (K (Returns k)) (V x) = C (k x)
   force (V (Thunk f)) (K x) = C (f x)
 
@@ -38,12 +35,8 @@ instance Cps X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
 
-  apply (V (Thunk f)) (V x) (K k) = C $ f (x ::: k)
-  pop (K (x ::: k)) f = case f (V x) of
-    V (Thunk th) -> C (th k)
-
-  lambda _ f = V $ Thunk $ \(x ::: t) -> case f (V x) of
-    V (Thunk k) -> k t
+  lambda _ _ f = V $ Thunk $ \(x ::: t) -> case f (V x) (K t) of
+    C act -> act
   push (V h) (K t) = K (h ::: t)
 
   nilStack = K $ Behaviour (return ())
@@ -66,11 +59,11 @@ abstract (ThunkData label@(Label t _) body) =
    in \lenv env ->
         thunk t $ \k ->
           body' (LabelMap.insert label (L k) lenv) env
-abstract (LambdaData label@(Variable t _) body) =
-  let body' = abstract body
+abstract (LambdaData binder@(Variable t _) label@(Label a _) body) =
+  let body' = abstCode body
    in \lenv env ->
-        lambda t $ \k ->
-          body' lenv (VarMap.insert label (Y k) env)
+        lambda t a $ \h k ->
+          body' (LabelMap.insert label (L k) lenv) (VarMap.insert binder (Y h) env)
 
 abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Stack a)
 abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
@@ -106,12 +99,6 @@ abstCode (LetLabelCode value binder body) =
   let value' = abstStack value
       body' = abstCode body
    in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
-abstCode (PopCode value t body) =
-  let value' = abstStack value
-      body' = abstract body
-   in \lenv env ->
-        pop (value' lenv env) $ \y ->
-          body' lenv (VarMap.insert t (Y y) env)
 
 globals :: GlobalMap U
 globals =

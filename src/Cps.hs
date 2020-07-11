@@ -24,15 +24,13 @@ data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code -> Data (U a)
-  LambdaData :: Variable a -> Data (U b) -> Data (U (a :=> b))
+  LambdaData :: Variable a -> Label b -> Code -> Data (U (a :=> b))
 
 data Code where
   GlobalCode :: Global a -> Stack a -> Code
   LetLabelCode :: Stack a -> Label a -> Code -> Code
   LetBeCode :: Data a -> Variable a -> Code -> Code
-  ApplyCode :: Data (U (a :=> b)) -> Data a -> Stack b -> Code
   ForceCode :: Data (U a) -> Stack a -> Code
-  PopCode :: Stack (a :=> b) -> Variable a -> Data (U b) -> Code
   ThrowCode :: Stack (F a) -> Data a -> Code
 
 data Stack a where
@@ -40,6 +38,12 @@ data Stack a where
   ToStack :: Variable a -> Code -> Stack (F a)
   PushStack :: Data a -> Stack b -> Stack (a :=> b)
 
+-- |
+--
+-- I don't understand this but apparently the CPS transform of Call By
+-- Push Value is similar to the λμ ̃μ calculus.
+--
+-- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
 class Cps t where
   constant :: Constant a -> t (Data a)
   global :: Global a -> t (Stack a) -> t Code
@@ -50,22 +54,13 @@ class Cps t where
   thunk :: Action a -> (t (Stack a) -> t Code) -> t (Data (U a))
   letTo :: Type a -> (t (Data a) -> t Code) -> t (Stack (F a))
 
-  label :: t (Stack a) -> (t (Stack a) -> t Code) -> t Code
-  letBe :: t (Data a) -> (t (Data a) -> t Code) -> t Code
-
-  apply :: t (Data (U (a :=> b))) -> t (Data a) -> t (Stack b) -> t Code
-
-  pop :: t (Stack (a :=> b)) -> (t (Data a) -> t (Data (U b))) -> t Code
-
-  lambda :: Type a -> (t (Data a) -> t (Data (U b))) -> t (Data (U (a :=> b)))
+  lambda :: Type a -> Action b -> (t (Data a) -> t (Stack b) -> t Code) -> t (Data (U (a :=> b)))
   push :: t (Data a) -> t (Stack b) -> t (Stack (a :=> b))
 
   nilStack :: t (Stack R)
 
   pair :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
-
-  first :: t (Data (a :*: b)) -> t (Data a)
-  second :: t (Data (a :*: b)) -> t (Data b)
+  mupair :: Type a -> Type b -> (t (Data a) -> t (Data b) -> t Code) -> t (Stack (F (a :*: b)))
 
 instance Cps Builder where
   global g k =
@@ -74,27 +69,6 @@ instance Cps Builder where
   throw k x =
     Builder $
       pure ThrowCode <*> builder k <*> builder x
-  label x f = Builder $ do
-    x' <- builder x
-    let t = typeOfStack x'
-    v <- pure (Label t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ LabelStack v)
-    pure $ LetLabelCode x' v body
-  letBe x f = Builder $ do
-    x' <- builder x
-    let t = typeOf x'
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LetBeCode x' v body
-  pop x f = Builder $ do
-    x' <- builder x
-    let (a :=> b) = typeOfStack x'
-    v <- pure (Variable a) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) (VariableData v))
-    pure $ PopCode x' v body
-  apply f x k =
-    Builder $
-      pure ApplyCode <*> builder f <*> builder x <*> builder k
 
   constant k = (Builder . pure) $ ConstantData k
 
@@ -112,10 +86,11 @@ instance Cps Builder where
     Builder $
       pure ForceCode <*> builder thnk <*> builder stk
 
-  lambda t f = Builder $ do
+  lambda t a f = Builder $ do
     v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ LambdaData v body
+    t <- pure (Label a) <*> Unique.uniqueId
+    body <- builder (f (Builder (pure (VariableData v))) (Builder (pure (LabelStack t))))
+    pure $ LambdaData v t body
   push x k = Builder $ do
     pure PushStack <*> builder x <*> builder k
 
@@ -124,8 +99,8 @@ instance TextShow (Data a) where
   showb (ConstantData k) = showb k
   showb (ThunkData binder@(Label t _) body) =
     fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
-  showb (LambdaData binder@(Variable t _) body) =
-    fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString "\n" <> showb body
+  showb (LambdaData binder@(Variable t _) label@(Label a _) body) =
+    fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString ", " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
 instance TextShow (Stack a) where
   showb (ToStack binder@(Variable t _) body) =
@@ -137,18 +112,6 @@ instance TextShow Code where
   showb (GlobalCode g k) = showb g <> fromString " " <> showb k
   showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (PopCode value label body) =
-    showb value
-      <> fromString " pop "
-      <> showb label
-      <> fromString " "
-      <> showb body
-  showb (ApplyCode f x k) =
-    showb f
-      <> fromString " "
-      <> showb x
-      <> fromString " "
-      <> showb k
   showb (ThrowCode k x) = fromString "jump " <> showb k <> fromString " " <> showb x
   showb (ForceCode thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
 
@@ -172,6 +135,7 @@ typeOfStack (PushStack h t) =
 
 simplify :: Data a -> Data a
 simplify (ThunkData binder body) = ThunkData binder (simpCode body)
+simplify (LambdaData binder label body) = LambdaData binder label (simpCode body)
 simplify x = x
 
 simpStack :: Stack a -> Stack a
@@ -180,11 +144,12 @@ simpStack (PushStack h t) = PushStack (simplify h) (simpStack t)
 simpStack x = x
 
 simpCode :: Code -> Code
+simpCode (ThrowCode (ToStack binder body) value) = simpCode (LetBeCode value binder body)
+simpCode (ForceCode (ThunkData label body) k) = simpCode (LetLabelCode k label body)
+simpCode (ThrowCode k x) = ThrowCode (simpStack k) (simplify x)
 simpCode (ForceCode f x) = ForceCode (simplify f) (simpStack x)
-simpCode (PopCode value t body) = PopCode (simpStack value) t (simplify body)
 simpCode (LetLabelCode thing binder body) = LetLabelCode (simpStack thing) binder (simpCode body)
 simpCode (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simpCode body)
-simpCode (ThrowCode k x) = ThrowCode (simpStack k) (simplify x)
 simpCode x = x
 
 inline :: Cps t => Data a -> t (Data a)
@@ -200,8 +165,8 @@ inlValue _ env (VariableData v) =
    in x
 inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \k ->
   inlCode (LabelMap.insert binder (L k) lenv) env body
-inlValue lenv env (LambdaData binder@(Variable t _) body) = lambda t $ \k ->
-  inlValue lenv (VarMap.insert binder (X k) env) body
+inlValue lenv env (LambdaData binder@(Variable t _) label@(Label a _) body) = lambda t a $ \h k ->
+  inlCode (LabelMap.insert label (L k) lenv) (VarMap.insert binder (X h) env) body
 inlValue _ _ (ConstantData k) = Cps.constant k
 
 inlStack :: Cps t => LabelMap (L t) -> VarMap (X t) -> Stack a -> t (Stack a)
@@ -214,24 +179,30 @@ inlStack lenv env (ToStack binder@(Variable t _) body) = Cps.letTo t $ \value ->
    in inlCode lenv env' body
 
 inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
-inlCode lenv env (LetLabelCode term binder body) = result
+inlCode lenv env (LetLabelCode term binder@(Label t _) body) = result
   where
     term' = inlStack lenv env term
     result
       | countLabel binder body <= 1 || isSimpleStack term =
         inlCode (LabelMap.insert binder (L term') lenv) env body
-      | otherwise = label term' $ \x ->
-        inlCode (LabelMap.insert binder (L x) lenv) env body
-inlCode lenv env (LetBeCode term binder body) = result
+      | otherwise =
+        force
+          ( thunk t $ \x ->
+              inlCode (LabelMap.insert binder (L x) lenv) env body
+          )
+          term'
+inlCode lenv env (LetBeCode term binder@(Variable t _) body) = result
   where
     term' = inlValue lenv env term
     result
       | count binder body <= 1 || isSimple term =
         inlCode lenv (VarMap.insert binder (X term') env) body
-      | otherwise = letBe term' $ \x ->
-        inlCode lenv (VarMap.insert binder (X x) env) body
-inlCode lenv env (PopCode value t body) = pop (inlStack lenv env value) $ \y ->
-  inlValue lenv (VarMap.insert t (X y) env) body
+      | otherwise =
+        throw
+          ( letTo t $ \x ->
+              inlCode lenv (VarMap.insert binder (X x) env) body
+          )
+          term'
 inlCode lenv env (ThrowCode k x) = throw (inlStack lenv env k) (inlValue lenv env x)
 inlCode lenv env (ForceCode k x) = force (inlValue lenv env k) (inlStack lenv env x)
 inlCode lenv env (GlobalCode g k) = global g (inlStack lenv env k)
@@ -251,6 +222,7 @@ count v = code
     value :: Data b -> Int
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
     value (ThunkData _ body) = code body
+    value (LambdaData _ _ body) = code body
     value _ = 0
     stack :: Stack b -> Int
     stack (PushStack h t) = value h + stack t
@@ -259,7 +231,6 @@ count v = code
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + code body
     code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (PopCode x binder body) = stack x + if AnyVariable binder == AnyVariable v then 0 else value body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
@@ -270,6 +241,7 @@ countLabel v = code
   where
     value :: Data b -> Int
     value (ThunkData _ body) = code body
+    value (LambdaData _ _ body) = code body
     value _ = 0
     stack :: Stack b -> Int
     stack (LabelStack binder) = if AnyLabel v == AnyLabel binder then 1 else 0
@@ -279,7 +251,6 @@ countLabel v = code
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + if AnyLabel binder == AnyLabel v then 0 else code body
     code (LetBeCode x binder body) = value x + code body
-    code (PopCode x _ body) = stack x + value body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
