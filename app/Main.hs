@@ -11,8 +11,10 @@ import Core
 import qualified Cps
 import Data.Data
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Interpreter
 import Lib
+import qualified Porcelain
 import qualified SystemF
 import TextShow
 import Type
@@ -131,6 +133,9 @@ main = do
 
   putStrLn "\nOptimized Cps:"
   printT optCps
+
+  putStrLn "\nPorcelain Output:"
+  T.putStrLn (Porcelain.porcelain optCps)
 
   putStrLn "\nEvaluates to:"
   let cpsData = Interpreter.evaluate optCps

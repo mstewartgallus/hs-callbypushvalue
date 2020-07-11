@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, typeOf) where
+module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, typeOf, abstract) where
 
 import Common
 import Constant (Constant)
@@ -235,7 +235,6 @@ count v = code
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
-    code _ = 0
 
 countLabel :: Label a -> Code -> Int
 countLabel v = code
@@ -248,11 +247,63 @@ countLabel v = code
     stack (LabelStack binder) = if AnyLabel v == AnyLabel binder then 1 else 0
     stack (PushStack h t) = value h + stack t
     stack (ToStack binder body) = code body
-    stack _ = 0
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + if AnyLabel binder == AnyLabel v then 0 else code body
     code (LetBeCode x binder body) = value x + code body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
-    code _ = 0
+
+abstract :: Cps t => Data a -> t (Data a)
+abstract x = abstData x LabelMap.empty VarMap.empty
+
+abstData :: Cps t => Data a -> LabelMap (L t) -> VarMap (X t) -> t (Data a)
+abstData (ConstantData k) = \_ _ -> constant k
+abstData (VariableData v) = \_ env -> case VarMap.lookup v env of
+  Just (X x) -> x
+  Nothing -> error "variable not found in environment"
+abstData (ThunkData label@(Label t _) body) =
+  let body' = abstCode body
+   in \lenv env ->
+        thunk t $ \k ->
+          body' (LabelMap.insert label (L k) lenv) env
+abstData (LambdaData binder@(Variable t _) label@(Label a _) body) =
+  let body' = abstCode body
+   in \lenv env ->
+        lambda t a $ \h k ->
+          body' (LabelMap.insert label (L k) lenv) (VarMap.insert binder (X h) env)
+
+abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (X t) -> t (Stack a)
+abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
+  Just (L x) -> x
+  Nothing -> error "label not found in environment"
+abstStack (ToStack binder@(Variable t _) body) =
+  let body' = abstCode body
+   in \lenv env ->
+        letTo t $ \value ->
+          body' lenv (VarMap.insert binder (X value) env)
+abstStack (PushStack h t) =
+  let h' = abstData h
+      t' = abstStack t
+   in \lenv env -> push (h' lenv env) (t' lenv env)
+
+abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (X t) -> t Code
+abstCode (GlobalCode g k) =
+  let k' = abstStack k
+   in \lenv env -> global g (k' lenv env)
+abstCode (ThrowCode k x) =
+  let value' = abstData x
+      k' = abstStack k
+   in \lenv env -> throw (k' lenv env) (value' lenv env)
+abstCode (ForceCode k x) =
+  let value' = abstStack x
+      k' = abstData k
+   in \lenv env -> force (k' lenv env) (value' lenv env)
+abstCode (LetBeCode value binder body) =
+  let value' = abstData value
+      body' = abstCode body
+   in \lenv env -> body' lenv (VarMap.insert binder (X (value' lenv env)) env)
+abstCode (LetLabelCode value binder body) =
+  let value' = abstStack value
+      body' = abstCode body
+   in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env

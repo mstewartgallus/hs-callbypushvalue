@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 28c58b23e1f3c3070c9970fcfa5fa5ebae99fd470043d8839695d9d23178c2af
+-- hash: 2eac889eaa380e04e84eb6fdb3115959df3e04f47df529d5f5cb9887f795359b
 
 name:           cpbv
 version:        0.1.0.0
@@ -41,6 +41,7 @@ library
       LabelMap
       Lib
       Name
+      Porcelain
       SystemF
       Type
       TypeMap

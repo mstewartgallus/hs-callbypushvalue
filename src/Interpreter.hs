@@ -18,7 +18,7 @@ import qualified VarMap
 import Variable
 
 evaluate :: Data a -> a
-evaluate x = case abstract x LabelMap.empty VarMap.empty of
+evaluate x = case abstract x of
   V value -> value
 
 data X a where
@@ -44,61 +44,6 @@ instance Cps X where
     Just (Thunk x) -> C (x k)
     Nothing -> error "global not found in environment"
   constant (IntegerConstant x) = V x
-
-newtype Y t a = Y (t (Data a))
-
-newtype L t a = L (t (Stack a))
-
-abstract :: Cps t => Data a -> LabelMap (L t) -> VarMap (Y t) -> t (Data a)
-abstract (ConstantData k) = \_ _ -> constant k
-abstract (VariableData v) = \_ env -> case VarMap.lookup v env of
-  Just (Y x) -> x
-  Nothing -> error "variable not found in environment"
-abstract (ThunkData label@(Label t _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        thunk t $ \k ->
-          body' (LabelMap.insert label (L k) lenv) env
-abstract (LambdaData binder@(Variable t _) label@(Label a _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        lambda t a $ \h k ->
-          body' (LabelMap.insert label (L k) lenv) (VarMap.insert binder (Y h) env)
-
-abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (Y t) -> t (Stack a)
-abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
-  Just (L x) -> x
-  Nothing -> error "label not found in environment"
-abstStack (ToStack binder@(Variable t _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        letTo t $ \value ->
-          body' lenv (VarMap.insert binder (Y value) env)
-abstStack (PushStack h t) =
-  let h' = abstract h
-      t' = abstStack t
-   in \lenv env -> push (h' lenv env) (t' lenv env)
-
-abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (Y t) -> t Code
-abstCode (GlobalCode g k) =
-  let k' = abstStack k
-   in \lenv env -> global g (k' lenv env)
-abstCode (ThrowCode k x) =
-  let value' = abstract x
-      k' = abstStack k
-   in \lenv env -> throw (k' lenv env) (value' lenv env)
-abstCode (ForceCode k x) =
-  let value' = abstStack x
-      k' = abstract k
-   in \lenv env -> force (k' lenv env) (value' lenv env)
-abstCode (LetBeCode value binder body) =
-  let value' = abstract value
-      body' = abstCode body
-   in \lenv env -> body' lenv (VarMap.insert binder (Y (value' lenv env)) env)
-abstCode (LetLabelCode value binder body) =
-  let value' = abstStack value
-      body' = abstCode body
-   in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
 
 globals :: GlobalMap U
 globals =
