@@ -26,6 +26,16 @@ toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t Cbpv.Code a
 toCallByPushValue = toCbpv LabelMap.empty
 
 toCbpv :: Cbpv.Cbpv t => LabelMap (t Cbpv.Code) -> SystemF.Term a -> t Cbpv.Code a
+toCbpv env (SystemF.PairTerm x y) =
+  let x' = toCbpv env x
+      y' = toCbpv env y
+   in Cbpv.returns (Cbpv.push (Cbpv.delay x') y')
+toCbpv env (SystemF.FirstTerm tuple) =
+  Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
+    Cbpv.force (Cbpv.head tuple')
+toCbpv env (SystemF.SecondTerm tuple) =
+  Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
+    Cbpv.tail tuple'
 toCbpv env (SystemF.LabelTerm x) =
   let Just x' = LabelMap.lookup x env
    in x'

@@ -52,6 +52,10 @@ class Callcc t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
+  push :: t Data a -> t Code b -> t Data (a :*: b)
+  head :: t Data (a :*: b) -> t Code b
+  tail :: t Data (a :*: b) -> t Data a
+
   catch :: Action a -> (t Stack a -> t Code Void) -> t Code a
   throw :: t Stack a -> t Code a -> t Code Void
 

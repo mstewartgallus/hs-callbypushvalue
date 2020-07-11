@@ -5,6 +5,7 @@
 
 module Core
   ( pattern U,
+    pattern (:*:),
     pattern IntType,
     minus,
     plus,
@@ -28,6 +29,9 @@ Still not sure how to handle types in a lot of cases.
 -- fixme implement in terms of stack...
 thunk :: Type (V a (U a))
 thunk = NominalType (TypeKind `FunKind` TypeKind) thunk'
+
+tuple :: Type (V a (V b (a :*: b)))
+tuple = NominalType (TypeKind `FunKind` (TypeKind `FunKind` TypeKind)) $ Name (T.pack "core") (T.pack "T")
 
 thunk' :: Name
 thunk' = Name (T.pack "core") (T.pack "U")
@@ -56,3 +60,9 @@ pattern U x <-
   (ApplyAction ((equalType thunk) -> Just Refl) x)
   where
     U x = ApplyAction thunk x
+
+pattern (:*:) :: (c ~ (a :*: b)) => Type a -> Action b -> Type c
+pattern x :*: y <-
+  (ApplyAction (ApplyType ((equalType tuple) -> Just Refl) x) y)
+  where
+    x :*: y = ApplyAction (ApplyType tuple x) y

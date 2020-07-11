@@ -22,7 +22,7 @@ infixr 0 :::
 
 infixr 9 :=>
 
-data a :*: b = a :*: b
+data a :*: b = Pair a b
 
 infixr 0 :*:
 
