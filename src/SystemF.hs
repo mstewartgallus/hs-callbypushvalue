@@ -43,43 +43,33 @@ plus x y = apply (apply (global Core.plus) x) y
 minus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
 minus x y = apply (apply (global Core.minus) x) y
 
-newtype Builder a = Builder {builder :: Unique.State (Term a)}
+data Builder a = Builder {act :: Action a, builder :: Unique.State (Term a)}
 
 build :: Builder a -> Term a
-build (Builder s) = Unique.run s
+build (Builder _ s) = Unique.run s
 
 instance SystemF Builder where
-  constant k = (Builder . pure) $ ConstantTerm k
-  global g = (Builder . pure) $ GlobalTerm g
-  pair x y =
-    Builder $
-      pure PairTerm <*> builder x <*> builder y
-  first tuple =
-    Builder $
-      pure FirstTerm <*> builder tuple
-  second tuple =
-    Builder $
-      pure SecondTerm <*> builder tuple
-  letBe value f = Builder $ do
-    value' <- builder value
-    let t = typeOf value'
-    binder <- pure (Label t) <*> Unique.uniqueId
-    body <- builder $ f (Builder $ pure $ LabelTerm binder)
-    pure (LetTerm value' binder body)
-  lambda t f = Builder $ do
-    binder <- pure (Label t) <*> Unique.uniqueId
-    body <- builder $ f (Builder $ pure $ LabelTerm binder)
-    pure (LambdaTerm binder body)
-  forall t f = Builder $ do
-    binder <- pure (TypeVariable t) <*> Unique.uniqueId
-    body <- builder $ f (VariableType binder)
-    pure (ForallTerm binder body)
-  apply f x =
-    Builder $
-      pure ApplyTerm <*> builder f <*> builder x
-  applyType f x = Builder $ do
-    f' <- builder f
-    pure (ApplyTypeTerm f' x)
+  constant k = Builder (F (Constant.typeOf k)) $ pure (ConstantTerm k)
+  global g@(Global t _) = Builder t $ pure (GlobalTerm g)
+  pair (Builder tx x) (Builder ty y) =
+    Builder (F (U tx :*: U ty :*: UnitType)) $
+      pure PairTerm <*> x <*> y
+  letBe value@(Builder t _) f =
+    let Builder r _ = f value
+     in Builder r $ do
+          value' <- builder value
+          binder <- pure (Label t) <*> Unique.uniqueId
+          body <- builder $ f (Builder t $ pure $ LabelTerm binder)
+          pure (LetTerm value' binder body)
+  lambda t f =
+    let Builder result _ = f (Builder t $ pure undefined)
+     in Builder (U t :=> result) $ do
+          binder <- pure (Label t) <*> Unique.uniqueId
+          body <- builder $ f (Builder t $ pure $ LabelTerm binder)
+          pure (LambdaTerm binder body)
+  apply (Builder (_ :=> r) f) x =
+    Builder r $
+      pure ApplyTerm <*> f <*> builder x
 
 data Term a where
   LabelTerm :: Label a -> Term a
@@ -115,27 +105,6 @@ abstract' tenv env (ApplyTypeTerm f x) = SystemF.applyType (abstract' tenv env f
 abstract' _ env (LabelTerm v) = case LabelMap.lookup v env of
   Just x -> x
   Nothing -> error "variable not found in env"
-
-newtype TypeOf a = TypeOf (Action a)
-
-instance SystemF TypeOf where
-  constant k = TypeOf $ F (Constant.typeOf k)
-  global (Global t _) = TypeOf t
-  pair (TypeOf x) (TypeOf y) =
-    TypeOf $
-      F (U x :*: U y :*: UnitType)
-  first (TypeOf (F (U x :*: U _ :*: UnitType))) = TypeOf x
-  second (TypeOf (F (U _ :*: U y :*: UnitType))) = TypeOf y
-  letBe x f = f x
-  lambda t f =
-    let TypeOf result = f (TypeOf t)
-     in TypeOf (U t :=> result)
-  apply (TypeOf (_ :=> b)) _ = TypeOf b
-
-typeOf :: Term a -> Action a
-typeOf term =
-  let TypeOf t = abstract term
-   in t
 
 instance TextShow (Term a) where
   showb (LabelTerm v) = showb v
