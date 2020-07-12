@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (simplify, inline, build, Builder, SystemF (..), minus, plus, Term (..)) where
+module SystemF (simplify, inline, build, Builder, SystemF (..), minus, plus, abstract, Term (..)) where
 
 import Common
 import Constant (Constant)
@@ -94,24 +94,48 @@ data Term a where
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
   ApplyTypeTerm :: Term (V a b) -> Type a -> Term b
 
+abstract :: SystemF t => Term a -> t a
+abstract = abstract' TypeMap.empty LabelMap.empty
+
+abstract' :: SystemF t => TypeMap Type -> LabelMap t -> Term a -> t a
+abstract' tenv env (PairTerm x y) = pair (abstract' tenv env x) (abstract' tenv env y)
+abstract' tenv env (FirstTerm tuple) = first (abstract' tenv env tuple)
+abstract' tenv env (SecondTerm tuple) = second (abstract' tenv env tuple)
+abstract' tenv env (LetTerm term binder body) =
+  let term' = abstract' tenv env term
+   in letBe term' $ \value -> abstract' tenv (LabelMap.insert binder value env) body
+abstract' tenv env (LambdaTerm binder@(Label t _) body) = lambda t $ \value ->
+  abstract' tenv (LabelMap.insert binder value env) body
+abstract' tenv env (ApplyTerm f x) = apply (abstract' tenv env f) (abstract' tenv env x)
+abstract' _ _ (ConstantTerm c) = constant c
+abstract' _ _ (GlobalTerm g) = global g
+abstract' tenv env (ForallTerm binder@(TypeVariable k _) body) = forall k $ \t ->
+  abstract' (TypeMap.insert binder t tenv) env body
+abstract' tenv env (ApplyTypeTerm f x) = SystemF.applyType (abstract' tenv env f) x
+abstract' _ env (LabelTerm v) = case LabelMap.lookup v env of
+  Just x -> x
+  Nothing -> error "variable not found in env"
+
+newtype TypeOf a = TypeOf (Action a)
+
+instance SystemF TypeOf where
+  constant k = TypeOf $ F (Constant.typeOf k)
+  global (Global t _) = TypeOf t
+  pair (TypeOf x) (TypeOf y) =
+    TypeOf $
+      F (U x :*: U y :*: UnitType)
+  first (TypeOf (F (U x :*: U _ :*: UnitType))) = TypeOf x
+  second (TypeOf (F (U _ :*: U y :*: UnitType))) = TypeOf y
+  letBe x f = f x
+  lambda t f =
+    let TypeOf result = f (TypeOf t)
+     in TypeOf (U t :=> result)
+  apply (TypeOf (_ :=> b)) _ = TypeOf b
+
 typeOf :: Term a -> Action a
-typeOf (LabelTerm (Label t _)) = t
-typeOf (ConstantTerm k) = F (Constant.typeOf k)
-typeOf (GlobalTerm (Global t _)) = t
-typeOf (LetTerm _ _ body) = typeOf body
-typeOf (PairTerm x y) = F (U (typeOf x) :*: U (typeOf y) :*: UnitType)
-typeOf (FirstTerm tuple) =
-  let F (U x :*: _ :*: _) = typeOf tuple
-   in x
-typeOf (SecondTerm tuple) =
-  let F (_ :*: U y :*: _) = typeOf tuple
-   in y
-typeOf (LambdaTerm (Label t _) body) = U t :=> typeOf body
-typeOf (ApplyTerm f _) =
-  let _ :=> result = typeOf f
-   in result
-typeOf (ForallTerm _ _) = undefined
-typeOf (ApplyTypeTerm _ _) = undefined
+typeOf term =
+  let TypeOf t = abstract term
+   in t
 
 instance TextShow (Term a) where
   showb (LabelTerm v) = showb v

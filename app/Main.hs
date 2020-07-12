@@ -30,11 +30,11 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> Pair (F Integer) (F Integer))
+mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
   SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
-      SystemF.pair x y
+      SystemF.plus x y
 
 phases ::
   SystemF.Term a ->
@@ -138,7 +138,7 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let Thunk k = cpsData
-  let Behaviour eff = k $ t 4 ::: t 8 ::: Thunk $ \(Thunk x ::: Thunk y ::: _) -> x $ Thunk $ \x' -> Behaviour $ printT x'
+  let Behaviour eff = k $ t 4 ::: t 8 ::: Thunk $ \x -> Behaviour $ printT x
   eff
 
   return ()
