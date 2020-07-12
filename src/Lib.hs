@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Lib
@@ -11,8 +12,10 @@ where
 import qualified Callcc
 import qualified Cbpv
 import Common
+import qualified Constant
 import Core
 import qualified Cps
+import Global
 import Label
 import qualified LabelMap
 import LabelMap (LabelMap)
@@ -45,7 +48,38 @@ instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   apply (ToCbpv f) (ToCbpv x) = ToCbpv $ Cbpv.apply f (Cbpv.delay x)
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
-toCallcc x = Callcc.build (callcc VarMap.empty x)
+toCallcc code =
+  let CodeCallcc _ x = Cbpv.abstractCode code
+   in Callcc.build x
+
+data ToCallcc t tag a where
+  DataCallcc :: Type a -> t Callcc.Data a -> ToCallcc t Cbpv.Data a
+  CodeCallcc :: Action a -> t Callcc.Code a -> ToCallcc t Cbpv.Code a
+
+instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
+  constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
+  global g@(Global t _) = CodeCallcc t $ Callcc.global g
+  letBe (DataCallcc t x) f =
+    let CodeCallcc bt _ = f (DataCallcc t undefined)
+     in CodeCallcc bt $ Callcc.letBe x $ \x' ->
+          let CodeCallcc _ body = f (DataCallcc t x')
+           in body
+  letTo (CodeCallcc (F t) x) f =
+    let CodeCallcc bt _ = f (DataCallcc t undefined)
+     in CodeCallcc bt $ Callcc.letTo x $ \x' ->
+          let CodeCallcc _ body = f (DataCallcc t x')
+           in body
+  lambda t f =
+    let CodeCallcc bt _ = f (DataCallcc t undefined)
+     in CodeCallcc (t :=> bt) $ Callcc.lambda t $ \x ->
+          let CodeCallcc _ body = f (DataCallcc t x)
+           in body
+  apply (CodeCallcc (_ :=> b) f) (DataCallcc _ x) = CodeCallcc b $ Callcc.apply f x
+  returns (DataCallcc t x) = CodeCallcc (F t) $ Callcc.returns x
+  force (DataCallcc (U t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
+
+  delay (CodeCallcc t code) = DataCallcc (U t) $ Callcc.thunk t $ \x ->
+    Callcc.throw x code
 
 callcc :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
 callcc env (Cbpv.LambdaCode binder@(Variable t _) body) =
