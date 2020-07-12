@@ -27,18 +27,20 @@ data X a where
   K :: a -> X (Stack a)
 
 instance Cps X where
-  throw (K (Returns k)) (V x) = C (k x)
+  throw (K (Thunk k)) (V x) = C (k x)
   force (V (Thunk f)) (K x) = C (f x)
 
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
-  letTo _ f = K $ Returns $ \x -> case f (V x) of
+  letTo _ f = K $ Thunk $ \x -> case f (V x) of
     C k -> k
 
-  lambda (K (x ::: t)) _ _ f = f (V x) (K t)
+  lambda (K (h ::: t)) f = f (V h) (K t)
   apply (V h) (K t) = K (h ::: t)
 
-  nilStack = K Void
+  unit = V Unit
+  nil = K Unit
+
   global g (K k) = case GlobalMap.lookup g globals of
     Just (Thunk x) -> C (x k)
     Nothing -> error "global not found in environment"
@@ -52,10 +54,10 @@ globals =
     ]
 
 strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
-strictPlusImpl = Thunk $ \(x ::: y ::: Returns k) -> k (x + y)
+strictPlusImpl = Thunk $ \(x ::: y ::: Thunk k) -> k (x + y)
 
 minusImpl :: U (U (F Integer) :=> U (F Integer) :=> F Integer)
-minusImpl = Thunk $ \(Thunk x ::: Thunk y ::: Returns k) ->
-  x $ Returns $ \x' ->
-    y $ Returns $ \y' ->
+minusImpl = Thunk $ \(Thunk x ::: Thunk y ::: Thunk k) ->
+  x $ Thunk $ \x' ->
+    y $ Thunk $ \y' ->
       k (x' - y')

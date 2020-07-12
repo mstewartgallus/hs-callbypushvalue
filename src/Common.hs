@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (V, (:->), (:*:) (..), (:=>) (..), Void (..), F (..), U (..), R (..)) where
+module Common (V, (:->), Pair, (:*:) (..), (:=>) (..), Unit (..), Void (..), F (..), U (..), R (..)) where
 
 data V a b
 
@@ -10,20 +10,24 @@ type a :-> b = U a :=> b
 
 infixr 9 :->
 
-data Void = Void
+data Unit = Unit
 
 newtype R = Behaviour (IO ())
 
-newtype F a = Returns (a -> R)
+newtype U a = Thunk (a -> R)
 
-data a :=> b = a ::: b
-
-infixr 0 :::
-
-infixr 9 :=>
-
-data a :*: b = Pair a b
+data a :*: b = a ::: b
 
 infixr 0 :*:
 
-newtype U a = Thunk (a -> R)
+infixr 0 :::
+
+type Void = Unit
+
+type F = U
+
+type (:=>) = (:*:)
+
+infixr 9 :=>
+
+type Pair a b = F (a :*: b :*: Void)

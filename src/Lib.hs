@@ -29,13 +29,13 @@ toCbpv :: Cbpv.Cbpv t => LabelMap (t Cbpv.Code) -> SystemF.Term a -> t Cbpv.Code
 toCbpv env (SystemF.PairTerm x y) =
   let x' = toCbpv env x
       y' = toCbpv env y
-   in Cbpv.returns (Cbpv.push (Cbpv.delay x') y')
+   in Cbpv.returns (Cbpv.push x' (Cbpv.push y' Cbpv.unit))
 toCbpv env (SystemF.FirstTerm tuple) =
   Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
-    Cbpv.force (Cbpv.head tuple')
+    Cbpv.head tuple'
 toCbpv env (SystemF.SecondTerm tuple) =
   Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
-    Cbpv.tail tuple'
+    Cbpv.head (Cbpv.tail tuple')
 toCbpv env (SystemF.LabelTerm x) =
   let Just x' = LabelMap.lookup x env
    in x'
@@ -78,6 +78,7 @@ callcc env x@(Cbpv.ForceCode thunk) =
       thunk' = callccData env thunk
    in Callcc.catch t $ \x ->
         Callcc.force thunk' x
+callcc env (Cbpv.HeadCode tuple) = Callcc.head (callccData env tuple)
 callcc _ (Cbpv.GlobalCode x) = Callcc.global x
 
 callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Data a
@@ -85,6 +86,9 @@ callccData _ (Cbpv.ConstantData x) = Callcc.constant x
 callccData env (Cbpv.VariableData v) =
   let Just x = VarMap.lookup v env
    in x
+callccData env Cbpv.UnitData = Callcc.unit
+callccData env (Cbpv.PushData h t) = Callcc.push (callcc env h) (callccData env t)
+callccData env (Cbpv.TailData tuple) = Callcc.tail (callccData env tuple)
 callccData env (Cbpv.ThunkData code) =
   let t = Cbpv.typeOf code
       c = callcc env code
@@ -115,7 +119,7 @@ toCps lenv env (Callcc.LetBeCode value binder@(Variable t _) body) k =
     (toCpsData lenv env value)
 toCps lenv env (Callcc.LambdaCode binder@(Variable t _) body) k =
   let a = Callcc.typeOf body
-   in Cps.lambda k t a $ \x t ->
+   in Cps.lambda k $ \x t ->
         let env' = VarMap.insert binder (Y x) env
          in toCps lenv env' body t
 toCps lenv env (Callcc.LetToCode action binder@(Variable t _) body) k =
@@ -126,7 +130,7 @@ toCps lenv env (Callcc.CatchCode binder@(Label t _) body) k =
   Cps.force
     ( Cps.thunk t $ \k' ->
         let lenv' = LabelMap.insert binder (L k') lenv
-         in toCps lenv' env body Cps.nilStack
+         in toCps lenv' env body Cps.nil
     )
     k
 toCps _ _ (Callcc.GlobalCode x) k = Cps.global x k
@@ -134,6 +138,9 @@ toCps lenv env (Callcc.ForceCode thunk stack) _ =
   Cps.force (toCpsData lenv env thunk) (toCpsStack lenv env stack)
 toCps lenv env (Callcc.ThrowCode k body) _ =
   toCps lenv env body (toCpsStack lenv env k)
+toCps lenv env (Callcc.HeadCode tuple) k =
+  let tuple' = toCpsData lenv env tuple
+   in Cps.head tuple' k
 
 newtype L t a = L (t (Cps.Stack a))
 
@@ -152,4 +159,4 @@ toCpsData _ env (Callcc.VariableData v) =
 toCpsData lenv env (Callcc.ThunkData label@(Label t _) body) =
   Cps.thunk t $ \k ->
     let lenv' = LabelMap.insert label (L k) lenv
-     in toCps lenv' env body Cps.nilStack
+     in toCps lenv' env body Cps.nil

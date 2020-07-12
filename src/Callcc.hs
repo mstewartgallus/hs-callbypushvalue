@@ -31,6 +31,9 @@ typeOf (ReturnCode value) = F (typeOfData value)
 typeOf (LetBeCode _ _ body) = typeOf body
 typeOf (LetToCode _ _ body) = typeOf body
 typeOf (CatchCode (Label t _) _) = t
+typeOf (HeadCode tuple) =
+  let h :*: _ = typeOfData tuple
+   in h
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
@@ -41,6 +44,10 @@ typeOfData :: Data a -> Type a
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData (Label t _) _) = U t
+typeOfData (TailData tuple) =
+  let _ :*: t = typeOfData tuple
+   in t
+typeOfData (PushData h t) = typeOf h :*: typeOfData t
 
 class Callcc t where
   constant :: Constant a -> t Data a
@@ -52,9 +59,11 @@ class Callcc t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
-  push :: t Data a -> t Code b -> t Data (a :*: b)
-  head :: t Data (a :*: b) -> t Code b
-  tail :: t Data (a :*: b) -> t Data a
+  unit :: t Data Unit
+
+  push :: t Code a -> t Data b -> t Data (a :*: b)
+  head :: t Data (a :*: b) -> t Code a
+  tail :: t Data (a :*: b) -> t Data b
 
   catch :: Action a -> (t Stack a -> t Code Void) -> t Code a
   throw :: t Stack a -> t Code a -> t Code Void
@@ -64,6 +73,7 @@ class Callcc t where
 
 instance Callcc Builder where
   global g = (Builder . pure) $ GlobalCode g
+  unit = Builder $ pure UnitData
   returns value =
     Builder $
       pure ReturnCode <*> builder value
@@ -86,6 +96,16 @@ instance Callcc Builder where
   apply f x = Builder $ do
     pure ApplyCode <*> builder f <*> builder x
   constant k = (Builder . pure) $ ConstantData k
+
+  push h t =
+    Builder $
+      pure PushData <*> builder h <*> builder t
+  head tuple =
+    Builder $
+      pure HeadCode <*> builder tuple
+  tail tuple =
+    Builder $
+      pure TailData <*> builder tuple
 
   thunk t f = Builder $ do
     v <- pure (Label t) <*> Unique.uniqueId
@@ -113,14 +133,18 @@ data Code a where
   CatchCode :: Label a -> Code Void -> Code a
   ThrowCode :: Stack a -> Code a -> Code Void
   ForceCode :: Data (U a) -> Stack a -> Code Void
+  HeadCode :: Data (a :*: b) -> Code a
 
 data Stack a where
   LabelData :: Label a -> Stack a
 
 data Data a where
+  UnitData :: Data Unit
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code Void -> Data (U a)
+  PushData :: Code a -> Data b -> Data (a :*: b)
+  TailData :: Data (a :*: b) -> Data b
 
 instance TextShow (Code a) where
   showb (GlobalCode g) = showb g
@@ -133,12 +157,16 @@ instance TextShow (Code a) where
     fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ThrowCode label body) = showb body <> fromString "\nthrow " <> showb label
   showb (ForceCode thunk stack) = fromString "! " <> showb thunk <> fromString " " <> showb stack
+  showb (HeadCode tuple) = showb tuple <> fromString "\nhead"
 
 instance TextShow (Data a) where
+  showb UnitData = fromString "."
   showb (ThunkData binder@(Label t _) body) =
     fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body))) <> fromString "\n}"
   showb (ConstantData k) = showb k
   showb (VariableData b) = showb b
+  showb (TailData tuple) = showb tuple <> fromString "\ntail"
+  showb (PushData h t) = showb h <> fromString ", " <> showb t
 
 instance TextShow (Stack a) where
   showb (LabelData b) = showb b
@@ -157,9 +185,13 @@ simpCode (CatchCode binder body) = CatchCode binder (simpCode body)
 simpCode (ThrowCode stack act) = ThrowCode stack (simpCode act)
 simpCode (ForceCode th stk) = ForceCode (simpData th) stk
 simpCode (ReturnCode x) = ReturnCode (simpData x)
+simpCode (HeadCode tuple) = HeadCode (simpData tuple)
 simpCode g@(GlobalCode _) = g
 
 simpData :: Data a -> Data a
+simpData UnitData = UnitData
+simpData (TailData tuple) = TailData (simpData tuple)
+simpData (PushData x y) = PushData (simpCode x) (simpData y)
 simpData (ThunkData label body) = ThunkData label (simpCode body)
 simpData g@(ConstantData _) = g
 simpData g@(VariableData _) = g
@@ -176,9 +208,13 @@ count v = code
     code (ForceCode x _) = value x
     code (CatchCode _ body) = code body
     code (ReturnCode x) = value x
+    code (HeadCode tuple) = value tuple
     code _ = 0
     value :: Data x -> Int
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
+    value (PushData x y) = code x + value y
+    value (TailData tuple) = value tuple
+    value (ThunkData _ body) = code body
     value _ = 0
 
 inline :: Callcc t => Code a -> t Code a
@@ -204,6 +240,7 @@ inlCode lenv env (CatchCode binder@(Label t _) body) = catch t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
 inlCode lenv env (ForceCode x f) = force (inlValue lenv env x) (inlStack lenv env f)
 inlCode _ _ (GlobalCode g) = global g
+inlCode lenv env (HeadCode tuple) = Callcc.head (inlValue lenv env tuple)
 
 inlValue :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Data x -> t Data x
 inlValue _ env (VariableData variable) =
@@ -212,6 +249,9 @@ inlValue _ env (VariableData variable) =
 inlValue _ _ (ConstantData k) = constant k
 inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \x ->
   inlCode (LabelMap.insert binder (L x) lenv) env body
+inlValue lenv env (PushData x y) = push (inlCode lenv env x) (inlValue lenv env y)
+inlValue lenv env (TailData tuple) = Callcc.tail (inlValue lenv env tuple)
+inlValue lenv env UnitData = Callcc.unit
 
 inlStack :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Stack x -> t Stack x
 inlStack lenv _ (LabelData l) =

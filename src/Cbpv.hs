@@ -31,18 +31,19 @@ typeOf (GlobalCode (Global t _)) = t
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
-typeOf (TailCode tuple) =
-  let _ :*: x = typeOfData tuple
-   in x
+typeOf (HeadCode tuple) =
+  let h :*: _ = typeOfData tuple
+   in h
 
 typeOfData :: Data a -> Type a
+typeOfData UnitData = UnitType
 typeOfData (VariableData (Variable t _)) = t
 typeOfData (ConstantData k) = Constant.typeOf k
 typeOfData (ThunkData code) = U (typeOf code)
-typeOfData (HeadData tuple) =
-  let x :*: _ = typeOfData tuple
-   in x
-typeOfData (PushData x y) = typeOfData x :*: typeOf y
+typeOfData (PushData x y) = typeOf x :*: typeOfData y
+typeOfData (TailData tuple) =
+  let _ :*: t = typeOfData tuple
+   in t
 
 newtype Builder t a = Builder {builder :: Unique.State (t a)}
 
@@ -59,9 +60,11 @@ class Cbpv t where
   lambda :: Type a -> (t Data a -> t Code b) -> t Code (a :=> b)
   apply :: t Code (a :=> b) -> t Data a -> t Code b
 
-  push :: t Data a -> t Code b -> t Data (a :*: b)
-  head :: t Data (a :*: b) -> t Data a
-  tail :: t Data (a :*: b) -> t Code b
+  push :: t Code a -> t Data b -> t Data (a :*: b)
+  head :: t Data (a :*: b) -> t Code a
+  tail :: t Data (a :*: b) -> t Data b
+
+  unit :: t Data Unit
 
   constant :: Constant a -> t Data a
   delay :: t Code a -> t Data (U a)
@@ -90,15 +93,16 @@ instance Cbpv Builder where
     v <- pure (Variable t) <*> Unique.uniqueId
     body <- builder (f ((Builder . pure) $ VariableData v))
     pure $ LambdaCode v body
+  unit = Builder $ pure $ UnitData
   push h t =
     Builder $
       pure PushData <*> builder h <*> builder t
   head tuple =
     Builder $
-      pure HeadData <*> builder tuple
+      pure HeadCode <*> builder tuple
   tail tuple =
     Builder $
-      pure TailCode <*> builder tuple
+      pure TailData <*> builder tuple
   apply f x =
     Builder $
       pure ApplyCode <*> builder f <*> builder x
@@ -115,14 +119,15 @@ data Code a where
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
   GlobalCode :: Global a -> Code a
-  TailCode :: Data (a :*: b) -> Code b
+  HeadCode :: Data (a :*: b) -> Code a
 
 data Data a where
   VariableData :: Variable a -> Data a
   ConstantData :: Constant a -> Data a
+  UnitData :: Data Unit
   ThunkData :: Code a -> Data (U a)
-  PushData :: Data a -> Code b -> Data (a :*: b)
-  HeadData :: Data (a :*: b) -> Data a
+  PushData :: Code a -> Data b -> Data (a :*: b)
+  TailData :: Data (a :*: b) -> Data b
 
 instance TextShow (Code a) where
   showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
@@ -132,14 +137,15 @@ instance TextShow (Code a) where
   showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
   showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
   showb (GlobalCode g) = showb g
-  showb (TailCode tuple) = fromString "tail " <> showb tuple
+  showb (HeadCode tuple) = showb tuple <> fromString "\nhead"
 
 instance TextShow (Data a) where
   showb (VariableData v) = showb v
   showb (ConstantData k) = showb k
+  showb UnitData = fromString "."
   showb (ThunkData code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
-  showb (PushData h t) = fromString "push " <> showb h <> fromString " " <> showb t
-  showb (HeadData tuple) = fromString "head " <> showb tuple
+  showb (PushData h t) = showb h <> fromString ", " <> showb t
+  showb (TailData tuple) = showb tuple <> fromString "\ntail"
 
 {-
 Simplify Call By Push Data Inverses
@@ -178,8 +184,11 @@ count v = code
     code (ApplyCode f x) = code f + value x
     code (ForceCode thunk) = value thunk
     code (ReturnCode x) = value x
+    code (HeadCode tuple) = value tuple
     code _ = 0
     value :: Data x -> Int
+    value (PushData h t) = code h + value t
+    value (TailData tuple) = value tuple
     value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
     value (ThunkData c) = code c
     value _ = 0
@@ -188,6 +197,7 @@ inline :: Cbpv t => Code a -> t Code a
 inline = inlCode VarMap.empty
 
 inlCode :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
+inlCode env (HeadCode tuple) = Cbpv.head (inlValue env tuple)
 inlCode env (LetBeCode term binder body) =
   let term' = inlValue env term
    in if count binder body <= 1
@@ -202,16 +212,16 @@ inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
 inlCode env (ForceCode th) = force (inlValue env th)
 inlCode env (ReturnCode val) = returns (inlValue env val)
 inlCode _ (GlobalCode g) = global g
-inlCode env (TailCode tuple) = Cbpv.tail (inlValue env tuple)
 
 inlValue :: Cbpv t => VarMap (t Data) -> Data x -> t Data x
-inlValue env (PushData x y) = push (inlValue env x) (inlCode env y)
-inlValue env (HeadData tuple) = Cbpv.head (inlValue env tuple)
 inlValue env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement
 inlValue env (ThunkData c) = delay (inlCode env c)
 inlValue _ (ConstantData k) = constant k
+inlValue _ UnitData = unit
+inlValue env (TailData tuple) = Cbpv.tail (inlValue env tuple)
+inlValue env (PushData h t) = push (inlCode env h) (inlValue env t)
 
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> t Code a
@@ -221,8 +231,8 @@ intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
 intrins _ (GlobalCode g) = case GlobalMap.lookup g intrinsics of
   Nothing -> global g
   Just (Intrinsic intrinsic) -> intrinsic
-intrins env (TailCode tuple) = Cbpv.tail (intrinsData env tuple)
 intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
+intrins env (HeadCode tuple) = Cbpv.head (intrinsData env tuple)
 intrins env (ForceCode x) = force (intrinsData env x)
 intrins env (ReturnCode x) = returns (intrinsData env x)
 intrins env (LambdaCode binder@(Variable t _) body) = lambda t $ \value ->
@@ -236,8 +246,9 @@ intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value
    in intrins env' body
 
 intrinsData :: Cbpv t => VarMap (t Data) -> Data a -> t Data a
-intrinsData env (PushData x y) = push (intrinsData env x) (intrins env y)
-intrinsData env (HeadData tuple) = Cbpv.head (intrinsData env tuple)
+intrinsData env UnitData = unit
+intrinsData env (TailData tuple) = Cbpv.tail (intrinsData env tuple)
+intrinsData env (PushData h t) = push (intrins env h) (intrinsData env t)
 intrinsData env (ThunkData code) = delay (intrins env code)
 intrinsData env (VariableData binder) =
   let Just x = VarMap.lookup binder env

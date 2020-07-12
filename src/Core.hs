@@ -7,6 +7,7 @@ module Core
   ( pattern U,
     pattern (:*:),
     pattern IntType,
+    pattern UnitType,
     minus,
     plus,
     strictPlus,
@@ -39,6 +40,9 @@ thunk' = Name (T.pack "core") (T.pack "U")
 int :: Type Integer
 int = NominalType TypeKind (Name (T.pack "core") (T.pack "int"))
 
+unit :: Type Unit
+unit = NominalType TypeKind (Name (T.pack "core") (T.pack "unit"))
+
 plus :: Global (F Integer :-> F Integer :-> F Integer)
 plus = Global (U (F int) :=> U (F int) :=> F int) $ Name (T.pack "core") (T.pack "+")
 
@@ -55,14 +59,22 @@ pattern IntType <-
   where
     IntType = int
 
+pattern UnitType :: Type Unit
+pattern UnitType <-
+  ((equalType unit) -> Just Refl)
+  where
+    UnitType = unit
+
 pattern U :: (b ~ U a) => Action a -> Type b
 pattern U x <-
   (ApplyAction ((equalType thunk) -> Just Refl) x)
   where
     U x = ApplyAction thunk x
 
-pattern (:*:) :: (c ~ (a :*: b)) => Type a -> Action b -> Type c
+infixr 0 :*:
+
+pattern (:*:) :: (c ~ (a :*: b)) => Action a -> Type b -> Type c
 pattern x :*: y <-
-  (ApplyAction (ApplyType ((equalType tuple) -> Just Refl) x) y)
+  (ApplyType (ApplyAction ((equalType tuple) -> Just Refl) x) y)
   where
-    x :*: y = ApplyAction (ApplyType tuple x) y
+    x :*: y = ApplyType (ApplyAction tuple x) y

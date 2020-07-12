@@ -34,8 +34,7 @@ mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
   SystemF.lambda (F IntType) $ \x ->
     SystemF.lambda (F IntType) $ \y ->
-      SystemF.letBe (SystemF.pair y x) $ \z ->
-        SystemF.plus (SystemF.first z) (SystemF.second z)
+      SystemF.plus x y
 
 phases ::
   SystemF.Term a ->
@@ -139,10 +138,10 @@ main = do
   let cpsData = Interpreter.evaluate optCps
 
   let Thunk k = cpsData
-  let Behaviour eff = k $ t 4 ::: t 8 ::: Returns $ \value -> Behaviour $ printT value
+  let Behaviour eff = k $ t 4 ::: t 8 ::: Thunk $ \value -> Behaviour $ printT value
   eff
 
   return ()
 
 t :: a -> U (F a)
-t x = Thunk $ \(Returns k) -> k x
+t x = Thunk $ \(Thunk k) -> k x

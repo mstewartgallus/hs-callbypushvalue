@@ -30,9 +30,9 @@ class SystemF t where
   apply :: t (a :-> b) -> t a -> t b
   letBe :: t a -> (t a -> t b) -> t b
 
-  pair :: t a -> t b -> t (F (U a :*: b))
-  first :: t (F (U a :*: b)) -> t a
-  second :: t (F (U a :*: b)) -> t b
+  pair :: t a -> t b -> t (Pair a b)
+  first :: t (Pair a b) -> t a
+  second :: t (Pair a b) -> t b
 
   forall :: Kind a -> (Type a -> t b) -> t (V a b)
   applyType :: t (V a b) -> Type a -> t b
@@ -88,9 +88,9 @@ data Term a where
   LetTerm :: Term a -> Label a -> Term b -> Term b
   LambdaTerm :: Label a -> Term b -> Term (a :-> b)
   ForallTerm :: TypeVariable a -> Term b -> Term (V a b)
-  PairTerm :: Term a -> Term b -> Term (F (U a :*: b))
-  FirstTerm :: Term (F (U a :*: b)) -> Term a
-  SecondTerm :: Term (F (U a :*: b)) -> Term b
+  PairTerm :: Term a -> Term b -> Term (Pair a b)
+  FirstTerm :: Term (Pair a b) -> Term a
+  SecondTerm :: Term (Pair a b) -> Term b
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
   ApplyTypeTerm :: Term (V a b) -> Type a -> Term b
 
@@ -99,12 +99,12 @@ typeOf (LabelTerm (Label t _)) = t
 typeOf (ConstantTerm k) = F (Constant.typeOf k)
 typeOf (GlobalTerm (Global t _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
-typeOf (PairTerm x y) = F (U (typeOf x) :*: typeOf y)
+typeOf (PairTerm x y) = F (typeOf x :*: typeOf y :*: UnitType)
 typeOf (FirstTerm tuple) =
-  let F (U x :*: _) = typeOf tuple
+  let F (x :*: _) = typeOf tuple
    in x
 typeOf (SecondTerm tuple) =
-  let F (_ :*: y) = typeOf tuple
+  let F (_ :*: y :*: _) = typeOf tuple
    in y
 typeOf (LambdaTerm (Label t _) body) = U t :=> typeOf body
 typeOf (ApplyTerm f _) =
