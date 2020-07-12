@@ -4,15 +4,10 @@
 
 module Common (V, (:->), Pair, (:*:) (..), (:=>) (..), Unit (..), Void (..), F (..), U (..), R (..)) where
 
+-- First define the basic recursive data types.
 data V a b
 
-type a :-> b = U a :=> b
-
-infixr 9 :->
-
 data Unit = Unit
-
-newtype R = Behaviour (IO ())
 
 newtype U a = Thunk (a -> R)
 
@@ -22,9 +17,18 @@ infixr 0 :*:
 
 infixr 0 :::
 
+-- Then define the dual types as type synonyms
 type Void = Unit
 
 type F = U
+
+-- R is an implementation detail basically
+newtype R = Behaviour (IO ())
+
+-- Then define the call by name sugarings
+type a :-> b = U a :=> b
+
+infixr 9 :->
 
 type (:=>) = (:*:)
 
