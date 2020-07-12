@@ -76,47 +76,10 @@ instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
            in body
   apply (CodeCallcc (_ :=> b) f) (DataCallcc _ x) = CodeCallcc b $ Callcc.apply f x
   returns (DataCallcc t x) = CodeCallcc (F t) $ Callcc.returns x
-  force (DataCallcc (U t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
 
+  force (DataCallcc (U t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
   delay (CodeCallcc t code) = DataCallcc (U t) $ Callcc.thunk t $ \x ->
     Callcc.throw x code
-
-callcc :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Code a -> t Callcc.Code a
-callcc env (Cbpv.LambdaCode binder@(Variable t _) body) =
-  Callcc.lambda t $ \x ->
-    callcc (VarMap.insert binder x env) body
-callcc env (Cbpv.ApplyCode f x) =
-  let x' = callccData env x
-      f' = callcc env f
-   in Callcc.apply f' x'
-callcc env (Cbpv.LetToCode action binder body) =
-  Callcc.letTo (callcc env action) $ \x ->
-    callcc (VarMap.insert binder x env) body
-callcc env (Cbpv.LetBeCode value binder body) =
-  Callcc.letBe (callccData env value) $ \x ->
-    callcc (VarMap.insert binder x env) body
-callcc env (Cbpv.ReturnCode x) = Callcc.returns (callccData env x)
-callcc env x@(Cbpv.ForceCode thunk) =
-  let t = Cbpv.typeOf x
-      thunk' = callccData env thunk
-   in Callcc.catch t $ \x ->
-        Callcc.force thunk' x
-callcc _ (Cbpv.GlobalCode x) = Callcc.global x
-
-callccData :: Callcc.Callcc t => VarMap (t Callcc.Data) -> Cbpv.Data a -> t Callcc.Data a
-callccData _ (Cbpv.ConstantData x) = Callcc.constant x
-callccData env (Cbpv.VariableData v) =
-  let Just x = VarMap.lookup v env
-   in x
-callccData env Cbpv.UnitData = Callcc.unit
-callccData env (Cbpv.PushData h t) = Callcc.push (callccData env h) (callccData env t)
-callccData env (Cbpv.HeadData tuple) = Callcc.head (callccData env tuple)
-callccData env (Cbpv.TailData tuple) = Callcc.tail (callccData env tuple)
-callccData env (Cbpv.ThunkData code) =
-  let t = Cbpv.typeOf code
-      c = callcc env code
-   in Callcc.thunk t $ \x ->
-        Callcc.throw x c
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Data (U a))
 toContinuationPassingStyle = toCpsThunk LabelMap.empty VarMap.empty
