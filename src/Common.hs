@@ -34,4 +34,4 @@ type (:=>) = (:*:)
 
 infixr 9 :=>
 
-type Pair a b = F (a :*: b :*: Void)
+type Pair a b = F (U a :*: U b :*: Unit)

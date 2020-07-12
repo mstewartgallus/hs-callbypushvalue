@@ -99,12 +99,12 @@ typeOf (LabelTerm (Label t _)) = t
 typeOf (ConstantTerm k) = F (Constant.typeOf k)
 typeOf (GlobalTerm (Global t _)) = t
 typeOf (LetTerm _ _ body) = typeOf body
-typeOf (PairTerm x y) = F (typeOf x :*: typeOf y :*: UnitType)
+typeOf (PairTerm x y) = F (U (typeOf x) :*: U (typeOf y) :*: UnitType)
 typeOf (FirstTerm tuple) =
-  let F (x :*: _) = typeOf tuple
+  let F (U x :*: _ :*: _) = typeOf tuple
    in x
 typeOf (SecondTerm tuple) =
-  let F (_ :*: y :*: _) = typeOf tuple
+  let F (_ :*: U y :*: _) = typeOf tuple
    in y
 typeOf (LambdaTerm (Label t _) body) = U t :=> typeOf body
 typeOf (ApplyTerm f _) =

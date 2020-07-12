@@ -38,6 +38,9 @@ instance Cps X where
   lambda (K (h ::: t)) f = f (V h) (K t)
   apply (V h) (K t) = K (h ::: t)
 
+  pop (V (h ::: t)) f = f (V h) (V t)
+  push (V h) (V t) = V (h ::: t)
+
   unit = V Unit
   nil = K Unit
 

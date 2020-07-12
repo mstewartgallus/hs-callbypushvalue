@@ -56,13 +56,13 @@ class Cps t where
 
   lambda :: t (Stack (a :=> b)) -> (t (Data a) -> (t (Stack b) -> t Code)) -> t Code
 
-  head :: t (Data (a :*: b)) -> t (Stack a) -> t Code
+  head :: t (Data (a :*: b)) -> t (Data a)
   tail :: t (Data (a :*: b)) -> t (Data b)
 
-  pop :: t (Data (a :*: b)) -> ((t (Data a) -> t (Stack b)) -> t Code) -> t Code
+  pop :: t (Data (a :*: b)) -> (t (Data a) -> t (Data b) -> t Code) -> t Code
 
   apply :: t (Data a) -> t (Stack b) -> t (Stack (a :=> b))
-  push :: t (Data a) -> t (Stack b) -> t (Data (a :*: b))
+  push :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
 
   unit :: t (Data Unit)
   nil :: t (Stack Void)
@@ -159,7 +159,6 @@ simpCode (LetLabelCode thing binder body) = LetLabelCode (simpStack thing) binde
 simpCode (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simpCode body)
 simpCode (GlobalCode g k) = GlobalCode g (simpStack k)
 simpCode (LambdaCode k binder label body) = LambdaCode (simpStack k) binder label (simpCode body)
-simpCode x = x
 
 inline :: Cps t => Data a -> t (Data a)
 inline = inlValue LabelMap.empty VarMap.empty

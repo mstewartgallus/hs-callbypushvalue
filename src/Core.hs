@@ -73,8 +73,8 @@ pattern U x <-
 
 infixr 0 :*:
 
-pattern (:*:) :: (c ~ (a :*: b)) => Action a -> Type b -> Type c
+pattern (:*:) :: (c ~ (a :*: b)) => Type a -> Type b -> Type c
 pattern x :*: y <-
-  (ApplyType (ApplyAction ((equalType tuple) -> Just Refl) x) y)
+  (ApplyType (ApplyType ((equalType tuple) -> Just Refl) x) y)
   where
-    x :*: y = ApplyType (ApplyAction tuple x) y
+    x :*: y = ApplyType (ApplyType tuple x) y
