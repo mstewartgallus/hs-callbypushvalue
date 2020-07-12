@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -19,6 +20,7 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
+-- cannot be implemented with abstract because this is used when building stuff up.
 typeOf :: Code a -> Action a
 typeOf (ForceCode thunk) =
   let U x = typeOfData thunk
@@ -31,10 +33,6 @@ typeOf (GlobalCode (Global t _)) = t
 typeOf (ApplyCode f _) =
   let _ :=> result = typeOf f
    in result
-
--- typeOf (HeadCode tuple) =
---   let h :*: _ = typeOfData tuple
---    in h
 
 typeOfData :: Data a -> Type a
 typeOfData UnitData = UnitType
@@ -225,37 +223,73 @@ inlValue _ UnitData = unit
 inlValue env (TailData tuple) = Cbpv.tail (inlValue env tuple)
 inlValue env (PushData h t) = push (inlValue env h) (inlValue env t)
 
+abstractCode :: (Cbpv t) => Code a -> t Code a
+abstractCode = abstractCode' VarMap.empty
+
+abstractData :: (Cbpv t) => Data a -> t Data a
+abstractData = abstractData' VarMap.empty
+
+abstractCode' :: (Cbpv t) => VarMap (t Data) -> Code a -> t Code a
+abstractCode' env (LetBeCode term binder body) = letBe (abstractData' env term) $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (LetToCode term binder body) = letTo (abstractCode' env term) $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (ApplyCode f x) =
+  let f' = abstractCode' env f
+      x' = abstractData' env x
+   in apply f' x'
+abstractCode' env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (ForceCode th) = force (abstractData' env th)
+abstractCode' env (ReturnCode val) = returns (abstractData' env val)
+abstractCode' _ (GlobalCode g) = global g
+
+abstractData' :: (Cbpv t) => VarMap (t Data) -> Data x -> t Data x
+abstractData' env (VariableData v@(Variable t u)) =
+  case VarMap.lookup v env of
+    Just x -> x
+    Nothing -> error ("could not find var " ++ show u ++ " of type " ++ show t)
+abstractData' env (ThunkData c) = delay (abstractCode' env c)
+abstractData' _ (ConstantData k) = constant k
+abstractData' _ UnitData = unit
+abstractData' env (TailData tuple) = Cbpv.tail (abstractData' env tuple)
+abstractData' env (PushData h t) = push (abstractData' env h) (abstractData' env t)
+
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> t Code a
-intrinsify = intrins VarMap.empty
+intrinsify code = case abstractCode code of
+  Intrinsify x -> x
 
-intrins :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
-intrins _ (GlobalCode g) = case GlobalMap.lookup g intrinsics of
-  Nothing -> global g
-  Just (Intrinsic intrinsic) -> intrinsic
-intrins env (ApplyCode f x) = apply (intrins env f) (intrinsData env x)
--- intrins env (HeadCode tuple) = Cbpv.head (intrinsData env tuple)
-intrins env (ForceCode x) = force (intrinsData env x)
-intrins env (ReturnCode x) = returns (intrinsData env x)
-intrins env (LambdaCode binder@(Variable t _) body) = lambda t $ \value ->
-  let env' = VarMap.insert binder value env
-   in intrins env' body
-intrins env (LetBeCode value binder body) = letBe (intrinsData env value) $ \x ->
-  let env' = VarMap.insert binder x env
-   in intrins env' body
-intrins env (LetToCode action binder body) = letTo (intrins env action) $ \value ->
-  let env' = VarMap.insert binder value env
-   in intrins env' body
+newtype Intrinsify t (tag :: * -> *) a = Intrinsify (t tag a)
 
-intrinsData :: Cbpv t => VarMap (t Data) -> Data a -> t Data a
-intrinsData env UnitData = unit
-intrinsData env (TailData tuple) = Cbpv.tail (intrinsData env tuple)
-intrinsData env (PushData h t) = push (intrinsData env h) (intrinsData env t)
-intrinsData env (ThunkData code) = delay (intrins env code)
-intrinsData env (VariableData binder) =
-  let Just x = VarMap.lookup binder env
-   in x
-intrinsData _ (ConstantData x) = constant x
+instance Cbpv t => Cbpv (Intrinsify t) where
+  global g = Intrinsify $ case GlobalMap.lookup g intrinsics of
+    Nothing -> global g
+    Just (Intrinsic intrinsic) -> intrinsic
+
+  unit = Intrinsify unit
+
+  delay (Intrinsify x) = Intrinsify (delay x)
+  force (Intrinsify x) = Intrinsify (force x)
+
+  returns (Intrinsify x) = Intrinsify (returns x)
+
+  letTo (Intrinsify x) f = Intrinsify $ letTo x $ \x' ->
+    let Intrinsify body = f (Intrinsify x')
+     in body
+  letBe (Intrinsify x) f = Intrinsify $ letBe x $ \x' ->
+    let Intrinsify body = f (Intrinsify x')
+     in body
+
+  lambda t f = Intrinsify $ lambda t $ \x ->
+    let Intrinsify body = f (Intrinsify x)
+     in body
+  apply (Intrinsify f) (Intrinsify x) = Intrinsify (apply f x)
+
+  constant k = Intrinsify (constant k)
 
 newtype Intrinsic t a = Intrinsic (t Code a)
 

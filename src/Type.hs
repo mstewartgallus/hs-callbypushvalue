@@ -62,6 +62,9 @@ instance TextShow (Action a) where
   showb VoidType = fromString "Void"
   showb x = fromString "(" <> loopAct x <> fromString ")"
 
+instance Show (Type a) where
+  show x = toString (showb x)
+
 loop :: Type a -> Builder
 loop (ApplyAction f x) = showb f <> fromString " " <> loopAct x
 loop (ApplyType f x) = showb f <> fromString " " <> loop x

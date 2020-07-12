@@ -41,3 +41,6 @@ newtype Unique = Unique Int deriving (Eq, Ord)
 
 instance TextShow Unique where
   showb (Unique n) = showb n
+
+instance Show Unique where
+  show u = toString (showb u)

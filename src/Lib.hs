@@ -23,37 +23,26 @@ import VarMap (VarMap)
 import Variable
 
 toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t Cbpv.Code a
-toCallByPushValue = toCbpv LabelMap.empty
+toCallByPushValue term =
+  let ToCbpv x = SystemF.abstract term
+   in x
 
-toCbpv :: Cbpv.Cbpv t => LabelMap (t Cbpv.Code) -> SystemF.Term a -> t Cbpv.Code a
-toCbpv env (SystemF.PairTerm x y) =
-  let x' = toCbpv env x
-      y' = toCbpv env y
-   in Cbpv.returns (Cbpv.push (Cbpv.delay x') (Cbpv.push (Cbpv.delay y') Cbpv.unit))
--- toCbpv env (SystemF.FirstTerm tuple) =
---   Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
---     Cbpv.returns $ Cbpv.head tuple'
--- toCbpv env (SystemF.SecondTerm tuple) =
---   Cbpv.letTo (toCbpv env tuple) $ \tuple' ->
---     Cbpv.returns $ Cbpv.tail tuple'
-toCbpv env (SystemF.LabelTerm x) =
-  let Just x' = LabelMap.lookup x env
-   in x'
-toCbpv _ (SystemF.ConstantTerm x) = Cbpv.returns (Cbpv.constant x)
-toCbpv _ (SystemF.GlobalTerm x) = Cbpv.global x
-toCbpv env (SystemF.LetTerm term binder body) =
-  let term' = toCbpv env term
-   in Cbpv.letBe (Cbpv.delay term') $ \value ->
-        let env' = LabelMap.insert binder (Cbpv.force value) env
-         in toCbpv env' body
-toCbpv env (SystemF.LambdaTerm binder@(Label t _) body) =
-  Cbpv.lambda (U t) $ \value ->
-    let env' = LabelMap.insert binder (Cbpv.force value) env
-     in toCbpv env' body
-toCbpv env (SystemF.ApplyTerm f x) =
-  let f' = toCbpv env f
-      x' = toCbpv env x
-   in Cbpv.apply f' (Cbpv.delay x')
+newtype ToCbpv t a = ToCbpv (t Cbpv.Code a)
+
+instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
+  constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
+  global g = ToCbpv $ Cbpv.global g
+  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.delay x) (Cbpv.push (Cbpv.delay y) Cbpv.unit))
+
+  -- first (ToCbpv tuple) = ToCbpv x
+  -- second (ToCbpv tuple) = ToCbpv y
+  letBe (ToCbpv x) f = ToCbpv $ Cbpv.letBe (Cbpv.delay x) $ \x' ->
+    let ToCbpv body = f (ToCbpv (Cbpv.force x'))
+     in body
+  lambda t f = ToCbpv $ Cbpv.lambda (U t) $ \x ->
+    let ToCbpv body = f (ToCbpv (Cbpv.force x))
+     in body
+  apply (ToCbpv f) (ToCbpv x) = ToCbpv $ Cbpv.apply f (Cbpv.delay x)
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc x = Callcc.build (callcc VarMap.empty x)
