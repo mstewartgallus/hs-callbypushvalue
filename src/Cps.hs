@@ -235,11 +235,11 @@ count v = code
     value _ = 0
     stack :: Stack b -> Int
     stack (ApplyStack h t) = value h + stack t
-    stack (ToStack binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    stack (ToStack binder body) = code body
     stack _ = 0
     code :: Code -> Int
     code (LetLabelCode x binder body) = stack x + code body
-    code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
+    code (LetBeCode x binder body) = value x + code body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k
     code (GlobalCode _ k) = stack k
@@ -256,7 +256,7 @@ countLabel v = code
     stack (ToStack binder body) = code body
     stack (ApplyStack h t) = value h + stack t
     code :: Code -> Int
-    code (LetLabelCode x binder body) = stack x + if AnyLabel binder == AnyLabel v then 0 else code body
+    code (LetLabelCode x binder body) = stack x + code body
     code (LetBeCode x binder body) = value x + code body
     code (ThrowCode k x) = stack k + value x
     code (ForceCode t k) = value t + stack k

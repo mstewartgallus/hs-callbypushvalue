@@ -181,9 +181,9 @@ count :: Variable a -> Code b -> Int
 count v = code
   where
     code :: Code x -> Int
-    code (LetBeCode x binder body) = value x + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (LetToCode action binder body) = code action + if AnyVariable binder == AnyVariable v then 0 else code body
-    code (LambdaCode binder body) = if AnyVariable binder == AnyVariable v then 0 else code body
+    code (LetBeCode x binder body) = value x + code body
+    code (LetToCode action binder body) = code action + code body
+    code (LambdaCode binder body) = code body
     code (ApplyCode f x) = code f + value x
     code (ForceCode thunk) = value thunk
     code (ReturnCode x) = value x

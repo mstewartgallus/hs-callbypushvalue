@@ -156,8 +156,8 @@ count v = w
   where
     w :: Term x -> Int
     w (LabelTerm binder) = if AnyLabel v == AnyLabel binder then 1 else 0
-    w (LetTerm term binder body) = w term + if AnyLabel binder == AnyLabel v then 0 else w body
-    w (LambdaTerm binder body) = if AnyLabel binder == AnyLabel v then 0 else w body
+    w (LetTerm term binder body) = w term + w body
+    w (LambdaTerm binder body) = w body
     w (ApplyTerm f x) = w f + w x
     w (PairTerm x y) = w x + w y
     w (FirstTerm tuple) = w tuple
