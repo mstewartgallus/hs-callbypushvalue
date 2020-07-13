@@ -3,7 +3,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (typeOf, typeOfData, abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
 import Common
 import Constant (Constant)
@@ -20,34 +20,13 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
--- cannot be implemented with abstract because this is used when building stuff up.
-typeOf :: Code a -> Action a
-typeOf (ForceCode thunk) =
-  let U x = typeOfData thunk
-   in x
-typeOf (ReturnCode value) = F (typeOfData value)
-typeOf (LetToCode _ _ body) = typeOf body
-typeOf (LetBeCode _ _ body) = typeOf body
-typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
-typeOf (GlobalCode (Global t _)) = t
-typeOf (ApplyCode f _) =
-  let _ :=> result = typeOf f
-   in result
-
-typeOfData :: Data a -> Type a
-typeOfData UnitData = UnitType
-typeOfData (VariableData (Variable t _)) = t
-typeOfData (ConstantData k) = Constant.typeOf k
-typeOfData (ThunkData code) = U (typeOf code)
-typeOfData (PushData x y) = typeOfData x :*: typeOfData y
-typeOfData (TailData tuple) =
-  let t :*: _ = typeOfData tuple
-   in t
-
-newtype Builder t a = Builder {builder :: Unique.State (t a)}
+data Builder t a where
+  CodeBuilder :: Action a -> Unique.State (Code a) -> Builder Code a
+  DataBuilder :: Type a -> Unique.State (Data a) -> Builder Data a
 
 build :: Builder t a -> t a
-build (Builder s) = Unique.run s
+build (CodeBuilder _ s) = Unique.run s
+build (DataBuilder _ s) = Unique.run s
 
 class Cbpv t where
   global :: Global a -> t Code a
@@ -71,47 +50,40 @@ class Cbpv t where
   delay :: t Code a -> t Data (U a)
 
 instance Cbpv Builder where
-  global g = (Builder . pure) $ GlobalCode g
-  force thunk =
-    Builder $
-      pure ForceCode <*> builder thunk
-  returns value =
-    Builder $
-      pure ReturnCode <*> builder value
-  letTo x f = Builder $ do
-    x' <- builder x
-    let F t = typeOf x'
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ LetToCode x' v body
-  letBe x f = Builder $ do
-    x' <- builder x
-    let t = typeOfData x'
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ LetBeCode x' v body
-  lambda t f = Builder $ do
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ LambdaCode v body
-  unit = Builder $ pure $ UnitData
-  push h t =
-    Builder $
-      pure PushData <*> builder h <*> builder t
-
-  -- head tuple =
-  --   Builder $
-  --     pure HeadCode <*> builder tuple
-  tail tuple =
-    Builder $
-      pure TailData <*> builder tuple
-  apply f x =
-    Builder $
-      pure ApplyCode <*> builder f <*> builder x
-  constant k = (Builder . pure) $ ConstantData k
-  delay code =
-    Builder $
-      pure ThunkData <*> builder code
+  global g@(Global t _) = CodeBuilder t $ pure (GlobalCode g)
+  force (DataBuilder (U t) thunk) = CodeBuilder t $ pure ForceCode <*> thunk
+  returns (DataBuilder t value) = CodeBuilder (F t) $ pure ReturnCode <*> value
+  letTo x@(CodeBuilder (F t) xs) f =
+    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder bt $ do
+          x' <- xs
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LetToCode x' v body'
+  letBe x@(DataBuilder t xs) f =
+    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder bt $ do
+          x' <- xs
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LetBeCode x' v body'
+  lambda t f =
+    let CodeBuilder result _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder (t :=> result) $ do
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LambdaCode v body'
+  unit = DataBuilder UnitType $ pure UnitData
+  apply (CodeBuilder (_ :=> b) f) (DataBuilder _ x) =
+    CodeBuilder b $
+      pure ApplyCode <*> f <*> x
+  constant k = DataBuilder (Constant.typeOf k) $ pure (ConstantData k)
+  delay (CodeBuilder t code) =
+    DataBuilder (U t) $
+      pure ThunkData <*> code
 
 data Code a where
   LambdaCode :: Variable a -> Code b -> Code (a :=> b)
