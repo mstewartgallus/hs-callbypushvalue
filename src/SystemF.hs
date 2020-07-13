@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -43,33 +44,35 @@ plus x y = apply (apply (global Core.plus) x) y
 minus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
 minus x y = apply (apply (global Core.minus) x) y
 
-data Builder a = Builder {act :: Action a, builder :: Unique.State (Term a)}
+newtype Builder a = B (forall s. Unique.Stream s -> (Action a, Term a))
 
 build :: Builder a -> Term a
-build (Builder _ s) = Unique.run s
+build (B f) =
+  let (_, x) = Unique.withStream f
+   in x
 
 instance SystemF Builder where
-  constant k = Builder (F (Constant.typeOf k)) $ pure (ConstantTerm k)
-  global g@(Global t _) = Builder t $ pure (GlobalTerm g)
-  pair (Builder tx x) (Builder ty y) =
-    Builder (F (U tx :*: U ty :*: UnitType)) $
-      pure PairTerm <*> x <*> y
-  letBe value@(Builder t _) f =
-    let Builder r _ = f value
-     in Builder r $ do
-          value' <- builder value
-          binder <- pure (Label t) <*> Unique.uniqueId
-          body <- builder $ f (Builder t $ pure $ LabelTerm binder)
-          pure (LetTerm value' binder body)
-  lambda t f =
-    let Builder result _ = f (Builder t $ pure undefined)
-     in Builder (U t :=> result) $ do
-          binder <- pure (Label t) <*> Unique.uniqueId
-          body <- builder $ f (Builder t $ pure $ LabelTerm binder)
-          pure (LambdaTerm binder body)
-  apply (Builder (_ :=> r) f) x =
-    Builder r $
-      pure ApplyTerm <*> f <*> builder x
+  constant k = B $ \_ -> (F (Constant.typeOf k), ConstantTerm k)
+  global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
+  pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
+    let (tx, vx) = x xs
+        (ty, vy) = y ys
+     in (F (U tx :*: U ty :*: UnitType), PairTerm vx vy)
+  letBe (B x) f = B $ \(Unique.Stream newId xs fs) ->
+    let (tx, vx) = x xs
+        binder = Label tx newId
+        B b = f (B $ \_ -> (tx, LabelTerm binder))
+        (result, body) = b fs
+     in (result, LetTerm vx binder body)
+  lambda t f = B $ \(Unique.Stream newId _ tail) ->
+    let binder = Label t newId
+        B b = f (B $ \_ -> (t, LabelTerm binder))
+        (result, body) = b tail
+     in (U t :=> result, LambdaTerm binder body)
+  apply (B f) (B x) = B $ \(Unique.Stream _ fs xs) ->
+    let (_ :=> b, vf) = f fs
+        (_, vx) = x xs
+     in (b, ApplyTerm vf vx)
 
 data Term a where
   LabelTerm :: Label a -> Term a

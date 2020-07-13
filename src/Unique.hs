@@ -1,11 +1,39 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-module Unique (Unique, run, uniqueId, State) where
+module Unique (Unique, run, uniqueId, withStream, State, Stream (..)) where
 
+import Data.Atomics.Counter
 import GHC.Exts ((+#), Int (I#), Int#)
+import System.IO.Unsafe
 import TextShow
+
+-- fixme... consider existentialy tp allow a withStream operation ?
+data Stream s = Stream Unique (Stream s) (Stream s)
+
+withStream :: (forall s. Stream s -> b) -> b
+withStream f = unsafePerformIO $ do
+  s <- stream
+  return (f s)
+
+stream :: IO (Stream s)
+stream = do
+  counter <- newCounter 0
+  stream' counter
+
+stream' :: AtomicCounter -> IO (Stream s)
+stream' counter = unsafeInterleaveIO $ do
+  u <- unique counter
+  x <- stream' counter
+  y <- stream' counter
+  return (Stream u x y)
+
+unique :: AtomicCounter -> IO Unique
+unique counter = do
+  x <- incrCounter 1 counter
+  return (Unique (x - 1))
 
 newtype State a = State (Int# -> (# Int#, a #))
 
