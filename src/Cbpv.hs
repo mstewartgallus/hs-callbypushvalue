@@ -253,35 +253,35 @@ abstractData' env (PushData h t) = push (abstractData' env h) (abstractData' env
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> t Code a
 intrinsify code = case abstractCode code of
-  Intrinsify x -> x
+  I x -> x
 
-newtype Intrinsify t (tag :: * -> *) a = Intrinsify (t tag a)
+newtype Intrinsify t (tag :: * -> *) a = I (t tag a)
 
 instance Cbpv t => Cbpv (Intrinsify t) where
-  global g = Intrinsify $ case GlobalMap.lookup g intrinsics of
+  global g = I $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
     Just (Intrinsic intrinsic) -> intrinsic
 
-  unit = Intrinsify unit
+  unit = I unit
 
-  thunk (Intrinsify x) = Intrinsify (thunk x)
-  force (Intrinsify x) = Intrinsify (force x)
+  thunk (I x) = I (thunk x)
+  force (I x) = I (force x)
 
-  returns (Intrinsify x) = Intrinsify (returns x)
+  returns (I x) = I (returns x)
 
-  letTo (Intrinsify x) f = Intrinsify $ letTo x $ \x' ->
-    let Intrinsify body = f (Intrinsify x')
+  letTo (I x) f = I $ letTo x $ \x' ->
+    let I body = f (I x')
      in body
-  letBe (Intrinsify x) f = Intrinsify $ letBe x $ \x' ->
-    let Intrinsify body = f (Intrinsify x')
+  letBe (I x) f = I $ letBe x $ \x' ->
+    let I body = f (I x')
      in body
 
-  lambda t f = Intrinsify $ lambda t $ \x ->
-    let Intrinsify body = f (Intrinsify x)
+  lambda t f = I $ lambda t $ \x ->
+    let I body = f (I x)
      in body
-  apply (Intrinsify f) (Intrinsify x) = Intrinsify (apply f x)
+  apply (I f) (I x) = I (apply f x)
 
-  constant k = Intrinsify (constant k)
+  constant k = I (constant k)
 
 newtype Intrinsic t a = Intrinsic (t Code a)
 
