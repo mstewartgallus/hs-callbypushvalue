@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -14,6 +15,7 @@ import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
+import qualified TextShow (Builder)
 import Type
 import Unique
 import VarMap (VarMap)
@@ -104,21 +106,39 @@ data Data a where
   TailData :: Data (a :*: b) -> Data a
 
 instance TextShow (Code a) where
-  showb (LambdaCode binder@(Variable t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
-  showb (ApplyCode f x) = showb x <> fromString "\n" <> showb f
-  showb (ForceCode thunk) = fromString "! " <> showb thunk
-  showb (ReturnCode value) = fromString "return " <> showb value
-  showb (LetToCode action binder body) = showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
-  showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (GlobalCode g) = showb g
+  showb term = case abstractCode term of
+    V b -> Unique.withStream b
 
 instance TextShow (Data a) where
-  showb (VariableData v) = showb v
-  showb (ConstantData k) = showb k
-  showb UnitData = fromString "."
-  showb (ThunkData code) = fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb code))) <> fromString "\n}"
-  showb (PushData h t) = showb h <> fromString ", " <> showb t
-  showb (TailData tuple) = showb tuple <> fromString "\ntail"
+  showb term = case abstractData term of
+    V b -> Unique.withStream b
+
+newtype View (tag :: * -> *) a = V (forall s. Unique.Stream s -> TextShow.Builder)
+
+instance Cbpv View where
+  global g = V $ \_ -> showb g
+  unit = V $ \_ -> fromString "."
+  constant k = V $ \_ -> showb k
+
+  returns (V value) = V $ \s -> fromString "return " <> value s
+
+  letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
+  letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
+
+  lambda t f = V $ \(Unique.Stream newId _ s) ->
+    let binder = fromString "v" <> showb newId
+        V body = f (V $ \_ -> binder)
+     in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
+  apply (V f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+
+  delay (V code) = V $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
+  force (V thunk) = V $ \s -> fromString "! " <> thunk s
 
 {-
 Simplify Call By Push Data Inverses
