@@ -1,4 +1,6 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -27,10 +29,10 @@ typeOf x = case x of
   ReturnCode value -> F (typeOfData value)
   LetBeCode _ _ body -> typeOf body
   LetToCode _ _ body -> typeOf body
-  CatchCode (Label t _) _ -> t
   ApplyCode f _ ->
     let _ :=> result = typeOf f
      in result
+  CatchCode (Label t _) _ -> t
   ThrowCode _ _ -> VoidType
   GlobalCode (Global t _) -> t
 
@@ -104,40 +106,50 @@ instance Callcc Builder where
     CB VoidType $
       pure ThrowCode <*> x <*> f
 
-abstractCode :: (Callcc t) => Code a -> t Code a
-abstractCode = abstractCode' VarMap.empty
+abstractCode :: Callcc t => Code a -> t Code a
+abstractCode = abstractCode' LabelMap.empty VarMap.empty
 
-abstractData :: (Callcc t) => Data a -> t Data a
-abstractData = abstractData' VarMap.empty
+abstractData :: Callcc t => Data a -> t Data a
+abstractData = abstractData' LabelMap.empty VarMap.empty
 
-abstractCode' :: (Callcc t) => VarMap (t Data) -> Code a -> t Code a
-abstractCode' env code = case code of
-  LetBeCode term binder body -> letBe (abstractData' env term) $ \x ->
+abstractCode' :: Callcc t => LabelMap (t Stack) -> VarMap (t Data) -> Code a -> t Code a
+abstractCode' lenv env code = case code of
+  LetBeCode term binder body -> letBe (abstractData' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
-     in abstractCode' env' body
-  LetToCode term binder body -> letTo (abstractCode' env term) $ \x ->
+     in abstractCode' lenv env' body
+  LetToCode term binder body -> letTo (abstractCode' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
-     in abstractCode' env' body
+     in abstractCode' lenv env' body
   ApplyCode f x ->
-    let f' = abstractCode' env f
-        x' = abstractData' env x
+    let f' = abstractCode' lenv env f
+        x' = abstractData' lenv env x
      in apply f' x'
   LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
     let env' = VarMap.insert binder x env
-     in abstractCode' env' body
-  ReturnCode val -> returns (abstractData' env val)
+     in abstractCode' lenv env' body
+  ReturnCode val -> returns (abstractData' lenv env val)
   GlobalCode g -> global g
+  CatchCode lbl@(Label t _) body -> catch t $ \stk ->
+    let lenv' = LabelMap.insert lbl stk lenv
+     in abstractCode' lenv' env body
+  ThrowCode (LabelStack lbl) value -> case LabelMap.lookup lbl lenv of
+    Just stk -> throw stk (abstractCode' lenv env value)
+  ForceCode thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
+    Just stk -> force (abstractData' lenv env thunk) stk
 
-abstractData' :: (Callcc t) => VarMap (t Data) -> Data x -> t Data x
-abstractData' env x = case x of
+abstractData' :: Callcc t => LabelMap (t Stack) -> VarMap (t Data) -> Data x -> t Data x
+abstractData' lenv env x = case x of
+  ThunkData lbl@(Label t _) body -> thunk t $ \stk ->
+    let lenv' = LabelMap.insert lbl stk lenv
+     in abstractCode' lenv' env body
   VariableData v@(Variable t u) ->
     case VarMap.lookup v env of
       Just x -> x
       Nothing -> error ("could not find var " ++ show u ++ " of type " ++ show t)
   ConstantData k -> constant k
   UnitData -> unit
-  TailData tuple -> Callcc.tail (abstractData' env tuple)
-  PushData h t -> push (abstractData' env h) (abstractData' env t)
+  TailData tuple -> Callcc.tail (abstractData' lenv env tuple)
+  PushData h t -> push (abstractData' lenv env h) (abstractData' lenv env t)
 
 class Callcc t where
   constant :: Constant a -> t Data a
@@ -185,34 +197,55 @@ data Data a where
   PushData :: Data a -> Data b -> Data (a :*: b)
   TailData :: Data (a :*: b) -> Data a
 
+newtype View (tag :: * -> *) a = V (forall s. Unique.Stream s -> TextShow.Builder)
+
+instance Callcc View where
+  global g = V $ \_ -> showb g
+  unit = V $ \_ -> fromString "."
+  constant k = V $ \_ -> showb k
+
+  returns (V value) = V $ \s -> fromString "return " <> value s
+
+  letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
+  letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
+
+  lambda t f = V $ \(Unique.Stream newId _ s) ->
+    let binder = fromString "v" <> showb newId
+        V body = f (V $ \_ -> binder)
+     in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
+  apply (V f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+
+  catch t f = V $ \(Unique.Stream newId _ s) ->
+    let binder = fromString "l" <> showb newId
+        V body = f (V $ \_ -> binder)
+     in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
+  thunk t f = V $ \(Unique.Stream newId _ s) ->
+    let binder = fromString "l" <> showb newId
+        V body = f (V $ \_ -> binder)
+     in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
+
+  throw (V f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
+  force (V f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
+
 instance TextShow (Code a) where
-  showb code = case code of
-    GlobalCode g -> showb g
-    LambdaCode binder@(Variable t _) body -> fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
-    ApplyCode f x -> showb x <> fromString "\n" <> showb f
-    ReturnCode value -> fromString "return " <> showb value
-    LetToCode action binder body -> showb action <> fromString " to " <> showb binder <> fromString ".\n" <> showb body
-    LetBeCode value binder body -> showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-    CatchCode binder@(Label t _) body ->
-      fromString "catch " <> showb binder <> fromString ": " <> showb t <> fromString " {" <> indent (showb body) <> fromString "\n}"
-    ThrowCode label body -> showb body <> fromString "\nthrow " <> showb label
-    ForceCode thunk stack -> fromString "! " <> showb thunk <> fromString " " <> showb stack
+  showb term = case abstractCode term of
+    V b -> Unique.withStream b
 
 instance TextShow (Data a) where
-  showb x = case x of
-    UnitData -> fromString "."
-    ThunkData binder@(Label t _) body ->
-      fromString "thunk " <> showb binder <> fromString ": " <> showb t <> indent (showb body) <> fromString "\n}"
-    ConstantData k -> showb k
-    VariableData b -> showb b
-    TailData tuple -> showb tuple <> fromString "\ntail"
-    PushData h t -> showb h <> fromString ", " <> showb t
-
-indent :: TextShow.Builder -> TextShow.Builder
-indent body = fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> body)))
+  showb term = case abstractData term of
+    V b -> Unique.withStream b
 
 instance TextShow (Stack a) where
   showb (LabelStack b) = showb b
+
+indent :: TextShow.Builder -> TextShow.Builder
+indent body = fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> body)))
 
 simplify :: Code a -> Code a
 simplify = simpCode
