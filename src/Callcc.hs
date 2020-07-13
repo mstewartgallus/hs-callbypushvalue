@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, inline, simplify) where
+module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, inline, simplify, abstractCode, abstractData) where
 
 import Common
 import Constant (Constant)
@@ -19,11 +19,6 @@ import Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
-
-newtype Builder t a = Builder {builder :: Unique.State (t a)}
-
-build :: Builder t a -> t a
-build (Builder s) = Unique.run s
 
 typeOf :: Code a -> Action a
 typeOf (LambdaCode (Variable t _) body) = t :=> typeOf body
@@ -49,6 +44,99 @@ typeOfData (TailData tuple) =
    in t
 typeOfData (PushData h t) = typeOfData h :*: typeOfData t
 
+data Builder t a where
+  CodeBuilder :: Action a -> Unique.State (Code a) -> Builder Code a
+  DataBuilder :: Type a -> Unique.State (Data a) -> Builder Data a
+  StackBuilder :: Action a -> Unique.State (Stack a) -> Builder Stack a
+
+build :: Builder t a -> t a
+build (CodeBuilder _ s) = Unique.run s
+build (DataBuilder _ s) = Unique.run s
+build (StackBuilder _ s) = Unique.run s
+
+instance Callcc Builder where
+  global g@(Global t _) = CodeBuilder t $ pure (GlobalCode g)
+  returns (DataBuilder t value) = CodeBuilder (F t) $ pure ReturnCode <*> value
+  letTo x@(CodeBuilder (F t) xs) f =
+    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder bt $ do
+          x' <- xs
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LetToCode x' v body'
+  letBe x@(DataBuilder t xs) f =
+    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder bt $ do
+          x' <- xs
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LetBeCode x' v body'
+  lambda t f =
+    let CodeBuilder result _ = f (DataBuilder t (pure undefined))
+     in CodeBuilder (t :=> result) $ do
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
+          body' <- body
+          pure $ LambdaCode v body'
+  unit = DataBuilder UnitType $ pure UnitData
+  apply (CodeBuilder (_ :=> b) f) (DataBuilder _ x) =
+    CodeBuilder b $
+      pure ApplyCode <*> f <*> x
+  constant k = DataBuilder (Constant.typeOf k) $ pure (ConstantData k)
+
+  thunk t f = DataBuilder (U t) $ do
+    v <- pure (Label t) <*> Unique.uniqueId
+    let CodeBuilder _ body = f ((StackBuilder t . pure) $ LabelStack v)
+    body' <- body
+    pure $ ThunkData v body'
+  force (DataBuilder _ thunk) (StackBuilder _ stack) =
+    CodeBuilder VoidType $
+      pure ForceCode <*> thunk <*> stack
+
+  catch t f = CodeBuilder t $ do
+    v <- pure (Label t) <*> Unique.uniqueId
+    let CodeBuilder _ body = f ((StackBuilder t . pure) $ LabelStack v)
+    body' <- body
+    pure $ CatchCode v body'
+  throw (StackBuilder _ x) (CodeBuilder _ f) =
+    CodeBuilder VoidType $
+      pure ThrowCode <*> x <*> f
+
+abstractCode :: (Callcc t) => Code a -> t Code a
+abstractCode = abstractCode' VarMap.empty
+
+abstractData :: (Callcc t) => Data a -> t Data a
+abstractData = abstractData' VarMap.empty
+
+abstractCode' :: (Callcc t) => VarMap (t Data) -> Code a -> t Code a
+abstractCode' env (LetBeCode term binder body) = letBe (abstractData' env term) $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (LetToCode term binder body) = letTo (abstractCode' env term) $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (ApplyCode f x) =
+  let f' = abstractCode' env f
+      x' = abstractData' env x
+   in apply f' x'
+abstractCode' env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
+  let env' = VarMap.insert binder x env
+   in abstractCode' env' body
+abstractCode' env (ReturnCode val) = returns (abstractData' env val)
+abstractCode' _ (GlobalCode g) = global g
+
+abstractData' :: (Callcc t) => VarMap (t Data) -> Data x -> t Data x
+abstractData' env (VariableData v@(Variable t u)) =
+  case VarMap.lookup v env of
+    Just x -> x
+    Nothing -> error ("could not find var " ++ show u ++ " of type " ++ show t)
+abstractData' _ (ConstantData k) = constant k
+abstractData' _ UnitData = unit
+abstractData' env (TailData tuple) = Callcc.tail (abstractData' env tuple)
+abstractData' env (PushData h t) = push (abstractData' env h) (abstractData' env t)
+
 class Callcc t where
   constant :: Constant a -> t Data a
   global :: Global a -> t Code a
@@ -71,59 +159,6 @@ class Callcc t where
   thunk :: Action a -> (t Stack a -> t Code Void) -> t Data (U a)
   force :: t Data (U a) -> t Stack a -> t Code Void
 
-instance Callcc Builder where
-  global g = (Builder . pure) $ GlobalCode g
-  unit = Builder $ pure UnitData
-  returns value =
-    Builder $
-      pure ReturnCode <*> builder value
-  letTo x f = Builder $ do
-    x' <- builder x
-    let F t = typeOf x'
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LetToCode x' v body
-  letBe x f = Builder $ do
-    x' <- builder x
-    let t = typeOfData x'
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LetBeCode x' v body
-  lambda t f = Builder $ do
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ VariableData v)
-    pure $ LambdaCode v body
-  apply f x = Builder $ do
-    pure ApplyCode <*> builder f <*> builder x
-  constant k = (Builder . pure) $ ConstantData k
-
-  push h t =
-    Builder $
-      pure PushData <*> builder h <*> builder t
-
-  -- head tuple =
-  --   Builder $
-  --     pure HeadCode <*> builder tuple
-  tail tuple =
-    Builder $
-      pure TailData <*> builder tuple
-
-  thunk t f = Builder $ do
-    v <- pure (Label t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ LabelData v)
-    pure $ ThunkData v body
-  force thunk stack =
-    Builder $
-      pure ForceCode <*> builder thunk <*> builder stack
-
-  catch t f = Builder $ do
-    v <- pure (Label t) <*> Unique.uniqueId
-    body <- builder $ f ((Builder . pure) $ LabelData v)
-    pure $ CatchCode v body
-  throw x f =
-    Builder $
-      pure ThrowCode <*> builder x <*> builder f
-
 data Code a where
   GlobalCode :: Global a -> Code a
   LambdaCode :: Variable a -> Code b -> Code (a :=> b)
@@ -138,7 +173,7 @@ data Code a where
 -- HeadCode :: Data (a :*: b) -> Code a
 
 data Stack a where
-  LabelData :: Label a -> Stack a
+  LabelStack :: Label a -> Stack a
 
 data Data a where
   UnitData :: Data Unit
@@ -172,7 +207,7 @@ instance TextShow (Data a) where
   showb (PushData h t) = showb h <> fromString ", " <> showb t
 
 instance TextShow (Stack a) where
-  showb (LabelData b) = showb b
+  showb (LabelStack b) = showb b
 
 simplify :: Code a -> Code a
 simplify = simpCode
@@ -257,6 +292,6 @@ inlValue lenv env (TailData tuple) = Callcc.tail (inlValue lenv env tuple)
 inlValue lenv env UnitData = Callcc.unit
 
 inlStack :: Callcc t => LabelMap (L t) -> VarMap (t Data) -> Stack x -> t Stack x
-inlStack lenv _ (LabelData l) =
+inlStack lenv _ (LabelStack l) =
   let Just (L x) = LabelMap.lookup l lenv
    in x

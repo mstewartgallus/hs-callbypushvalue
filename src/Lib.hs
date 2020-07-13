@@ -134,7 +134,7 @@ newtype L t a = L (t (Cps.Stack a))
 newtype Y t a = Y (t (Cps.Data a))
 
 toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Cps.Stack a)
-toCpsStack lenv _ (Callcc.LabelData v) =
+toCpsStack lenv _ (Callcc.LabelStack v) =
   let Just (L x) = LabelMap.lookup v lenv
    in x
 
