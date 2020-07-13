@@ -128,23 +128,24 @@ abstract :: SystemF t => Term a -> t a
 abstract = abstract' TypeMap.empty LabelMap.empty
 
 abstract' :: SystemF t => TypeMap Type -> LabelMap t -> Term a -> t a
-abstract' tenv env (PairTerm x y) = pair (abstract' tenv env x) (abstract' tenv env y)
-abstract' tenv env (FirstTerm tuple) = first (abstract' tenv env tuple)
-abstract' tenv env (SecondTerm tuple) = second (abstract' tenv env tuple)
-abstract' tenv env (LetTerm term binder body) =
-  let term' = abstract' tenv env term
-   in letBe term' $ \value -> abstract' tenv (LabelMap.insert binder value env) body
-abstract' tenv env (LambdaTerm binder@(Label t _) body) = lambda t $ \value ->
-  abstract' tenv (LabelMap.insert binder value env) body
-abstract' tenv env (ApplyTerm f x) = apply (abstract' tenv env f) (abstract' tenv env x)
-abstract' _ _ (ConstantTerm c) = constant c
-abstract' _ _ (GlobalTerm g) = global g
-abstract' tenv env (ForallTerm binder@(TypeVariable k _) body) = forall k $ \t ->
-  abstract' (TypeMap.insert binder t tenv) env body
-abstract' tenv env (ApplyTypeTerm f x) = SystemF.applyType (abstract' tenv env f) x
-abstract' _ env (LabelTerm v) = case LabelMap.lookup v env of
-  Just x -> x
-  Nothing -> error "variable not found in env"
+abstract' tenv env term = case term of
+  PairTerm x y -> pair (abstract' tenv env x) (abstract' tenv env y)
+  FirstTerm tuple -> first (abstract' tenv env tuple)
+  SecondTerm tuple -> second (abstract' tenv env tuple)
+  LetTerm term binder body ->
+    let term' = abstract' tenv env term
+     in letBe term' $ \value -> abstract' tenv (LabelMap.insert binder value env) body
+  LambdaTerm binder@(Label t _) body -> lambda t $ \value ->
+    abstract' tenv (LabelMap.insert binder value env) body
+  ApplyTerm f x -> apply (abstract' tenv env f) (abstract' tenv env x)
+  ConstantTerm c -> constant c
+  GlobalTerm g -> global g
+  ForallTerm binder@(TypeVariable k _) body -> forall k $ \t ->
+    abstract' (TypeMap.insert binder t tenv) env body
+  ApplyTypeTerm f x -> SystemF.applyType (abstract' tenv env f) x
+  LabelTerm v -> case LabelMap.lookup v env of
+    Just x -> x
+    Nothing -> error "variable not found in env"
 
 instance TextShow (Term a) where
   showb term = case abstract term of
