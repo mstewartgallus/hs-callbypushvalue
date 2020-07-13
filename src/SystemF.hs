@@ -18,6 +18,7 @@ import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
 import TextShow (TextShow, fromString, showb)
+import qualified TextShow (Builder)
 import Type
 import TypeMap (TypeMap)
 import qualified TypeMap
@@ -145,17 +146,33 @@ abstract' _ env (LabelTerm v) = case LabelMap.lookup v env of
   Nothing -> error "variable not found in env"
 
 instance TextShow (Term a) where
-  showb (LabelTerm v) = showb v
-  showb (ConstantTerm k) = showb k
-  showb (GlobalTerm g) = showb g
-  showb (PairTerm x y) = fromString "(" <> showb x <> fromString ", " <> showb y <> fromString ")"
-  showb (FirstTerm tuple) = showb tuple <> fromString ".1"
-  showb (SecondTerm tuple) = showb tuple <> fromString ".2"
-  showb (LetTerm term binder body) = showb term <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (LambdaTerm binder@(Label t _) body) = fromString "λ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
-  showb (ApplyTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
-  showb (ForallTerm binder@(TypeVariable t _) body) = fromString "∀ " <> showb binder <> fromString ": " <> showb t <> fromString " →\n" <> showb body
-  showb (ApplyTypeTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
+  showb term = case abstract term of
+    V b -> Unique.withStream b
+
+newtype View a = V (forall s. Unique.Stream s -> TextShow.Builder)
+
+instance SystemF View where
+  constant k = V $ \_ -> showb k
+  global g = V $ \_ -> showb g
+  pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
+    let x' = x xs
+        y' = y ys
+     in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
+  first (V tuple) = V $ \s -> tuple s <> fromString ".1"
+  second (V tuple) = V $ \s -> tuple s <> fromString ".2"
+
+  letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
+
+  lambda t f = V $ \(Unique.Stream newId _ ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (V $ \_ -> binder)
+     in fromString "λ " <> binder <> fromString ".\n" <> y ys
+
+  apply (V f) (V x) = V $ \(Unique.Stream _ fs xs) ->
+    fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
 simplify :: SystemF t => Term a -> t a
 simplify term = case abstract term of
