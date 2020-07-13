@@ -47,39 +47,9 @@ plus x y = apply (apply (global Core.plus) x) y
 minus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
 minus x y = apply (apply (global Core.minus) x) y
 
-newtype Builder a = B (forall s. Unique.Stream s -> (Action a, Term a))
+data CostInliner t a = I Int (t a)
 
-build :: Builder a -> Term a
-build (B f) =
-  let (_, x) = Unique.withStream f
-   in x
-
-instance SystemF Builder where
-  constant k = B $ \_ -> (F (Constant.typeOf k), ConstantTerm k)
-  global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
-  pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
-    let (tx, vx) = x xs
-        (ty, vy) = y ys
-     in (F (U tx :*: U ty :*: UnitType), PairTerm vx vy)
-  letBe (B x) f = B $ \(Unique.Stream newId xs fs) ->
-    let (tx, vx) = x xs
-        binder = Label tx newId
-        B b = f (B $ \_ -> (tx, LabelTerm binder))
-        (result, body) = b fs
-     in (result, LetTerm vx binder body)
-  lambda t f = B $ \(Unique.Stream newId _ tail) ->
-    let binder = Label t newId
-        B b = f (B $ \_ -> (t, LabelTerm binder))
-        (result, body) = b tail
-     in (U t :=> result, LambdaTerm binder body)
-  apply (B f) (B x) = B $ \(Unique.Stream _ fs xs) ->
-    let (_ :=> b, vf) = f fs
-        (_, vx) = x xs
-     in (b, ApplyTerm vf vx)
-
-data Inliner t a = I Int (t a)
-
-instance SystemF t => SystemF (Inliner t) where
+instance SystemF t => SystemF (CostInliner t) where
   constant k = I 0 (constant k)
   global g = I 0 (global g)
 
@@ -106,6 +76,37 @@ instance SystemF t => SystemF (Inliner t) where
       result = I (fcost + 1) $ lambda t $ \x' -> case f (I 0 x') of
         I _ y -> y
   apply (I fcost f) (I xcost x) = I (fcost + xcost + 1) (apply f x)
+
+-- | Basically the same as Cost inliner but only measures how often a
+-- variable occurs.  Everytime we make this check we make a probe with
+-- Mono 1 in letBe.  Nothing else should add a constant amount.
+data Mono t a = Mono Int (t a)
+
+instance SystemF t => SystemF (Mono t) where
+  constant k = Mono 0 (constant k)
+  global g = Mono 0 (global g)
+
+  pair (Mono xcost x) (Mono ycost y) = Mono (xcost + ycost) (pair x y)
+
+  letBe (Mono xcost x) f = result
+    where
+      inlined@(Mono inlineCost _) = f (Mono 1 x)
+      Mono fcost _ = f (Mono 0 x)
+      notinlined =
+        Mono
+          (xcost + fcost)
+          ( letBe x $ \x' -> case f (Mono 0 x') of
+              Mono _ y -> y
+          )
+      result
+        | inlineCost <= 1 = inlined
+        | otherwise = notinlined
+
+  lambda t f =
+    let Mono fcost _ = f (Mono 0 (global (probe t)))
+     in Mono fcost $ lambda t $ \x' -> case f (Mono 0 x') of
+          Mono _ y -> y
+  apply (Mono fcost f) (Mono xcost x) = Mono (fcost + xcost) (apply f x)
 
 probe :: Action a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")
@@ -201,43 +202,35 @@ instance SystemF t => SystemF (Simplifier t) where
   apply (S (Fn f) _) (S _ x) = S NotFn (letBe x f)
 
 inline :: SystemF t => Term a -> t a
-inline term = case inl TypeMap.empty LabelMap.empty term of
-  I _ result -> result
+inline term = case abstract term of
+  Mono _ (I _ result) -> result
 
-data X t a where
-  X :: t a -> X t (U a)
+newtype Builder a = B (forall s. Unique.Stream s -> (Action a, Term a))
 
-inl :: SystemF t => TypeMap Type -> LabelMap t -> Term a -> t a
-inl tenv env (PairTerm x y) = pair (inl tenv env x) (inl tenv env y)
-inl tenv env (FirstTerm tuple) = first (inl tenv env tuple)
-inl tenv env (SecondTerm tuple) = second (inl tenv env tuple)
-inl tenv env (LetTerm term binder body) =
-  let term' = inl tenv env term
-   in if count binder body <= 1
-        then inl tenv (LabelMap.insert binder term' env) body
-        else letBe term' $ \value ->
-          inl tenv (LabelMap.insert binder value env) body
-inl _ env (LabelTerm v) = case LabelMap.lookup v env of
-  Just x -> x
-  Nothing -> error "variable not found in env"
-inl tenv env (ApplyTerm f x) = inl tenv env f `apply` inl tenv env x
-inl tenv env (LambdaTerm binder@(Label t _) body) = lambda t $ \value ->
-  inl tenv (LabelMap.insert binder value env) body
-inl _ _ (ConstantTerm c) = constant c
-inl _ _ (GlobalTerm g) = global g
-inl tenv env (ApplyTypeTerm f x) = inl tenv env f `SystemF.applyType` x
-inl tenv env (ForallTerm binder@(TypeVariable t _) body) = forall t $ \value ->
-  inl (TypeMap.insert binder value tenv) env body
+build :: Builder a -> Term a
+build (B f) =
+  let (_, x) = Unique.withStream f
+   in x
 
-count :: Label a -> Term b -> Int
-count v = w
-  where
-    w :: Term x -> Int
-    w (LabelTerm binder) = if AnyLabel v == AnyLabel binder then 1 else 0
-    w (LetTerm term binder body) = w term + w body
-    w (LambdaTerm binder body) = w body
-    w (ApplyTerm f x) = w f + w x
-    w (PairTerm x y) = w x + w y
-    w (FirstTerm tuple) = w tuple
-    w (SecondTerm tuple) = w tuple
-    w _ = 0
+instance SystemF Builder where
+  constant k = B $ \_ -> (F (Constant.typeOf k), ConstantTerm k)
+  global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
+  pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
+    let (tx, vx) = x xs
+        (ty, vy) = y ys
+     in (F (U tx :*: U ty :*: UnitType), PairTerm vx vy)
+  letBe (B x) f = B $ \(Unique.Stream newId xs fs) ->
+    let (tx, vx) = x xs
+        binder = Label tx newId
+        B b = f (B $ \_ -> (tx, LabelTerm binder))
+        (result, body) = b fs
+     in (result, LetTerm vx binder body)
+  lambda t f = B $ \(Unique.Stream newId _ tail) ->
+    let binder = Label t newId
+        B b = f (B $ \_ -> (t, LabelTerm binder))
+        (result, body) = b tail
+     in (U t :=> result, LambdaTerm binder body)
+  apply (B f) (B x) = B $ \(Unique.Stream _ fs xs) ->
+    let (_ :=> b, vf) = f fs
+        (_, vx) = x xs
+     in (b, ApplyTerm vf vx)
