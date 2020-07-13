@@ -49,7 +49,7 @@ class Cbpv t where
   unit :: t Data Unit
 
   constant :: Constant a -> t Data a
-  delay :: t Code a -> t Data (U a)
+  thunk :: t Code a -> t Data (U a)
 
 instance Cbpv Builder where
   global g@(Global t _) = CodeBuilder t $ pure (GlobalCode g)
@@ -83,7 +83,7 @@ instance Cbpv Builder where
     CodeBuilder b $
       pure ApplyCode <*> f <*> x
   constant k = DataBuilder (Constant.typeOf k) $ pure (ConstantData k)
-  delay (CodeBuilder t code) =
+  thunk (CodeBuilder t code) =
     DataBuilder (U t) $
       pure ThunkData <*> code
 
@@ -137,7 +137,7 @@ instance Cbpv View where
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   apply (V f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
 
-  delay (V code) = V $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
+  thunk (V code) = V $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (V thunk) = V $ \s -> fromString "! " <> thunk s
 
 {-
@@ -209,7 +209,7 @@ inlValue :: Cbpv t => VarMap (t Data) -> Data x -> t Data x
 inlValue env (VariableData variable) =
   let Just replacement = VarMap.lookup variable env
    in replacement
-inlValue env (ThunkData c) = delay (inlCode env c)
+inlValue env (ThunkData c) = thunk (inlCode env c)
 inlValue _ (ConstantData k) = constant k
 inlValue _ UnitData = unit
 inlValue env (TailData tuple) = Cbpv.tail (inlValue env tuple)
@@ -244,7 +244,7 @@ abstractData' env (VariableData v@(Variable t u)) =
   case VarMap.lookup v env of
     Just x -> x
     Nothing -> error ("could not find var " ++ show u ++ " of type " ++ show t)
-abstractData' env (ThunkData c) = delay (abstractCode' env c)
+abstractData' env (ThunkData c) = thunk (abstractCode' env c)
 abstractData' _ (ConstantData k) = constant k
 abstractData' _ UnitData = unit
 abstractData' env (TailData tuple) = Cbpv.tail (abstractData' env tuple)
@@ -264,7 +264,7 @@ instance Cbpv t => Cbpv (Intrinsify t) where
 
   unit = Intrinsify unit
 
-  delay (Intrinsify x) = Intrinsify (delay x)
+  thunk (Intrinsify x) = Intrinsify (thunk x)
   force (Intrinsify x) = Intrinsify (force x)
 
   returns (Intrinsify x) = Intrinsify (returns x)

@@ -35,17 +35,17 @@ newtype ToCbpv t a = ToCbpv (t Cbpv.Code a)
 instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
-  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.delay x) (Cbpv.push (Cbpv.delay y) Cbpv.unit))
+  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.push (Cbpv.thunk y) Cbpv.unit))
 
   -- first (ToCbpv tuple) = ToCbpv x
   -- second (ToCbpv tuple) = ToCbpv y
-  letBe (ToCbpv x) f = ToCbpv $ Cbpv.letBe (Cbpv.delay x) $ \x' ->
+  letBe (ToCbpv x) f = ToCbpv $ Cbpv.letBe (Cbpv.thunk x) $ \x' ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x'))
      in body
   lambda t f = ToCbpv $ Cbpv.lambda (U t) $ \x ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x))
      in body
-  apply (ToCbpv f) (ToCbpv x) = ToCbpv $ Cbpv.apply f (Cbpv.delay x)
+  apply (ToCbpv f) (ToCbpv x) = ToCbpv $ Cbpv.apply f (Cbpv.thunk x)
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc code =
@@ -78,7 +78,7 @@ instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   returns (DataCallcc t x) = CodeCallcc (F t) $ Callcc.returns x
 
   force (DataCallcc (U t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
-  delay (CodeCallcc t code) = DataCallcc (U t) $ Callcc.thunk t $ \x ->
+  thunk (CodeCallcc t code) = DataCallcc (U t) $ Callcc.thunk t $ \x ->
     Callcc.throw x code
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Data (U a))
