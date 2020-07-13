@@ -158,29 +158,30 @@ instance TextShow (Term a) where
   showb (ApplyTypeTerm f x) = fromString "(" <> showb f <> fromString " " <> showb x <> fromString ")"
 
 simplify :: SystemF t => Term a -> t a
-simplify = simp TypeMap.empty LabelMap.empty
+simplify term = case abstract term of
+  S _ x -> x
 
-simp :: SystemF t => TypeMap Type -> LabelMap t -> Term a -> t a
-simp tenv env (PairTerm x y) = pair (simp tenv env x) (simp tenv env y)
-simp tenv env (FirstTerm tuple) = first (simp tenv env tuple)
-simp tenv env (SecondTerm tuple) = second (simp tenv env tuple)
-simp tenv env (ApplyTerm (LambdaTerm binder body) term) =
-  let term' = simp tenv env term
-   in letBe term' $ \value -> simp tenv (LabelMap.insert binder value env) body
-simp tenv env (LetTerm term binder body) =
-  let term' = simp tenv env term
-   in letBe term' $ \value -> simp tenv (LabelMap.insert binder value env) body
-simp tenv env (LambdaTerm binder@(Label t _) body) = lambda t $ \value ->
-  simp tenv (LabelMap.insert binder value env) body
-simp tenv env (ApplyTerm f x) = apply (simp tenv env f) (simp tenv env x)
-simp _ _ (ConstantTerm c) = constant c
-simp _ _ (GlobalTerm g) = global g
-simp tenv env (ForallTerm binder@(TypeVariable k _) body) = forall k $ \t ->
-  simp (TypeMap.insert binder t tenv) env body
-simp tenv env (ApplyTypeTerm f x) = SystemF.applyType (simp tenv env f) x
-simp _ env (LabelTerm v) = case LabelMap.lookup v env of
-  Just x -> x
-  Nothing -> error "variable not found in env"
+data Simplifier t a = S (MaybeFn t a) (t a)
+
+data MaybeFn t a where
+  Fn :: (t a -> t b) -> MaybeFn t (a :-> b)
+  NotFn :: MaybeFn t a
+
+instance SystemF t => SystemF (Simplifier t) where
+  constant k = S NotFn (constant k)
+  global g = S NotFn (global g)
+
+  pair (S _ x) (S _ y) = S NotFn (pair x y)
+
+  letBe (S _ x) f = S NotFn $ letBe x $ \x' -> case f (S NotFn x') of
+    S _ y -> y
+
+  lambda t f =
+    let f' x' = case f (S NotFn x') of
+          S _ y -> y
+     in S (Fn f') $ lambda t f'
+  apply (S NotFn f) (S _ x) = S NotFn (apply f x)
+  apply (S (Fn f) _) (S _ x) = S NotFn (letBe x f)
 
 inline :: SystemF t => Term a -> t a
 inline term = case inl TypeMap.empty LabelMap.empty term of
