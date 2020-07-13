@@ -10,11 +10,13 @@ import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
+import qualified Data.Text as T
 import Global
 import Kind
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
+import Name
 import TextShow (TextShow, fromString, showb)
 import Type
 import TypeMap (TypeMap)
@@ -73,6 +75,39 @@ instance SystemF Builder where
     let (_ :=> b, vf) = f fs
         (_, vx) = x xs
      in (b, ApplyTerm vf vx)
+
+data Inliner t a = I Int (t a)
+
+instance SystemF t => SystemF (Inliner t) where
+  constant k = I 0 (constant k)
+  global g = I 0 (global g)
+
+  pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (pair x y)
+
+  letBe (I xcost x) f = result
+    where
+      inlined@(I fcost _) = f (I 0 x)
+      notinlined =
+        I
+          (xcost + fcost + 1)
+          ( letBe x $ \x' -> case f (I 0 x') of
+              I _ y -> y
+          )
+      -- FIXME: for now all the cost and inline thresholds are
+      -- arbitrary and will need tuning
+      result
+        | xcost <= 3 = inlined
+        | otherwise = notinlined
+
+  lambda t f = result
+    where
+      I fcost _ = f (I 0 (global (probe t)))
+      result = I (fcost + 1) $ lambda t $ \x' -> case f (I 0 x') of
+        I _ y -> y
+  apply (I fcost f) (I xcost x) = I (fcost + xcost + 1) (apply f x)
+
+probe :: Action a -> Global a
+probe t = Global t $ Name (T.pack "core") (T.pack "probe")
 
 data Term a where
   LabelTerm :: Label a -> Term a
@@ -147,21 +182,9 @@ simp _ env (LabelTerm v) = case LabelMap.lookup v env of
   Just x -> x
   Nothing -> error "variable not found in env"
 
-count :: Label a -> Term b -> Int
-count v = w
-  where
-    w :: Term x -> Int
-    w (LabelTerm binder) = if AnyLabel v == AnyLabel binder then 1 else 0
-    w (LetTerm term binder body) = w term + w body
-    w (LambdaTerm binder body) = w body
-    w (ApplyTerm f x) = w f + w x
-    w (PairTerm x y) = w x + w y
-    w (FirstTerm tuple) = w tuple
-    w (SecondTerm tuple) = w tuple
-    w _ = 0
-
 inline :: SystemF t => Term a -> t a
-inline = inl TypeMap.empty LabelMap.empty
+inline term = case inl TypeMap.empty LabelMap.empty term of
+  I _ result -> result
 
 data X t a where
   X :: t a -> X t (U a)
@@ -172,7 +195,7 @@ inl tenv env (FirstTerm tuple) = first (inl tenv env tuple)
 inl tenv env (SecondTerm tuple) = second (inl tenv env tuple)
 inl tenv env (LetTerm term binder body) =
   let term' = inl tenv env term
-   in if count binder body <= 1 || isSimple term
+   in if count binder body <= 1
         then inl tenv (LabelMap.insert binder term' env) body
         else letBe term' $ \value ->
           inl tenv (LabelMap.insert binder value env) body
@@ -188,6 +211,15 @@ inl tenv env (ApplyTypeTerm f x) = inl tenv env f `SystemF.applyType` x
 inl tenv env (ForallTerm binder@(TypeVariable t _) body) = forall t $ \value ->
   inl (TypeMap.insert binder value tenv) env body
 
-isSimple :: Term a -> Bool
-isSimple (ConstantTerm _) = True
-isSimple _ = False
+count :: Label a -> Term b -> Int
+count v = w
+  where
+    w :: Term x -> Int
+    w (LabelTerm binder) = if AnyLabel v == AnyLabel binder then 1 else 0
+    w (LetTerm term binder body) = w term + w body
+    w (LambdaTerm binder body) = w body
+    w (ApplyTerm f x) = w f + w x
+    w (PairTerm x y) = w x + w y
+    w (FirstTerm tuple) = w tuple
+    w (SecondTerm tuple) = w tuple
+    w _ = 0
