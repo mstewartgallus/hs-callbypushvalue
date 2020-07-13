@@ -23,12 +23,12 @@ import qualified VarMap as VarMap
 import Variable
 
 data Builder t a where
-  CodeBuilder :: Action a -> Unique.State (Code a) -> Builder Code a
-  DataBuilder :: Type a -> Unique.State (Data a) -> Builder Data a
+  CB :: (forall s. Unique.Stream s -> (Action a, Code a)) -> Builder Code a
+  DB :: (forall s. Unique.Stream s -> (Type a, Data a)) -> Builder Data a
 
 build :: Builder t a -> t a
-build (CodeBuilder _ s) = Unique.run s
-build (DataBuilder _ s) = Unique.run s
+build (CB s) = snd (Unique.withStream s)
+build (DB s) = snd (Unique.withStream s)
 
 class Cbpv t where
   global :: Global a -> t Code a
@@ -52,40 +52,46 @@ class Cbpv t where
   thunk :: t Code a -> t Data (U a)
 
 instance Cbpv Builder where
-  global g@(Global t _) = CodeBuilder t $ pure (GlobalCode g)
-  force (DataBuilder (U t) thunk) = CodeBuilder t $ pure ForceCode <*> thunk
-  returns (DataBuilder t value) = CodeBuilder (F t) $ pure ReturnCode <*> value
-  letTo x@(CodeBuilder (F t) xs) f =
-    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
-     in CodeBuilder bt $ do
-          x' <- xs
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
-          body' <- body
-          pure $ LetToCode x' v body'
-  letBe x@(DataBuilder t xs) f =
-    let CodeBuilder bt _ = f (DataBuilder t (pure undefined))
-     in CodeBuilder bt $ do
-          x' <- xs
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
-          body' <- body
-          pure $ LetBeCode x' v body'
-  lambda t f =
-    let CodeBuilder result _ = f (DataBuilder t (pure undefined))
-     in CodeBuilder (t :=> result) $ do
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CodeBuilder _ body = f ((DataBuilder t . pure) $ VariableData v)
-          body' <- body
-          pure $ LambdaCode v body'
-  unit = DataBuilder UnitType $ pure UnitData
-  apply (CodeBuilder (_ :=> b) f) (DataBuilder _ x) =
-    CodeBuilder b $
-      pure ApplyCode <*> f <*> x
-  constant k = DataBuilder (Constant.typeOf k) $ pure (ConstantData k)
-  thunk (CodeBuilder t code) =
-    DataBuilder (U t) $
-      pure ThunkData <*> code
+  global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
+  unit = DB $ \_ -> (UnitType, UnitData)
+  constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
+
+  force (DB thunk) = CB $ \s ->
+    let (U t, thunk') = thunk s
+     in (t, ForceCode thunk')
+  thunk (CB code) = DB $ \s ->
+    let (t, code') = code s
+     in (U t, ThunkData code')
+
+  returns (DB value) = CB $ \s ->
+    let (t, value') = value s
+     in (F t, ReturnCode value')
+
+  letTo (CB x) f = CB $ \(Unique.Stream newId xs fs) ->
+    let (F tx, vx) = x xs
+        binder = Variable tx newId
+     in case f (DB $ \_ -> (tx, VariableData binder)) of
+          CB b ->
+            let (result, body) = b fs
+             in (result, LetToCode vx binder body)
+  letBe (DB x) f = CB $ \(Unique.Stream newId xs fs) ->
+    let (tx, vx) = x xs
+        binder = Variable tx newId
+     in case f (DB $ \_ -> (tx, VariableData binder)) of
+          CB b ->
+            let (result, body) = b fs
+             in (result, LetBeCode vx binder body)
+
+  lambda t f = CB $ \(Unique.Stream newId xs fs) ->
+    let binder = Variable t newId
+     in case f (DB $ \_ -> (t, VariableData binder)) of
+          CB b ->
+            let (result, body) = b fs
+             in (t :=> result, LambdaCode binder body)
+  apply (CB f) (DB x) = CB $ \(Unique.Stream _ fs xs) ->
+    let (_ :=> b, vf) = f fs
+        (_, vx) = x xs
+     in (b, ApplyCode vf vx)
 
 data Code a where
   LambdaCode :: Variable a -> Code b -> Code (a :=> b)
