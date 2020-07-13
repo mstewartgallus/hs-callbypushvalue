@@ -149,71 +149,74 @@ So far we handle:
 - thunk (force X) reduces to X
 -}
 simplify :: Code a -> Code a
-simplify (LetToCode (ReturnCode value) binder body) = simplify (LetBeCode value binder body)
-simplify (ApplyCode (LambdaCode binder body) value) = simplify (LetBeCode value binder body)
-simplify (ForceCode (ThunkData x)) = simplify x
-simplify (ForceCode x) = ForceCode (simplifyData x)
-simplify (LambdaCode binder body) =
-  let body' = simplify body
-   in LambdaCode binder body'
-simplify (ApplyCode f x) = ApplyCode (simplify f) (simplifyData x)
-simplify (ReturnCode value) = ReturnCode (simplifyData value)
-simplify (LetBeCode value binder body) = LetBeCode (simplifyData value) binder (simplify body)
-simplify (LetToCode action binder body) = LetToCode (simplify action) binder (simplify body)
-simplify x = x
+simplify code = case code of
+  LetToCode (ReturnCode value) binder body -> simplify (LetBeCode value binder body)
+  ApplyCode (LambdaCode binder body) value -> simplify (LetBeCode value binder body)
+  ForceCode (ThunkData x) -> simplify x
+  ForceCode x -> ForceCode (simplifyData x)
+  LambdaCode binder body -> LambdaCode binder (simplify body)
+  ApplyCode f x -> ApplyCode (simplify f) (simplifyData x)
+  ReturnCode value -> ReturnCode (simplifyData value)
+  LetBeCode value binder body -> LetBeCode (simplifyData value) binder (simplify body)
+  LetToCode action binder body -> LetToCode (simplify action) binder (simplify body)
+  x -> x
 
 simplifyData :: Data a -> Data a
-simplifyData (ThunkData (ForceCode x)) = simplifyData x
-simplifyData (ThunkData x) = ThunkData (simplify x)
-simplifyData x = x
+simplifyData x = case x of
+  ThunkData (ForceCode x) -> simplifyData x
+  ThunkData x -> ThunkData (simplify x)
+  x -> x
 
 count :: Variable a -> Code b -> Int
 count v = code
   where
     code :: Code x -> Int
-    code (LetBeCode x binder body) = value x + code body
-    code (LetToCode action binder body) = code action + code body
-    code (LambdaCode binder body) = code body
-    code (ApplyCode f x) = code f + value x
-    code (ForceCode thunk) = value thunk
-    code (ReturnCode x) = value x
-    code _ = 0
+    code c = case c of
+      LetBeCode x binder body -> value x + code body
+      LetToCode action binder body -> code action + code body
+      LambdaCode binder body -> code body
+      ApplyCode f x -> code f + value x
+      ForceCode thunk -> value thunk
+      ReturnCode x -> value x
+      _ -> 0
     value :: Data x -> Int
-    value (PushData h t) = value h + value t
-    value (TailData tuple) = value tuple
-    value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-    value (ThunkData c) = code c
-    value _ = 0
+    value x = case x of
+      PushData h t -> value h + value t
+      TailData tuple -> value tuple
+      VariableData binder -> if AnyVariable v == AnyVariable binder then 1 else 0
+      ThunkData c -> code c
+      _ -> 0
 
 inline :: Cbpv t => Code a -> t Code a
 inline = inlCode VarMap.empty
 
 inlCode :: Cbpv t => VarMap (t Data) -> Code a -> t Code a
--- inlCode env (HeadCode tuple) = Cbpv.head (inlValue env tuple)
-inlCode env (LetBeCode term binder body) =
-  let term' = inlValue env term
-   in if count binder body <= 1
-        then inlCode (VarMap.insert binder term' env) body
-        else letBe term' $ \x ->
-          inlCode (VarMap.insert binder x env) body
-inlCode env (LetToCode term binder body) = letTo (inlCode env term) $ \x ->
-  inlCode (VarMap.insert binder x env) body
-inlCode env (ApplyCode f x) = apply (inlCode env f) (inlValue env x)
-inlCode env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  inlCode (VarMap.insert binder x env) body
-inlCode env (ForceCode th) = force (inlValue env th)
-inlCode env (ReturnCode val) = returns (inlValue env val)
-inlCode _ (GlobalCode g) = global g
+inlCode env code = case code of
+  LetBeCode term binder body ->
+    let term' = inlValue env term
+     in if count binder body <= 1
+          then inlCode (VarMap.insert binder term' env) body
+          else letBe term' $ \x ->
+            inlCode (VarMap.insert binder x env) body
+  LetToCode term binder body -> letTo (inlCode env term) $ \x ->
+    inlCode (VarMap.insert binder x env) body
+  ApplyCode f x -> apply (inlCode env f) (inlValue env x)
+  LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
+    inlCode (VarMap.insert binder x env) body
+  ForceCode th -> force (inlValue env th)
+  ReturnCode val -> returns (inlValue env val)
+  GlobalCode g -> global g
 
 inlValue :: Cbpv t => VarMap (t Data) -> Data x -> t Data x
-inlValue env (VariableData variable) =
-  let Just replacement = VarMap.lookup variable env
-   in replacement
-inlValue env (ThunkData c) = thunk (inlCode env c)
-inlValue _ (ConstantData k) = constant k
-inlValue _ UnitData = unit
-inlValue env (TailData tuple) = Cbpv.tail (inlValue env tuple)
-inlValue env (PushData h t) = push (inlValue env h) (inlValue env t)
+inlValue env x = case x of
+  VariableData variable ->
+    let Just replacement = VarMap.lookup variable env
+     in replacement
+  ThunkData c -> thunk (inlCode env c)
+  ConstantData k -> constant k
+  UnitData -> unit
+  TailData tuple -> Cbpv.tail (inlValue env tuple)
+  PushData h t -> push (inlValue env h) (inlValue env t)
 
 abstractCode :: (Cbpv t) => Code a -> t Code a
 abstractCode = abstractCode' VarMap.empty
@@ -222,33 +225,34 @@ abstractData :: (Cbpv t) => Data a -> t Data a
 abstractData = abstractData' VarMap.empty
 
 abstractCode' :: (Cbpv t) => VarMap (t Data) -> Code a -> t Code a
-abstractCode' env (LetBeCode term binder body) = letBe (abstractData' env term) $ \x ->
-  let env' = VarMap.insert binder x env
-   in abstractCode' env' body
-abstractCode' env (LetToCode term binder body) = letTo (abstractCode' env term) $ \x ->
-  let env' = VarMap.insert binder x env
-   in abstractCode' env' body
-abstractCode' env (ApplyCode f x) =
-  let f' = abstractCode' env f
-      x' = abstractData' env x
-   in apply f' x'
-abstractCode' env (LambdaCode binder@(Variable t _) body) = lambda t $ \x ->
-  let env' = VarMap.insert binder x env
-   in abstractCode' env' body
-abstractCode' env (ForceCode th) = force (abstractData' env th)
-abstractCode' env (ReturnCode val) = returns (abstractData' env val)
-abstractCode' _ (GlobalCode g) = global g
+abstractCode' env code = case code of
+  LetBeCode term binder body -> letBe (abstractData' env term) $ \x ->
+    let env' = VarMap.insert binder x env
+     in abstractCode' env' body
+  LetToCode term binder body -> letTo (abstractCode' env term) $ \x ->
+    let env' = VarMap.insert binder x env
+     in abstractCode' env' body
+  ApplyCode f x ->
+    let f' = abstractCode' env f
+        x' = abstractData' env x
+     in apply f' x'
+  LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
+    let env' = VarMap.insert binder x env
+     in abstractCode' env' body
+  ForceCode th -> force (abstractData' env th)
+  ReturnCode val -> returns (abstractData' env val)
+  GlobalCode g -> global g
 
 abstractData' :: (Cbpv t) => VarMap (t Data) -> Data x -> t Data x
-abstractData' env (VariableData v@(Variable t u)) =
-  case VarMap.lookup v env of
+abstractData' env x = case x of
+  VariableData v@(Variable t u) -> case VarMap.lookup v env of
     Just x -> x
     Nothing -> error ("could not find var " ++ show u ++ " of type " ++ show t)
-abstractData' env (ThunkData c) = thunk (abstractCode' env c)
-abstractData' _ (ConstantData k) = constant k
-abstractData' _ UnitData = unit
-abstractData' env (TailData tuple) = Cbpv.tail (abstractData' env tuple)
-abstractData' env (PushData h t) = push (abstractData' env h) (abstractData' env t)
+  ThunkData c -> thunk (abstractCode' env c)
+  ConstantData k -> constant k
+  UnitData -> unit
+  TailData tuple -> Cbpv.tail (abstractData' env tuple)
+  PushData h t -> push (abstractData' env h) (abstractData' env t)
 
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> t Code a
