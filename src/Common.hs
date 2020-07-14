@@ -2,28 +2,23 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (V, (:->), Pair, (:*:) (..), (:=>) (..), Unit (..), Void (..), F (..), U (..), R (..)) where
+module Common (V, (:->), Pair, (:*:) (..), (:=>) (..), Unit (..), Void (..), F (..), U (..)) where
 
 -- First define the basic recursive data types.
 data V a b
 
-data Unit = Unit
+data Unit
 
-newtype U a = Thunk (a -> R)
+data U a
 
-data a :*: b = a ::: b
+data a :*: b
 
 infixr 0 :*:
-
-infixr 0 :::
 
 -- Then define the dual types as type synonyms
 type Void = Unit
 
 type F = U
-
--- R is an implementation detail basically
-newtype R = Behaviour (IO ())
 
 -- Then define the call by name sugarings
 type a :-> b = U a :=> b

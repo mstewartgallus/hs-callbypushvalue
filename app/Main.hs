@@ -140,11 +140,11 @@ main = do
   putStrLn "\nEvaluates to:"
   let cpsData = Interpreter.evaluate optCps
 
-  let Thunk k = cpsData
-  let Behaviour eff = k $ t 4 ::: t 8 ::: Thunk $ \x -> Behaviour $ printT x
+  let Interpreter.Thunk k = cpsData
+  let Interpreter.Behaviour eff = k (t 4 `Interpreter.Apply` t 8 `Interpreter.Apply` (Interpreter.Returns $ \(Interpreter.I x) -> Interpreter.Behaviour $ printT x))
   eff
 
   return ()
 
-t :: a -> U (F a)
-t x = Thunk $ \(Thunk k) -> k x
+t :: Integer -> Interpreter.Value (U (F Integer))
+t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

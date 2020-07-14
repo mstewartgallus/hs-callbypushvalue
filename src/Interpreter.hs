@@ -2,7 +2,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Interpreter (evaluate) where
+module Interpreter (evaluate, Value (..), Kont (..), R (..)) where
 
 import Common
 import Constant
@@ -17,50 +17,67 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-evaluate :: Data a -> a
+evaluate :: Data a -> Value a
 evaluate x = case abstract x of
   V value -> value
 
+data Value a where
+  I :: Integer -> Value Integer
+  Unit :: Value Unit
+  Thunk :: (Kont a -> R) -> Value (U a)
+  (:::) :: Value a -> Value b -> Value (a :*: b)
+
+newtype R = Behaviour (IO ())
+
+data Kont a where
+  Nil :: Kont Void
+  Returns :: (Value a -> R) -> Kont (F a)
+  Apply :: Value a -> Kont b -> Kont (a :=> b)
+
 data X a where
   C :: R -> X Code
-  V :: a -> X (Data a)
-  K :: a -> X (Stack a)
+  V :: Value a -> X (Data a)
+  K :: Kont a -> X (Stack a)
 
 instance Cps X where
-  throw (K (Thunk k)) (V x) = C (k x)
+  throw (K (Returns k)) (V x) = C (k x)
   force (V (Thunk f)) (K x) = C (f x)
 
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
-  letTo _ f = K $ Thunk $ \x -> case f (V x) of
+  letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
 
-  lambda (K (h ::: t)) f = f (V h) (K t)
-  apply (V h) (K t) = K (h ::: t)
+  lambda (K (Apply h t)) f = f (V h) (K t)
+  apply (V h) (K t) = K (Apply h t)
 
   pop (V (h ::: t)) f = f (V h) (V t)
   push (V h) (V t) = V (h ::: t)
 
   unit = V Unit
-  nil = K Unit
+  nil = K Nil
 
   global g (K k) = case GlobalMap.lookup g globals of
-    Just (Thunk x) -> C (x k)
+    Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
-  constant (IntegerConstant x) = V x
+  constant (IntegerConstant x) = V (I x)
 
-globals :: GlobalMap U
+newtype G a = G (Kont a -> R)
+
+globals :: GlobalMap G
 globals =
   GlobalMap.fromList
     [ GlobalMap.Entry strictPlus strictPlusImpl,
       GlobalMap.Entry minus minusImpl
     ]
 
-strictPlusImpl :: U (Integer :=> Integer :=> F Integer)
-strictPlusImpl = Thunk $ \(x ::: y ::: Thunk k) -> k (x + y)
+infixr 0 `Apply`
 
-minusImpl :: U (U (F Integer) :=> U (F Integer) :=> F Integer)
-minusImpl = Thunk $ \(Thunk x ::: Thunk y ::: Thunk k) ->
-  x $ Thunk $ \x' ->
-    y $ Thunk $ \y' ->
-      k (x' - y')
+strictPlusImpl :: G (Integer :=> Integer :=> F Integer)
+strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
+
+minusImpl :: G (U (F Integer) :=> U (F Integer) :=> F Integer)
+minusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
+  x $ Returns $ \(I x') ->
+    y $ Returns $ \(I y') ->
+      k (I (x' - y'))
