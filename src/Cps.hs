@@ -3,7 +3,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, typeOf, abstract) where
+module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, abstract) where
 
 import Common
 import Constant (Constant)
@@ -141,19 +141,6 @@ build :: Builder a -> a
 build (CB s) = Unique.withStream s
 build (DB s) = snd (Unique.withStream s)
 build (SB s) = snd (Unique.withStream s)
-
-typeOf :: Data a -> Type a
-typeOf (ConstantData k) = Constant.typeOf k
-typeOf (ThunkData (Label t _) _) = U t
-typeOf (VariableData (Variable t _)) = t
-
-typeOfStack :: Stack a -> Action a
-typeOfStack (LabelStack (Label t _)) = t
-typeOfStack (ToStack (Variable t _) _) = F t
-typeOfStack (ApplyStack h t) =
-  let a = typeOf h
-      b = typeOfStack t
-   in (a :=> b)
 
 simplify :: Data a -> Data a
 simplify (ThunkData binder body) = ThunkData binder (simpCode body)
