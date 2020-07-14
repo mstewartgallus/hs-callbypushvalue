@@ -1,9 +1,9 @@
+{-# LANGUAGE ConstrainedClassMethods #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (simplify, inline, build, Builder, SystemF (..), minus, plus, abstract, Term (..)) where
+module SystemF (simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
 
 import Common
 import Constant (Constant)
@@ -24,29 +24,42 @@ import TypeMap (TypeMap)
 import qualified TypeMap
 import TypeVariable
 import qualified Unique
+import Prelude hiding ((<*>))
 
+-- | Type class representation of the System-F Omega Intermediate
+-- Representation
+--
+-- FIXME: forall and applyType are still experimental
 class SystemF t where
+  (<*>) :: t (a :-> b) -> t a -> t b
+
+  -- |
+  --
+  -- FIXME find a way to unify constant and lambda into a sort of
+  -- pure equivalent
   constant :: Constant a -> t (F a)
+
+  lambda :: Action a -> (t a -> t b) -> t (a :-> b)
 
   global :: Global a -> t a
 
-  lambda :: Action a -> (t a -> t b) -> t (a :-> b)
-  apply :: t (a :-> b) -> t a -> t b
   letBe :: t a -> (t a -> t b) -> t b
 
   pair :: t a -> t b -> t (Pair a b)
-  first :: t (Pair a b) -> t a
-  second :: t (Pair a b) -> t b
+  unpair :: t (Pair a b) -> (t a -> t b -> t c) -> t c
 
   forall :: Kind a -> (Type a -> t b) -> t (V a b)
   applyType :: t (V a b) -> Type a -> t b
 
-plus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
-plus x y = apply (apply (global Core.plus) x) y
+infixl 4 <*>
 
-minus :: SystemF t => t (F Integer) -> t (F Integer) -> t (F Integer)
-minus x y = apply (apply (global Core.minus) x) y
-
+-- | Tagless final newtype to inline letBe clauses based on a simple
+-- cost model
+--
+-- FIXME: for now all the node costs and inline thresholds are
+-- arbitrary and will need tuning
+--
+-- FIXME: use an alternative to the probe function
 data CostInliner t a = I Int (t a)
 
 instance SystemF t => SystemF (CostInliner t) where
@@ -57,56 +70,49 @@ instance SystemF t => SystemF (CostInliner t) where
 
   letBe (I xcost x) f = result
     where
-      inlined@(I fcost _) = f (I 0 x)
-      notinlined =
-        I
-          (xcost + fcost + 1)
-          ( letBe x $ \x' -> case f (I 0 x') of
-              I _ y -> y
-          )
-      -- FIXME: for now all the cost and inline thresholds are
-      -- arbitrary and will need tuning
       result
         | xcost <= 3 = inlined
         | otherwise = notinlined
+      inlined@(I fcost _) = f (I 0 x)
+      notinlined = I (xcost + fcost + 1) $ letBe x $ \x' -> case f (I 0 x') of
+        I _ y -> y
 
   lambda t f = result
     where
       I fcost _ = f (I 0 (global (probe t)))
       result = I (fcost + 1) $ lambda t $ \x' -> case f (I 0 x') of
         I _ y -> y
-  apply (I fcost f) (I xcost x) = I (fcost + xcost + 1) (apply f x)
+  I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
 
--- | Basically the same as Cost inliner but only measures how often a
+-- | Tagless final newtype to inline letBe clauses that use the bound
+-- term one or less times.
+--
+-- Basically the same as Cost inliner but only measures how often a
 -- variable occurs.  Everytime we make this check we make a probe with
 -- Mono 1 in letBe.  Nothing else should add a constant amount.
-data Mono t a = Mono Int (t a)
+data MonoInliner t a = M Int (t a)
 
-instance SystemF t => SystemF (Mono t) where
-  constant k = Mono 0 (constant k)
-  global g = Mono 0 (global g)
+instance SystemF t => SystemF (MonoInliner t) where
+  constant k = M 0 (constant k)
+  global g = M 0 (global g)
 
-  pair (Mono xcost x) (Mono ycost y) = Mono (xcost + ycost) (pair x y)
+  pair (M xcost x) (M ycost y) = M (xcost + ycost) (pair x y)
 
-  letBe (Mono xcost x) f = result
+  letBe (M xcost x) f = result
     where
-      inlined@(Mono inlineCost _) = f (Mono 1 x)
-      Mono fcost _ = f (Mono 0 x)
-      notinlined =
-        Mono
-          (xcost + fcost)
-          ( letBe x $ \x' -> case f (Mono 0 x') of
-              Mono _ y -> y
-          )
       result
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
+      inlined@(M inlineCost _) = f (M 1 x)
+      notinlined = M (xcost + fcost) $ letBe x $ \x' -> case f (M 0 x') of
+        M _ y -> y
+      M fcost _ = f (M 0 x)
 
   lambda t f =
-    let Mono fcost _ = f (Mono 0 (global (probe t)))
-     in Mono fcost $ lambda t $ \x' -> case f (Mono 0 x') of
-          Mono _ y -> y
-  apply (Mono fcost f) (Mono xcost x) = Mono (fcost + xcost) (apply f x)
+    let M fcost _ = f (M 0 (global (probe t)))
+     in M fcost $ lambda t $ \x' -> case f (M 0 x') of
+          M _ y -> y
+  M fcost f <*> M xcost x = M (fcost + xcost) (f <*> x)
 
 probe :: Action a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")
@@ -119,8 +125,6 @@ data Term a where
   LambdaTerm :: Label a -> Term b -> Term (a :-> b)
   ForallTerm :: TypeVariable a -> Term b -> Term (V a b)
   PairTerm :: Term a -> Term b -> Term (Pair a b)
-  FirstTerm :: Term (Pair a b) -> Term a
-  SecondTerm :: Term (Pair a b) -> Term b
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
   ApplyTypeTerm :: Term (V a b) -> Type a -> Term b
 
@@ -130,14 +134,12 @@ abstract = abstract' TypeMap.empty LabelMap.empty
 abstract' :: SystemF t => TypeMap Type -> LabelMap t -> Term a -> t a
 abstract' tenv env term = case term of
   PairTerm x y -> pair (abstract' tenv env x) (abstract' tenv env y)
-  FirstTerm tuple -> first (abstract' tenv env tuple)
-  SecondTerm tuple -> second (abstract' tenv env tuple)
   LetTerm term binder body ->
     let term' = abstract' tenv env term
      in letBe term' $ \value -> abstract' tenv (LabelMap.insert binder value env) body
   LambdaTerm binder@(Label t _) body -> lambda t $ \value ->
     abstract' tenv (LabelMap.insert binder value env) body
-  ApplyTerm f x -> apply (abstract' tenv env f) (abstract' tenv env x)
+  ApplyTerm f x -> abstract' tenv env f <*> abstract' tenv env x
   ConstantTerm c -> constant c
   GlobalTerm g -> global g
   ForallTerm binder@(TypeVariable k _) body -> forall k $ \t ->
@@ -160,8 +162,6 @@ instance SystemF View where
     let x' = x xs
         y' = y ys
      in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
-  first (V tuple) = V $ \s -> tuple s <> fromString ".1"
-  second (V tuple) = V $ \s -> tuple s <> fromString ".2"
 
   letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
@@ -173,7 +173,7 @@ instance SystemF View where
         V y = f (V $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ".\n" <> y ys
 
-  apply (V f) (V x) = V $ \(Unique.Stream _ fs xs) ->
+  V f <*> V x = V $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
 simplify :: SystemF t => Term a -> t a
@@ -199,12 +199,13 @@ instance SystemF t => SystemF (Simplifier t) where
     let f' x' = case f (S NotFn x') of
           S _ y -> y
      in S (Fn f') $ lambda t f'
-  apply (S NotFn f) (S _ x) = S NotFn (apply f x)
-  apply (S (Fn f) _) (S _ x) = S NotFn (letBe x f)
+
+  S NotFn f <*> S _ x = S NotFn (f <*> x)
+  S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
 
 inline :: SystemF t => Term a -> t a
 inline term = case abstract term of
-  Mono _ (I _ result) -> result
+  M _ (I _ result) -> result
 
 newtype Builder a = B (forall s. Unique.Stream s -> (Action a, Term a))
 
@@ -231,7 +232,7 @@ instance SystemF Builder where
         B b = f (B $ \_ -> (t, LabelTerm binder))
         (result, body) = b tail
      in (U t :=> result, LambdaTerm binder body)
-  apply (B f) (B x) = B $ \(Unique.Stream _ fs xs) ->
+  B f <*> B x = B $ \(Unique.Stream _ fs xs) ->
     let (_ :=> b, vf) = f fs
         (_, vx) = x xs
      in (b, ApplyTerm vf vx)

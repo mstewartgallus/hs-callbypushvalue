@@ -15,7 +15,7 @@ import qualified Data.Text.IO as T
 import qualified Interpreter
 import Lib
 import qualified Porcelain
-import qualified SystemF
+import qualified SystemF as F
 import TextShow
 import Type
 
@@ -30,19 +30,18 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: SystemF.SystemF t => t (F Integer :-> F Integer :-> F Integer)
+mkProgram :: F.SystemF t => t (F Integer :-> F Integer :-> F Integer)
 mkProgram =
-  SystemF.lambda (F IntType) $ \x ->
-    SystemF.lambda (F IntType) $ \y ->
-      SystemF.apply
-        ( SystemF.lambda (F IntType) $ \z ->
-            SystemF.plus z y
-        )
-        x
+  F.lambda (F IntType) $ \x ->
+    F.lambda (F IntType) $ \y ->
+      ( F.lambda (F IntType) $ \z ->
+          F.global Core.plus F.<*> z F.<*> y
+      )
+        F.<*> x
 
 phases ::
-  SystemF.Term a ->
-  ( SystemF.Term a,
+  F.Term a ->
+  ( F.Term a,
     Cbpv.Code a,
     Cbpv.Code a,
     Cbpv.Code a,
@@ -62,14 +61,14 @@ phases term =
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
-optimizeTerm :: SystemF.Term a -> SystemF.Term a
+optimizeTerm :: F.Term a -> F.Term a
 optimizeTerm = loop iterTerm
   where
-    loop :: Int -> SystemF.Term a -> SystemF.Term a
+    loop :: Int -> F.Term a -> F.Term a
     loop 0 term = term
     loop n term =
-      let simplified = SystemF.build (SystemF.simplify term)
-          inlined = SystemF.build (SystemF.inline simplified)
+      let simplified = F.build (F.simplify term)
+          inlined = F.build (F.inline simplified)
        in loop (n - 1) inlined
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
@@ -104,7 +103,7 @@ optimizeCps = loop iterCps
 
 main :: IO ()
 main = do
-  let program = SystemF.build $ mkProgram
+  let program = F.build $ mkProgram
 
   putStrLn "Lambda Calculus:"
   printT program

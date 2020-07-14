@@ -45,7 +45,7 @@ instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   lambda t f = ToCbpv $ Cbpv.lambda (U t) $ \x ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x))
      in body
-  apply (ToCbpv f) (ToCbpv x) = ToCbpv $ Cbpv.apply f (Cbpv.thunk x)
+  ToCbpv f <*> ToCbpv x = ToCbpv $ Cbpv.apply f (Cbpv.thunk x)
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc code =

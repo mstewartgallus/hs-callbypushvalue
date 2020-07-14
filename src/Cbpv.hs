@@ -32,6 +32,7 @@ build (DB s) = snd (Unique.withStream s)
 
 class Cbpv t where
   global :: Global a -> t Code a
+
   force :: t Data (U a) -> t Code a
   returns :: t Data a -> t Code (F a)
   letTo :: t Code (F a) -> (t Data a -> t Code b) -> t Code b
