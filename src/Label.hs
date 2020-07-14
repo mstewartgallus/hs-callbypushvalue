@@ -4,11 +4,12 @@
 
 module Label (AnyLabel (..), Label (..)) where
 
+import Common
 import TextShow
 import Type (Action)
 import Unique (Unique)
 
-data Label a = Label (Action a) Unique
+data Label a = Label (SAlg a) Unique
 
 data AnyLabel where
   AnyLabel :: Label a -> AnyLabel

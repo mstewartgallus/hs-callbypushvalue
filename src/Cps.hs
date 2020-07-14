@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
@@ -52,8 +53,8 @@ class Cps t where
   throw :: t (Stack (F a)) -> t (Data a) -> t Code
   force :: t (Data (U a)) -> t (Stack a) -> t Code
 
-  thunk :: Action a -> (t (Stack a) -> t Code) -> t (Data (U a))
-  letTo :: Type a -> (t (Data a) -> t Code) -> t (Stack (F a))
+  thunk :: SAlg a -> (t (Stack a) -> t Code) -> t (Data (U a))
+  letTo :: SSet a -> (t (Data a) -> t Code) -> t (Stack (F a))
 
   lambda :: t (Stack (a :=> b)) -> (t (Data a) -> (t (Stack b) -> t Code)) -> t Code
 
@@ -80,13 +81,13 @@ instance Cps Builder where
      in case f (DB $ \_ -> (t, VariableData binder)) of
           CB y ->
             let y' = y ys
-             in (F t, ToStack binder y')
+             in (SF t, ToStack binder y')
   thunk t f = DB $ \(Unique.Stream newId xs ys) ->
     let binder = Label t newId
      in case f (SB $ \_ -> (t, LabelStack binder)) of
           CB y ->
             let y' = y ys
-             in (U t, ThunkData binder y')
+             in (SU t, ThunkData binder y')
 
   throw (SB k) (DB x) = CB $ \(Unique.Stream _ ks xs) ->
     let (_, k') = k ks
@@ -98,7 +99,7 @@ instance Cps Builder where
      in ForceCode k' x'
 
   lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
-    let (a :=> b, k') = k ks
+    let (a `SFn` b, k') = k ks
         binder = Variable a aId
         label = Label b bId
      in case f (DB $ \_ -> (a, VariableData binder)) (SB $ \_ -> (b, LabelStack label)) of
@@ -108,7 +109,7 @@ instance Cps Builder where
   apply (DB x) (SB k) = SB $ \(Unique.Stream _ ks xs) ->
     let (xt, x') = x xs
         (kt, k') = k ks
-     in (xt :=> kt, ApplyStack x' k')
+     in (xt `SFn` kt, ApplyStack x' k')
 
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
@@ -134,8 +135,8 @@ instance TextShow Code where
 
 data Builder a where
   CB :: (forall s. Unique.Stream s -> Code) -> Builder Code
-  DB :: (forall s. Unique.Stream s -> (Type a, Data a)) -> Builder (Data a)
-  SB :: (forall s. Unique.Stream s -> (Action a, Stack a)) -> Builder (Stack a)
+  DB :: (forall s. Unique.Stream s -> (SSet a, Data a)) -> Builder (Data a)
+  SB :: (forall s. Unique.Stream s -> (SAlg a, Stack a)) -> Builder (Stack a)
 
 build :: Builder a -> a
 build (CB s) = Unique.withStream s

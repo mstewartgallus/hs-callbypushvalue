@@ -4,11 +4,12 @@
 
 module Variable (AnyVariable (..), Variable (..)) where
 
+import Common
 import TextShow
 import Type (Type)
 import Unique (Unique)
 
-data Variable a = Variable (Type a) Unique
+data Variable a = Variable (SSet a) Unique
 
 data AnyVariable where
   AnyVariable :: Variable a -> AnyVariable

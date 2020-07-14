@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -9,6 +11,7 @@ import Common
 import Constant
 import Core
 import Cps
+import Data.Word
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import Label
@@ -22,11 +25,11 @@ evaluate :: Data a -> Value a
 evaluate x = case abstract x of
   V value -> value
 
-data family Value a :: *
+data family Value (a :: Set) :: *
 
-data instance Value Unit = Unit
+data instance Value Unit = Coin
 
-newtype instance Value Integer = I Integer
+newtype instance Value U64 = I Word64
 
 newtype instance Value (U a) = Thunk (Kont a -> R)
 
@@ -34,7 +37,7 @@ data instance Value (a :*: b) = Value a ::: Value b
 
 newtype R = Behaviour (IO ())
 
-data family Kont a :: *
+data family Kont (a :: Alg) :: *
 
 data instance Kont Void = Nil
 
@@ -65,13 +68,13 @@ instance Cps X where
   pop (V (h ::: t)) f = f (V h) (V t)
   push (V h) (V t) = V (h ::: t)
 
-  unit = V Unit
+  unit = V Coin
   nil = K Nil
 
   global g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
-  constant (IntegerConstant x) = V (I x)
+  constant (U64Constant x) = V (I x)
 
 newtype G a = G (Kont a -> R)
 
@@ -84,10 +87,10 @@ globals =
 
 infixr 0 `Apply`
 
-strictPlusImpl :: G (Integer :=> Integer :=> F Integer)
+strictPlusImpl :: G (U64 :=> U64 :=> F U64)
 strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
 
-minusImpl :: G (U (F Integer) :=> U (F Integer) :=> F Integer)
+minusImpl :: G (U (F U64) :=> U (F U64) :=> F U64)
 minusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
   x $ Returns $ \(I x') ->
     y $ Returns $ \(I y') ->

@@ -40,10 +40,10 @@ fresh = do
   v <- Unique.uniqueId
   pure $ fromString "v" <> showb v
 
-pType :: Type a -> Builder
+pType :: SSet a -> Builder
 pType = showb
 
-pAction :: Action a -> Builder
+pAction :: SAlg a -> Builder
 pAction = showb
 
 instance Cps.Cps X where
@@ -80,4 +80,4 @@ instance Cps.Cps X where
   global g (X k) = X $ do
     k' <- k
     pure $ node $ atom "global" <> ws <> showb g <> ws <> k'
-  constant (IntegerConstant x) = X $ pure $ node $ atom "int" <> ws <> showb x
+  constant (U64Constant x) = X $ pure $ node $ atom "u64" <> ws <> showb x

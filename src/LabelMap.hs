@@ -3,17 +3,17 @@
 
 module LabelMap where
 
+import Common
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 import Label
-import Type
 import Unique
 
 newtype LabelMap t = LabelMap (Map Unique (Dyn t))
 
 data Dyn t where
-  Dyn :: Action a -> t a -> Dyn t
+  Dyn :: SAlg a -> t a -> Dyn t
 
 empty :: LabelMap t
 empty = LabelMap Map.empty
@@ -21,7 +21,7 @@ empty = LabelMap Map.empty
 lookup :: Label a -> LabelMap t -> Maybe (t a)
 lookup (Label t name) (LabelMap m) = case Map.lookup name m of
   Nothing -> Nothing
-  Just (Dyn t' x) -> case equalAction t t' of
+  Just (Dyn t' x) -> case equalAlg t t' of
     Just Refl -> Just x
     Nothing -> error "labels not of the same type"
 

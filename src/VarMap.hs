@@ -3,17 +3,17 @@
 
 module VarMap where
 
+import Common
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Typeable
-import Type
 import Unique
 import Variable
 
 newtype VarMap t = VarMap (Map Unique (Dyn t))
 
 data Dyn t where
-  Dyn :: Type a -> t a -> Dyn t
+  Dyn :: SSet a -> t a -> Dyn t
 
 empty :: VarMap t
 empty = VarMap Map.empty
@@ -21,7 +21,7 @@ empty = VarMap Map.empty
 lookup :: Variable a -> VarMap t -> Maybe (t a)
 lookup (Variable t name) (VarMap m) = case Map.lookup name m of
   Nothing -> Nothing
-  Just (Dyn t' x) -> case equalType t t' of
+  Just (Dyn t' x) -> case equalSet t t' of
     Just Refl -> Just x
     Nothing -> error "variables not of the same type"
 

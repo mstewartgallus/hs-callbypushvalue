@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
@@ -25,12 +26,12 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t Cbpv.Code a
+toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t (Cbpv.Code a)
 toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
    in x
 
-newtype ToCbpv t a = ToCbpv (t Cbpv.Code a)
+newtype ToCbpv t a = ToCbpv (t (Cbpv.Code a))
 
 instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
@@ -42,7 +43,7 @@ instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   letBe (ToCbpv x) f = ToCbpv $ Cbpv.letBe (Cbpv.thunk x) $ \x' ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x'))
      in body
-  lambda t f = ToCbpv $ Cbpv.lambda (U t) $ \x ->
+  lambda t f = ToCbpv $ Cbpv.lambda (SU t) $ \x ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x))
      in body
   ToCbpv f <*> ToCbpv x = ToCbpv $ Cbpv.apply f (Cbpv.thunk x)
@@ -52,9 +53,9 @@ toCallcc code =
   let CodeCallcc _ x = Cbpv.abstractCode code
    in Callcc.build x
 
-data ToCallcc t tag a where
-  DataCallcc :: Type a -> t Callcc.Data a -> ToCallcc t Cbpv.Data a
-  CodeCallcc :: Action a -> t Callcc.Code a -> ToCallcc t Cbpv.Code a
+data ToCallcc t a where
+  DataCallcc :: SSet a -> t (Callcc.Data a) -> ToCallcc t (Cbpv.Data a)
+  CodeCallcc :: SAlg a -> t (Callcc.Code a) -> ToCallcc t (Cbpv.Code a)
 
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
@@ -64,21 +65,21 @@ instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
      in CodeCallcc bt $ Callcc.letBe x $ \x' ->
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
-  letTo (CodeCallcc (F t) x) f =
+  letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ Callcc.letTo x $ \x' ->
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
   lambda t f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc (t :=> bt) $ Callcc.lambda t $ \x ->
+     in CodeCallcc (t `SFn` bt) $ Callcc.lambda t $ \x ->
           let CodeCallcc _ body = f (DataCallcc t x)
            in body
-  apply (CodeCallcc (_ :=> b) f) (DataCallcc _ x) = CodeCallcc b $ Callcc.apply f x
-  returns (DataCallcc t x) = CodeCallcc (F t) $ Callcc.returns x
+  apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ Callcc.apply f x
+  returns (DataCallcc t x) = CodeCallcc (SF t) $ Callcc.returns x
 
-  force (DataCallcc (U t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
-  thunk (CodeCallcc t code) = DataCallcc (U t) $ Callcc.thunk t $ \x ->
+  force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
+  thunk (CodeCallcc t code) = DataCallcc (SU t) $ Callcc.thunk t $ \x ->
     Callcc.throw x code
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Data (U a))

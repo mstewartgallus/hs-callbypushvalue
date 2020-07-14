@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -12,6 +13,7 @@ import qualified Cps
 import Data.Data
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Word
 import qualified Interpreter
 import Lib
 import qualified Porcelain
@@ -30,11 +32,11 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: F.SystemF t => t (F Integer :-> F Integer :-> F Integer)
+mkProgram :: F.SystemF t => t (F U64 :-> F U64 :-> F U64)
 mkProgram =
-  F.lambda (F IntType) $ \x ->
-    F.lambda (F IntType) $ \y ->
-      ( F.lambda (F IntType) $ \z ->
+  F.lambda (SF SU64) $ \x ->
+    F.lambda (SF SU64) $ \y ->
+      ( F.lambda (SF SU64) $ \z ->
           F.global Core.plus F.<*> z F.<*> y
       )
         F.<*> x
@@ -146,5 +148,5 @@ main = do
 
   return ()
 
-t :: Integer -> Interpreter.Value (U (F Integer))
+t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

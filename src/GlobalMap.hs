@@ -3,15 +3,15 @@
 
 module GlobalMap where
 
+import Common
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 import Global
 import Name (Name)
-import Type
 
 data Dyn t where
-  Dyn :: Action a -> t a -> Dyn t
+  Dyn :: SAlg a -> t a -> Dyn t
 
 newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 
@@ -19,7 +19,7 @@ newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 lookup :: Global a -> GlobalMap t -> Maybe (t a)
 lookup (Global t name) (GlobalMap m) = case Map.lookup name m of
   Nothing -> Nothing
-  Just (Dyn t' x) -> case equalAction t t' of
+  Just (Dyn t' x) -> case equalAlg t t' of
     Just Refl -> Just x
     Nothing -> error "Global not equal in type to lookup"
 

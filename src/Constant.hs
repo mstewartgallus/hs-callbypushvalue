@@ -1,20 +1,22 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StrictData #-}
 
 module Constant (Constant (..), typeOf) where
 
-import Core
+import Common
+import Data.Word
 import TextShow
 import Type
 
 data Constant a where
-  IntegerConstant :: Integer -> Constant Integer
+  U64Constant :: Word64 -> Constant U64
 
 instance Eq (Constant a) where
-  (IntegerConstant x) == (IntegerConstant y) = x == y
+  (U64Constant x) == (U64Constant y) = x == y
 
 instance TextShow (Constant a) where
-  showb (IntegerConstant n) = showb n
+  showb (U64Constant n) = showb n
 
-typeOf :: Constant a -> Type a
-typeOf (IntegerConstant _) = IntType
+typeOf :: Constant a -> SSet a
+typeOf (U64Constant _) = SU64
