@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -68,39 +69,46 @@ class Cps t where
   nil :: t (Stack Void)
 
 instance Cps Builder where
-  global g k =
-    Builder $
-      pure (GlobalCode g) <*> builder k
-  throw k x =
-    Builder $
-      pure ThrowCode <*> builder k <*> builder x
+  global g (SB k) = CB $ \s ->
+    let (_, k') = k s
+     in GlobalCode g k'
 
-  constant k = (Builder . pure) $ ConstantData k
+  constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
-  letTo t f = Builder $ do
-    v <- pure (Variable t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ VariableData v))
-    pure $ ToStack v body
+  letTo t f = SB $ \(Unique.Stream newId xs ys) ->
+    let binder = Variable t newId
+     in case f (DB $ \_ -> (t, VariableData binder)) of
+          CB y ->
+            let y' = y ys
+             in (F t, ToStack binder y')
+  thunk t f = DB $ \(Unique.Stream newId xs ys) ->
+    let binder = Label t newId
+     in case f (SB $ \_ -> (t, LabelStack binder)) of
+          CB y ->
+            let y' = y ys
+             in (U t, ThunkData binder y')
 
-  thunk t f = Builder $ do
-    v <- pure (Label t) <*> Unique.uniqueId
-    body <- builder (f ((Builder . pure) $ LabelStack v))
-    pure $ ThunkData v body
+  throw (SB k) (DB x) = CB $ \(Unique.Stream _ ks xs) ->
+    let (_, k') = k ks
+        (_, x') = x xs
+     in ThrowCode k' x'
+  force (DB k) (SB x) = CB $ \(Unique.Stream _ ks xs) ->
+    let (_, k') = k ks
+        (_, x') = x xs
+     in ForceCode k' x'
 
-  force thnk stk =
-    Builder $
-      pure ForceCode <*> builder thnk <*> builder stk
-
-  lambda k f = Builder $ do
-    k' <- builder k
-    let a :=> b = typeOfStack k'
-    v <- pure (Variable a) <*> Unique.uniqueId
-    t <- pure (Label b) <*> Unique.uniqueId
-    body <- builder (f (Builder (pure (VariableData v))) (Builder (pure (LabelStack t))))
-    pure $ LambdaCode k' v t body
-
-  apply x k = Builder $ do
-    pure ApplyStack <*> builder x <*> builder k
+  lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
+    let (a :=> b, k') = k ks
+        binder = Variable a aId
+        label = Label b bId
+     in case f (DB $ \_ -> (a, VariableData binder)) (SB $ \_ -> (b, LabelStack label)) of
+          CB y ->
+            let y' = y ys
+             in LambdaCode k' binder label y'
+  apply (DB x) (SB k) = SB $ \(Unique.Stream _ ks xs) ->
+    let (xt, x') = x xs
+        (kt, k') = k ks
+     in (xt :=> kt, ApplyStack x' k')
 
 instance TextShow (Data a) where
   showb (ConstantData k) = showb k
@@ -124,10 +132,15 @@ instance TextShow Code where
     LambdaCode k binder@(Variable t _) label@(Label a _) body ->
       showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
-build :: Builder a -> a
-build (Builder s) = Unique.run s
+data Builder a where
+  CB :: (forall s. Unique.Stream s -> Code) -> Builder Code
+  DB :: (forall s. Unique.Stream s -> (Type a, Data a)) -> Builder (Data a)
+  SB :: (forall s. Unique.Stream s -> (Action a, Stack a)) -> Builder (Stack a)
 
-newtype Builder a = Builder {builder :: Unique.State a}
+build :: Builder a -> a
+build (CB s) = Unique.withStream s
+build (DB s) = snd (Unique.withStream s)
+build (SB s) = snd (Unique.withStream s)
 
 typeOf :: Data a -> Type a
 typeOf (ConstantData k) = Constant.typeOf k
