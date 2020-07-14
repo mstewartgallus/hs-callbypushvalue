@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Interpreter (evaluate, Value (..), Kont (..), R (..)) where
@@ -21,23 +22,33 @@ evaluate :: Data a -> Value a
 evaluate x = case abstract x of
   V value -> value
 
-data Value a where
-  I :: Integer -> Value Integer
-  Unit :: Value Unit
-  Thunk :: (Kont a -> R) -> Value (U a)
-  (:::) :: Value a -> Value b -> Value (a :*: b)
+data family Value a :: *
+
+data instance Value Unit = Unit
+
+newtype instance Value Integer = I Integer
+
+newtype instance Value (U a) = Thunk (Kont a -> R)
+
+data instance Value (a :*: b) = Value a ::: Value b
 
 newtype R = Behaviour (IO ())
 
-data Kont a where
-  Nil :: Kont Void
-  Returns :: (Value a -> R) -> Kont (F a)
-  Apply :: Value a -> Kont b -> Kont (a :=> b)
+data family Kont a :: *
 
-data X a where
-  C :: R -> X Code
-  V :: Value a -> X (Data a)
-  K :: Kont a -> X (Stack a)
+data instance Kont Void = Nil
+
+newtype instance Kont (F a) = Returns (Value a -> R)
+
+data instance Kont (a :=> b) = Apply (Value a) (Kont b)
+
+data family X a
+
+newtype instance X Code = C R
+
+newtype instance X (Data a) = V (Value a)
+
+newtype instance X (Stack a) = K (Kont a)
 
 instance Cps X where
   throw (K (Returns k)) (V x) = C (k x)
