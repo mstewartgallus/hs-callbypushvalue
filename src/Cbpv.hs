@@ -25,9 +25,11 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-data Builder (a :: k) where
-  CB :: (forall s. Unique.Stream s -> (SAlg a, Code a)) -> Builder a
-  DB :: (forall s. Unique.Stream s -> (SSet a, Data a)) -> Builder a
+data family Builder (a :: k) :: *
+
+newtype instance Builder (a :: Alg) = CB (forall s. Unique.Stream s -> (SAlg a, Code a))
+
+newtype instance Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
 build :: forall (a :: Alg). Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
