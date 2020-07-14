@@ -267,37 +267,36 @@ abstractData' env x = case x of
 
 -- Fixme... use a different file for this?
 intrinsify :: forall (t :: forall k. k -> *) a. Cbpv t => Code a -> t a
-intrinsify code = abstractCode code
+intrinsify code = case abstractCode code of
+  I x -> abstractCode (build x)
 
--- I x -> x
+newtype Intrinsify (a :: k) = I (Builder a)
 
--- newtype Intrinsify (t :: forall k. k -> *) (a :: k) = I (t a)
+instance Cbpv Intrinsify where
+  global g = I $ case GlobalMap.lookup g intrinsics of
+    Nothing -> global g
+    Just (Intrinsic intrinsic) -> intrinsic
 
--- instance forall (t :: forall k. k -> *). Cbpv t => Cbpv (Intrinsify t) where
---   global g = I $ case GlobalMap.lookup g intrinsics of
---     Nothing -> global g
---     Just (Intrinsic intrinsic) -> intrinsic
+  unit = I unit
 
---   unit = I unit
+  thunk (I x) = I (thunk x)
+  force (I x) = I (force x)
 
---   thunk (I x) = I (thunk x)
---   force (I x) = I (force x)
+  returns (I x) = I (returns x)
 
---   returns (I x) = I (returns x)
+  letTo (I x) f = I $ letTo x $ \x' ->
+    let I body = f (I x')
+     in body
+  letBe (I x) f = I $ letBe x $ \x' ->
+    let I body = f (I x')
+     in body
 
---   letTo (I x) f = I $ letTo x $ \x' ->
---     let I body = f (I x')
---      in body
---   letBe (I x) f = I $ letBe x $ \x' ->
---     let I body = f (I x')
---      in body
+  lambda t f = I $ lambda t $ \x ->
+    let I body = f (I x)
+     in body
+  apply (I f) (I x) = I (apply f x)
 
---   lambda t f = I $ lambda t $ \x ->
---     let I body = f (I x)
---      in body
---   apply (I f) (I x) = I (apply f x)
-
---   constant k = I (constant k)
+  constant k = I (constant k)
 
 newtype Intrinsic (t :: forall k. k -> *) a = Intrinsic (t a)
 
