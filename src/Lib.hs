@@ -1,6 +1,9 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Lib
@@ -26,14 +29,14 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-toCallByPushValue :: Cbpv.Cbpv t => SystemF.Term a -> t (Cbpv.Code a)
+toCallByPushValue :: forall (t :: k -> *) a. Cbpv.Cbpv t => SystemF.Term a -> t a
 toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
    in x
 
-newtype ToCbpv t a = ToCbpv (t (Cbpv.Code a))
+newtype ToCbpv (t :: k -> *) (a :: k) = ToCbpv (t a)
 
-instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
+instance forall (t :: forall k. k -> *). Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
@@ -53,9 +56,9 @@ toCallcc code =
   let CodeCallcc _ x = Cbpv.abstractCode code
    in Callcc.build x
 
-data ToCallcc t a where
-  DataCallcc :: SSet a -> t (Callcc.Data a) -> ToCallcc t (Cbpv.Data a)
-  CodeCallcc :: SAlg a -> t (Callcc.Code a) -> ToCallcc t (Cbpv.Code a)
+data ToCallcc (t :: k -> *) (a :: k) where
+  DataCallcc :: SSet a -> t (Callcc.Data a) -> ToCallcc t a
+  CodeCallcc :: SAlg a -> t (Callcc.Code a) -> ToCallcc t a
 
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k

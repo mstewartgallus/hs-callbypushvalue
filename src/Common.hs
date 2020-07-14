@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlg (..), Set (..), Alg (..)) where
+module Common (equalAlg, equalSet, (:->), Pair, Kind (..), SSet (..), SAlg (..), Set (..), Alg (..)) where
 
 import Data.Typeable
 import TextShow
@@ -16,6 +16,10 @@ infixr 0 :*:
 data Alg = Void | F Set | Set :=> Alg
 
 infixr 9 :=>
+
+data Kind a where
+  AlgKind :: Kind Alg
+  SetKind :: Kind Set
 
 data SSet (a :: Set) where
   SU64 :: SSet U64

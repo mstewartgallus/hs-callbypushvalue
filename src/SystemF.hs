@@ -18,6 +18,7 @@ import Kind
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
+import MonoInliner
 import Name
 import TextShow (TextShow, fromString, showb)
 import qualified TextShow (Builder)
@@ -26,6 +27,7 @@ import TypeMap (TypeMap)
 import qualified TypeMap
 import TypeVariable
 import qualified Unique
+import View
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
@@ -87,14 +89,6 @@ instance SystemF t => SystemF (CostInliner t) where
         I _ y -> y
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
 
--- | Tagless final newtype to inline letBe clauses that use the bound
--- term one or less times.
---
--- Basically the same as Cost inliner but only measures how often a
--- variable occurs.  Everytime we make this check we make a probe with
--- Mono 1 in letBe.  Nothing else should add a constant amount.
-data MonoInliner t (a :: Alg) = M Int (t a)
-
 instance SystemF t => SystemF (MonoInliner t) where
   constant k = M 0 (constant k)
   global g = M 0 (global g)
@@ -150,8 +144,6 @@ abstract' env term = case term of
 instance TextShow (Term a) where
   showb term = case abstract term of
     V b -> Unique.withStream b
-
-newtype View (a :: Alg) = V (forall s. Unique.Stream s -> TextShow.Builder)
 
 instance SystemF View where
   constant k = V $ \_ -> showb k

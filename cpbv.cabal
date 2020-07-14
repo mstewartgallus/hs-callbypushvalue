@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2eac889eaa380e04e84eb6fdb3115959df3e04f47df529d5f5cb9887f795359b
+-- hash: 8c72f438b3330e4779b138e8e974d6a9a96dd7f687943a3aa0ed8a4a0b591457
 
 name:           cpbv
 version:        0.1.0.0
@@ -40,6 +40,7 @@ library
       Label
       LabelMap
       Lib
+      MonoInliner
       Name
       Porcelain
       SystemF
@@ -49,6 +50,7 @@ library
       Unique
       Variable
       VarMap
+      View
   other-modules:
       Paths_cpbv
   hs-source-dirs:

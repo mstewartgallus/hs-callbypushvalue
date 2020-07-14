@@ -1,12 +1,13 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeOperators #-}
 
 module TypeMap where
 
+import Common
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Typeable
-import Kind
 import TypeVariable
 import Unique
 
@@ -17,6 +18,9 @@ data Dyn t where
 
 empty :: TypeMap t
 empty = TypeMap Map.empty
+
+equalKind :: Kind a -> Kind b -> Maybe (a :~: b)
+equalKind = undefined
 
 lookup :: TypeVariable a -> TypeMap t -> Maybe (t a)
 lookup (TypeVariable t name) (TypeMap m) = case Map.lookup name m of

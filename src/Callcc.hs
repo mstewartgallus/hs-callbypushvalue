@@ -22,6 +22,7 @@ import Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
+import View
 
 typeOf :: Code a -> SAlg a
 typeOf x = case x of
@@ -196,8 +197,6 @@ data Data a where
   ThunkData :: Label a -> Code Void -> Data (U a)
   PushData :: Data a -> Data b -> Data (a :*: b)
   TailData :: Data (a :*: b) -> Data a
-
-newtype View a = V (forall s. Unique.Stream s -> TextShow.Builder)
 
 instance Callcc View where
   global g = V $ \_ -> showb g

@@ -4,7 +4,7 @@
 
 module TypeVariable (TypeVariable (..)) where
 
-import Kind (Kind)
+import Common
 import TextShow
 import Unique (Unique)
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
@@ -23,35 +24,34 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-data Builder a where
-  CB :: (forall s. Unique.Stream s -> (SAlg a, Code a)) -> Builder (Code a)
-  DB :: (forall s. Unique.Stream s -> (SSet a, Data a)) -> Builder (Data a)
+data Builder (a :: k) where
+  CB :: (forall s. Unique.Stream s -> (SAlg a, Code a)) -> Builder a
+  DB :: (forall s. Unique.Stream s -> (SSet a, Data a)) -> Builder a
 
-build :: Builder a -> a
+build :: forall (a :: Alg). Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
-build (DB s) = snd (Unique.withStream s)
 
-class Cbpv t where
-  global :: Global a -> t (Code a)
+class Cbpv (t :: forall k. k -> *) where
+  global :: forall (a :: Alg). Global a -> t a
 
-  force :: t (Data (U a)) -> t (Code a)
-  returns :: t (Data a) -> t (Code (F a))
-  letTo :: t (Code (F a)) -> (t (Data a) -> t (Code b)) -> t (Code b)
-  letBe :: t (Data a) -> (t (Data a) -> t (Code b)) -> t (Code b)
+  force :: forall (a :: Alg). t (U a) -> t a
+  returns :: forall (a :: Set). t a -> t (F a)
+  letTo :: forall (a :: Set) (b :: Alg). t (F a) -> (t a -> t b) -> t b
+  letBe :: forall (a :: Set) (b :: Alg). t a -> (t a -> t b) -> t b
 
-  lambda :: SSet a -> (t (Data a) -> t (Code b)) -> t (Code (a :=> b))
-  apply :: t (Code (a :=> b)) -> t (Data a) -> t (Code b)
+  lambda :: forall (a :: Set) (b :: Alg). SSet a -> (t a -> t b) -> t (a :=> b)
+  apply :: forall (a :: Set) (b :: Alg). t (a :=> b) -> t a -> t b
 
-  push :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
+  push :: forall (a :: Set) (b :: Set). t a -> t b -> t (a :*: b)
 
   -- fixme... use an indirect style for this...
-  tail :: t (Data (a :*: b)) -> t (Data a)
-  head :: t (Data (a :*: b)) -> t (Data b)
+  tail :: forall (a :: Set) (b :: Set). t (a :*: b) -> t a
+  head :: forall (a :: Set) (b :: Set). t (a :*: b) -> t b
 
-  unit :: t (Data Unit)
+  unit :: t Unit
 
-  constant :: Constant a -> t (Data a)
-  thunk :: t (Code a) -> t (Data (U a))
+  constant :: forall (a :: Set). Constant a -> t a
+  thunk :: forall (a :: Alg). t a -> t (U a)
 
 instance Cbpv Builder where
   global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
@@ -121,7 +121,7 @@ instance TextShow (Data a) where
   showb term = case abstractData term of
     V b -> Unique.withStream b
 
-newtype View a = V (forall s. Unique.Stream s -> TextShow.Builder)
+newtype View (a :: k) = V (forall s. Unique.Stream s -> TextShow.Builder)
 
 instance Cbpv View where
   global g = V $ \_ -> showb g
@@ -195,10 +195,10 @@ count v = code
       ThunkData c -> code c
       _ -> 0
 
-inline :: Cbpv t => Code a -> t (Code a)
+inline :: forall (t :: forall k. k -> *) a. Cbpv t => Code a -> t a
 inline = inlCode VarMap.empty
 
-inlCode :: Cbpv t => VarMap (X t) -> Code a -> t (Code a)
+inlCode :: forall (t :: forall k. k -> *) a. Cbpv t => VarMap (X t) -> Code a -> t a
 inlCode env code = case code of
   LetBeCode term binder body ->
     let term' = inlValue env term
@@ -215,7 +215,7 @@ inlCode env code = case code of
   ReturnCode val -> returns (inlValue env val)
   GlobalCode g -> global g
 
-inlValue :: Cbpv t => VarMap (X t) -> Data x -> t (Data x)
+inlValue :: forall (t :: forall k. k -> *) x. Cbpv t => VarMap (X t) -> Data x -> t x
 inlValue env x = case x of
   VariableData variable ->
     let Just (X v) = VarMap.lookup variable env
@@ -226,15 +226,15 @@ inlValue env x = case x of
   TailData tuple -> Cbpv.tail (inlValue env tuple)
   PushData h t -> push (inlValue env h) (inlValue env t)
 
-abstractCode :: Cbpv t => Code a -> t (Code a)
+abstractCode :: forall (t :: forall k. k -> *) a. Cbpv t => Code a -> t a
 abstractCode = abstractCode' VarMap.empty
 
-abstractData :: Cbpv t => Data a -> t (Data a)
+abstractData :: forall (t :: forall k. k -> *) a. Cbpv t => Data a -> t a
 abstractData = abstractData' VarMap.empty
 
-newtype X t a = X (t (Data a))
+newtype X (t :: k -> *) (a :: k) = X (t a)
 
-abstractCode' :: Cbpv t => VarMap (X t) -> Code a -> t (Code a)
+abstractCode' :: forall (t :: forall k. k -> *) a. Cbpv t => VarMap (X t) -> Code a -> t a
 abstractCode' env code = case code of
   LetBeCode term binder body -> letBe (abstractData' env term) $ \x ->
     let env' = VarMap.insert binder (X x) env
@@ -253,7 +253,7 @@ abstractCode' env code = case code of
   ReturnCode val -> returns (abstractData' env val)
   GlobalCode g -> global g
 
-abstractData' :: Cbpv t => VarMap (X t) -> Data x -> t (Data x)
+abstractData' :: forall (t :: forall k. k -> *) x. Cbpv t => VarMap (X t) -> Data x -> t x
 abstractData' env x = case x of
   VariableData v@(Variable t u) -> case VarMap.lookup v env of
     Just (X x) -> x
@@ -265,47 +265,47 @@ abstractData' env x = case x of
   PushData h t -> push (abstractData' env h) (abstractData' env t)
 
 -- Fixme... use a different file for this?
-intrinsify :: Cbpv t => Code a -> t (Code a)
-intrinsify code = case abstractCode code of
-  I x -> x
+intrinsify :: forall (t :: forall k. k -> *) a. Cbpv t => Code a -> t a
+intrinsify code = undefined -- case abstractCode code of
+-- I x -> x
 
-newtype Intrinsify t a = I (t a)
+newtype Intrinsify (t :: k -> *) (a :: k) = I (t a)
 
-instance Cbpv t => Cbpv (Intrinsify t) where
-  global g = I $ case GlobalMap.lookup g intrinsics of
-    Nothing -> global g
-    Just (Intrinsic intrinsic) -> intrinsic
+-- instance Cbpv t => Cbpv (Intrinsify t) where
+--   global g = I $ case GlobalMap.lookup g intrinsics of
+--     Nothing -> global g
+--     Just (Intrinsic intrinsic) -> intrinsic
 
-  unit = I unit
+--   unit = I unit
 
-  thunk (I x) = I (thunk x)
-  force (I x) = I (force x)
+--   thunk (I x) = I (thunk x)
+--   force (I x) = I (force x)
 
-  returns (I x) = I (returns x)
+--   returns (I x) = I (returns x)
 
-  letTo (I x) f = I $ letTo x $ \x' ->
-    let I body = f (I x')
-     in body
-  letBe (I x) f = I $ letBe x $ \x' ->
-    let I body = f (I x')
-     in body
+--   letTo (I x) f = I $ letTo x $ \x' ->
+--     let I body = f (I x')
+--      in body
+--   letBe (I x) f = I $ letBe x $ \x' ->
+--     let I body = f (I x')
+--      in body
 
-  lambda t f = I $ lambda t $ \x ->
-    let I body = f (I x)
-     in body
-  apply (I f) (I x) = I (apply f x)
+--   lambda t f = I $ lambda t $ \x ->
+--     let I body = f (I x)
+--      in body
+--   apply (I f) (I x) = I (apply f x)
 
-  constant k = I (constant k)
+--   constant k = I (constant k)
 
-newtype Intrinsic (t :: * -> *) a = Intrinsic (t (Code a))
+newtype Intrinsic (t :: forall k. k -> *) a = Intrinsic (t a)
 
-intrinsics :: Cbpv t => GlobalMap (Intrinsic t)
+intrinsics :: forall (t :: forall k. k -> *). Cbpv t => GlobalMap (Intrinsic t)
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
     ]
 
-plusIntrinsic :: Cbpv t => t (Code (F U64 :-> F U64 :-> F U64))
+plusIntrinsic :: forall (t :: forall k. k -> *). Cbpv t => t (F U64 :-> F U64 :-> F U64)
 plusIntrinsic = lambda (SU (SF SU64)) $ \x' ->
   lambda (SU (SF SU64)) $ \y' ->
     letTo (force x') $ \x'' ->
