@@ -115,13 +115,14 @@ instance TextShow (Stack a) where
   showb (ApplyStack x f) = showb x <> fromString " :: " <> showb f
 
 instance TextShow Code where
-  showb (GlobalCode g k) = fromString "call " <> showb g <> fromString " " <> showb k
-  showb (LetLabelCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (LetBeCode value binder body) = showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-  showb (ThrowCode k x) = fromString "throw " <> showb k <> fromString " " <> showb x
-  showb (ForceCode thnk stk) = fromString "! " <> showb thnk <> fromString " " <> showb stk
-  showb (LambdaCode k binder@(Variable t _) label@(Label a _) body) =
-    showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
+  showb c = case c of
+    GlobalCode g k -> fromString "call " <> showb g <> fromString " " <> showb k
+    LetLabelCode value binder body -> showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+    LetBeCode value binder body -> showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
+    ThrowCode k x -> fromString "throw " <> showb k <> fromString " " <> showb x
+    ForceCode thnk stk -> fromString "! " <> showb thnk <> fromString " " <> showb stk
+    LambdaCode k binder@(Variable t _) label@(Label a _) body ->
+      showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
 build :: Builder a -> a
 build (Builder s) = Unique.run s
@@ -151,14 +152,15 @@ simpStack (ApplyStack h t) = ApplyStack (simplify h) (simpStack t)
 simpStack x = x
 
 simpCode :: Code -> Code
-simpCode (ThrowCode (ToStack binder body) value) = simpCode (LetBeCode value binder body)
-simpCode (ForceCode (ThunkData label body) k) = simpCode (LetLabelCode k label body)
-simpCode (ThrowCode k x) = ThrowCode (simpStack k) (simplify x)
-simpCode (ForceCode f x) = ForceCode (simplify f) (simpStack x)
-simpCode (LetLabelCode thing binder body) = LetLabelCode (simpStack thing) binder (simpCode body)
-simpCode (LetBeCode thing binder body) = LetBeCode (simplify thing) binder (simpCode body)
-simpCode (GlobalCode g k) = GlobalCode g (simpStack k)
-simpCode (LambdaCode k binder label body) = LambdaCode (simpStack k) binder label (simpCode body)
+simpCode code = case code of
+  ThrowCode (ToStack binder body) value -> simpCode (LetBeCode value binder body)
+  ForceCode (ThunkData label body) k -> simpCode (LetLabelCode k label body)
+  ThrowCode k x -> ThrowCode (simpStack k) (simplify x)
+  ForceCode f x -> ForceCode (simplify f) (simpStack x)
+  LetLabelCode thing binder body -> LetLabelCode (simpStack thing) binder (simpCode body)
+  LetBeCode thing binder body -> LetBeCode (simplify thing) binder (simpCode body)
+  GlobalCode g k -> GlobalCode g (simpStack k)
+  LambdaCode k binder label body -> LambdaCode (simpStack k) binder label (simpCode body)
 
 inline :: Cps t => Data a -> t (Data a)
 inline = inlValue LabelMap.empty VarMap.empty
@@ -168,54 +170,57 @@ newtype X t a = X (t (Data a))
 newtype L t a = L (t (Stack a))
 
 inlValue :: Cps t => LabelMap (L t) -> VarMap (X t) -> Data a -> t (Data a)
-inlValue _ env (VariableData v) =
-  let Just (X x) = VarMap.lookup v env
-   in x
-inlValue lenv env (ThunkData binder@(Label t _) body) = thunk t $ \k ->
-  inlCode (LabelMap.insert binder (L k) lenv) env body
-inlValue _ _ (ConstantData k) = Cps.constant k
+inlValue lenv env x = case x of
+  VariableData v ->
+    let Just (X x) = VarMap.lookup v env
+     in x
+  ThunkData binder@(Label t _) body -> thunk t $ \k ->
+    inlCode (LabelMap.insert binder (L k) lenv) env body
+  ConstantData k -> Cps.constant k
 
 inlStack :: Cps t => LabelMap (L t) -> VarMap (X t) -> Stack a -> t (Stack a)
-inlStack lenv _ (LabelStack v) =
-  let Just (L x) = LabelMap.lookup v lenv
-   in x
-inlStack lenv env (ApplyStack h t) = Cps.apply (inlValue lenv env h) (inlStack lenv env t)
-inlStack lenv env (ToStack binder@(Variable t _) body) = Cps.letTo t $ \value ->
-  let env' = VarMap.insert binder (X value) env
-   in inlCode lenv env' body
+inlStack lenv env stk = case stk of
+  LabelStack v ->
+    let Just (L x) = LabelMap.lookup v lenv
+     in x
+  ApplyStack h t -> Cps.apply (inlValue lenv env h) (inlStack lenv env t)
+  ToStack binder@(Variable t _) body -> Cps.letTo t $ \value ->
+    let env' = VarMap.insert binder (X value) env
+     in inlCode lenv env' body
 
 inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
-inlCode lenv env (LambdaCode k binder@(Variable t _) label@(Label a _) body) =
-  let k' = inlStack lenv env k
-   in lambda k' $ \h k ->
-        inlCode (LabelMap.insert label (L k) lenv) (VarMap.insert binder (X h) env) body
-inlCode lenv env (LetLabelCode term binder@(Label t _) body) = result
-  where
-    term' = inlStack lenv env term
-    result
-      | countLabel binder body <= 1 || isSimpleStack term =
-        inlCode (LabelMap.insert binder (L term') lenv) env body
-      | otherwise =
-        force
-          ( thunk t $ \x ->
-              inlCode (LabelMap.insert binder (L x) lenv) env body
-          )
-          term'
-inlCode lenv env (LetBeCode term binder@(Variable t _) body) = result
-  where
-    term' = inlValue lenv env term
-    result
-      | count binder body <= 1 || isSimple term =
-        inlCode lenv (VarMap.insert binder (X term') env) body
-      | otherwise =
-        throw
-          ( letTo t $ \x ->
-              inlCode lenv (VarMap.insert binder (X x) env) body
-          )
-          term'
-inlCode lenv env (ThrowCode k x) = throw (inlStack lenv env k) (inlValue lenv env x)
-inlCode lenv env (ForceCode k x) = force (inlValue lenv env k) (inlStack lenv env x)
-inlCode lenv env (GlobalCode g k) = global g (inlStack lenv env k)
+inlCode lenv env code = case code of
+  LambdaCode k binder@(Variable t _) label@(Label a _) body ->
+    let k' = inlStack lenv env k
+     in lambda k' $ \h k ->
+          inlCode (LabelMap.insert label (L k) lenv) (VarMap.insert binder (X h) env) body
+  LetLabelCode term binder@(Label t _) body -> result
+    where
+      term' = inlStack lenv env term
+      result
+        | countLabel binder body <= 1 || isSimpleStack term =
+          inlCode (LabelMap.insert binder (L term') lenv) env body
+        | otherwise =
+          force
+            ( thunk t $ \x ->
+                inlCode (LabelMap.insert binder (L x) lenv) env body
+            )
+            term'
+  LetBeCode term binder@(Variable t _) body -> result
+    where
+      term' = inlValue lenv env term
+      result
+        | count binder body <= 1 || isSimple term =
+          inlCode lenv (VarMap.insert binder (X term') env) body
+        | otherwise =
+          throw
+            ( letTo t $ \x ->
+                inlCode lenv (VarMap.insert binder (X x) env) body
+            )
+            term'
+  ThrowCode k x -> throw (inlStack lenv env k) (inlValue lenv env x)
+  ForceCode k x -> force (inlValue lenv env k) (inlStack lenv env x)
+  GlobalCode g k -> global g (inlStack lenv env k)
 
 isSimple :: Data a -> Bool
 isSimple (ConstantData _) = True
@@ -238,12 +243,13 @@ count v = code
     stack (ToStack binder body) = code body
     stack _ = 0
     code :: Code -> Int
-    code (LetLabelCode x binder body) = stack x + code body
-    code (LetBeCode x binder body) = value x + code body
-    code (ThrowCode k x) = stack k + value x
-    code (ForceCode t k) = value t + stack k
-    code (GlobalCode _ k) = stack k
-    code (LambdaCode k _ _ body) = stack k + code body
+    code c = case c of
+      LetLabelCode x binder body -> stack x + code body
+      LetBeCode x binder body -> value x + code body
+      ThrowCode k x -> stack k + value x
+      ForceCode t k -> value t + stack k
+      GlobalCode _ k -> stack k
+      LambdaCode k _ _ body -> stack k + code body
 
 countLabel :: Label a -> Code -> Int
 countLabel v = code
@@ -252,71 +258,76 @@ countLabel v = code
     value (ThunkData _ body) = code body
     value _ = 0
     stack :: Stack b -> Int
-    stack (LabelStack binder) = if AnyLabel v == AnyLabel binder then 1 else 0
-    stack (ToStack binder body) = code body
-    stack (ApplyStack h t) = value h + stack t
+    stack stk = case stk of
+      LabelStack binder -> if AnyLabel v == AnyLabel binder then 1 else 0
+      ToStack binder body -> code body
+      ApplyStack h t -> value h + stack t
     code :: Code -> Int
-    code (LetLabelCode x binder body) = stack x + code body
-    code (LetBeCode x binder body) = value x + code body
-    code (ThrowCode k x) = stack k + value x
-    code (ForceCode t k) = value t + stack k
-    code (GlobalCode _ k) = stack k
-    code (LambdaCode k _ _ body) = stack k + code body
+    code c = case c of
+      LetLabelCode x binder body -> stack x + code body
+      LetBeCode x binder body -> value x + code body
+      ThrowCode k x -> stack k + value x
+      ForceCode t k -> value t + stack k
+      GlobalCode _ k -> stack k
+      LambdaCode k _ _ body -> stack k + code body
 
 abstract :: Cps t => Data a -> t (Data a)
 abstract x = abstData x LabelMap.empty VarMap.empty
 
 abstData :: Cps t => Data a -> LabelMap (L t) -> VarMap (X t) -> t (Data a)
-abstData (ConstantData k) = \_ _ -> constant k
-abstData (VariableData v) = \_ env -> case VarMap.lookup v env of
-  Just (X x) -> x
-  Nothing -> error "variable not found in environment"
-abstData (ThunkData label@(Label t _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        thunk t $ \k ->
-          body' (LabelMap.insert label (L k) lenv) env
+abstData x = case x of
+  ConstantData k -> \_ _ -> constant k
+  VariableData v -> \_ env -> case VarMap.lookup v env of
+    Just (X x) -> x
+    Nothing -> error "variable not found in environment"
+  ThunkData label@(Label t _) body ->
+    let body' = abstCode body
+     in \lenv env ->
+          thunk t $ \k ->
+            body' (LabelMap.insert label (L k) lenv) env
 
 abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (X t) -> t (Stack a)
-abstStack (LabelStack v) = \lenv _ -> case LabelMap.lookup v lenv of
-  Just (L x) -> x
-  Nothing -> error "label not found in environment"
-abstStack (ToStack binder@(Variable t _) body) =
-  let body' = abstCode body
-   in \lenv env ->
-        letTo t $ \value ->
-          body' lenv (VarMap.insert binder (X value) env)
-abstStack (ApplyStack h t) =
-  let h' = abstData h
-      t' = abstStack t
-   in \lenv env -> apply (h' lenv env) (t' lenv env)
+abstStack stk = case stk of
+  LabelStack v -> \lenv _ -> case LabelMap.lookup v lenv of
+    Just (L x) -> x
+    Nothing -> error "label not found in environment"
+  ToStack binder@(Variable t _) body ->
+    let body' = abstCode body
+     in \lenv env ->
+          letTo t $ \value ->
+            body' lenv (VarMap.insert binder (X value) env)
+  ApplyStack h t ->
+    let h' = abstData h
+        t' = abstStack t
+     in \lenv env -> apply (h' lenv env) (t' lenv env)
 
 abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (X t) -> t Code
-abstCode (GlobalCode g k) =
-  let k' = abstStack k
-   in \lenv env -> global g (k' lenv env)
-abstCode (ThrowCode k x) =
-  let value' = abstData x
-      k' = abstStack k
-   in \lenv env -> throw (k' lenv env) (value' lenv env)
-abstCode (ForceCode k x) =
-  let value' = abstStack x
-      k' = abstData k
-   in \lenv env -> force (k' lenv env) (value' lenv env)
-abstCode (LetBeCode value binder body) =
-  let value' = abstData value
-      body' = abstCode body
-   in \lenv env -> body' lenv (VarMap.insert binder (X (value' lenv env)) env)
-abstCode (LetLabelCode value binder body) =
-  let value' = abstStack value
-      body' = abstCode body
-   in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
-abstCode (LambdaCode k binder@(Variable t _) label@(Label a _) body) =
-  let body' = abstCode body
-      k' = abstStack k
-   in \lenv env ->
-        lambda
-          (k' lenv env)
-          ( \h n ->
-              body' (LabelMap.insert label (L n) lenv) (VarMap.insert binder (X h) env)
-          )
+abstCode c = case c of
+  GlobalCode g k ->
+    let k' = abstStack k
+     in \lenv env -> global g (k' lenv env)
+  ThrowCode k x ->
+    let value' = abstData x
+        k' = abstStack k
+     in \lenv env -> throw (k' lenv env) (value' lenv env)
+  ForceCode k x ->
+    let value' = abstStack x
+        k' = abstData k
+     in \lenv env -> force (k' lenv env) (value' lenv env)
+  LetBeCode value binder body ->
+    let value' = abstData value
+        body' = abstCode body
+     in \lenv env -> body' lenv (VarMap.insert binder (X (value' lenv env)) env)
+  LetLabelCode value binder body ->
+    let value' = abstStack value
+        body' = abstCode body
+     in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
+  LambdaCode k binder@(Variable t _) label@(Label a _) body ->
+    let body' = abstCode body
+        k' = abstStack k
+     in \lenv env ->
+          lambda
+            (k' lenv env)
+            ( \h n ->
+                body' (LabelMap.insert label (L n) lenv) (VarMap.insert binder (X h) env)
+            )
