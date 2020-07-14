@@ -29,7 +29,7 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-toCallByPushValue :: forall (t :: k -> *) a. Cbpv.Cbpv t => SystemF.Term a -> t a
+toCallByPushValue :: forall (t :: forall k. k -> *) a. Cbpv.Cbpv t => SystemF.Term a -> t a
 toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
    in x
@@ -56,7 +56,7 @@ toCallcc code =
   let CodeCallcc _ x = Cbpv.abstractCode code
    in Callcc.build x
 
-data ToCallcc (t :: k -> *) (a :: k) where
+data ToCallcc (t :: * -> *) :: forall k. k -> * where
   DataCallcc :: SSet a -> t (Callcc.Data a) -> ToCallcc t a
   CodeCallcc :: SAlg a -> t (Callcc.Code a) -> ToCallcc t a
 
