@@ -26,11 +26,12 @@ import TypeVariable
 import qualified Unique
 import Prelude hiding ((<*>))
 
--- | Type class representation of the System-F Omega Intermediate
--- Representation
+-- | Type class for the nonstrict System-F Omega intermediate
+-- representation
 --
 -- FIXME: forall and applyType are still experimental
 class SystemF t where
+  -- | function application
   (<*>) :: t (a :-> b) -> t a -> t b
 
   -- |
@@ -220,7 +221,7 @@ instance SystemF Builder where
   pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
     let (tx, vx) = x xs
         (ty, vy) = y ys
-     in (F (U tx :*: U ty :*: UnitType), PairTerm vx vy)
+     in (F (U tx :*: U ty), PairTerm vx vy)
   letBe (B x) f = B $ \(Unique.Stream newId xs fs) ->
     let (tx, vx) = x xs
         binder = Label tx newId

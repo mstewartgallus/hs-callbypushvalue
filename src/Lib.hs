@@ -35,7 +35,7 @@ newtype ToCbpv t a = ToCbpv (t Cbpv.Code a)
 instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
-  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.push (Cbpv.thunk y) Cbpv.unit))
+  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
 
   -- first (ToCbpv tuple) = ToCbpv x
   -- second (ToCbpv tuple) = ToCbpv y
