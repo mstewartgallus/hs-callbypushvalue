@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8c72f438b3330e4779b138e8e974d6a9a96dd7f687943a3aa0ed8a4a0b591457
+-- hash: f612af6973273e3838322596d1552c98579e210372889f17e4df64a080f709b8
 
 name:           cpbv
 version:        0.1.0.0
@@ -45,8 +45,6 @@ library
       Porcelain
       SystemF
       Type
-      TypeMap
-      TypeVariable
       Unique
       Variable
       VarMap

@@ -23,9 +23,6 @@ import Name
 import TextShow (TextShow, fromString, showb)
 import qualified TextShow (Builder)
 import Type
-import TypeMap (TypeMap)
-import qualified TypeMap
-import TypeVariable
 import qualified Unique
 import View
 import Prelude hiding ((<*>))

@@ -4,6 +4,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
@@ -266,12 +267,13 @@ abstractData' env x = case x of
 
 -- Fixme... use a different file for this?
 intrinsify :: forall (t :: forall k. k -> *) a. Cbpv t => Code a -> t a
-intrinsify code = undefined -- case abstractCode code of
+intrinsify code = abstractCode code
+
 -- I x -> x
 
-newtype Intrinsify (t :: k -> *) (a :: k) = I (t a)
+-- newtype Intrinsify (t :: forall k. k -> *) (a :: k) = I (t a)
 
--- instance Cbpv t => Cbpv (Intrinsify t) where
+-- instance forall (t :: forall k. k -> *). Cbpv t => Cbpv (Intrinsify t) where
 --   global g = I $ case GlobalMap.lookup g intrinsics of
 --     Nothing -> global g
 --     Just (Intrinsic intrinsic) -> intrinsic

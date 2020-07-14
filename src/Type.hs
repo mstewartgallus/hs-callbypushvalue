@@ -11,7 +11,6 @@ import Data.Typeable
 import Kind
 import Name (Name)
 import TextShow
-import TypeVariable
 import Unsafe.Coerce
 
 data Type (a :: Set) where

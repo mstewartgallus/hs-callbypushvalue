@@ -17,9 +17,15 @@ data Alg = Void | F Set | Set :=> Alg
 
 infixr 9 :=>
 
-data Kind a where
-  AlgKind :: Kind Alg
-  SetKind :: Kind Set
+-- data Kind a where
+--   AlgKind :: Kind Alg
+--   SetKind :: Kind Set
+
+class Kind (a :: *)
+
+instance Kind Alg
+
+instance Kind Set
 
 data SSet (a :: Set) where
   SU64 :: SSet U64
