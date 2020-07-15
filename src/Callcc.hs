@@ -10,6 +10,7 @@ module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..
 
 import Basic
 import Common
+import Const
 import Constant (Constant)
 import qualified Constant
 import Core
@@ -57,8 +58,11 @@ instance Basic Builder where
   data AlgRep Builder a = CB (SAlg a) (Unique.State (Code a))
   global g@(Global t _) = CB t $ pure (GlobalCode g)
 
-instance Callcc Builder where
+instance Const Builder where
   data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
+  constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
+
+instance Callcc Builder where
   data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
 
   returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
@@ -89,7 +93,6 @@ instance Callcc Builder where
   apply (CB (_ `SFn` b) f) (DB _ x) =
     CB b $
       pure ApplyCode <*> f <*> x
-  constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
 
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
@@ -154,11 +157,8 @@ abstractData' lenv env x = case x of
   TailData tuple -> Callcc.tail (abstractData' lenv env tuple)
   PushData h t -> push (abstractData' lenv env h) (abstractData' lenv env t)
 
-class Basic t => Callcc t where
-  data SetRep t :: Set -> *
+class (Basic t, Const t) => Callcc t where
   data StackRep t :: Alg -> *
-
-  constant :: Constant a -> SetRep t a
 
   returns :: SetRep t a -> AlgRep t (F a)
   letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
@@ -209,12 +209,14 @@ instance Basic View where
   newtype AlgRep View a = V (forall s. Unique.Stream s -> TextShow.Builder)
   global g = V $ \_ -> showb g
 
-instance Callcc View where
+instance Const View where
   data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
+  constant k = VS $ \_ -> showb k
+
+instance Callcc View where
   data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
 
   unit = VS $ \_ -> fromString "."
-  constant k = VS $ \_ -> showb k
 
   returns (VS value) = V $ \s -> fromString "return " <> value s
 

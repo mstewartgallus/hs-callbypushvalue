@@ -64,14 +64,14 @@ toCallcc code =
 
 data ToCallcc t
 
-instance Callcc.Callcc t => Basic (ToCallcc t) where
+instance Basic t => Basic (ToCallcc t) where
   data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (AlgRep t a)
   global g@(Global t _) = CodeCallcc t (global g)
 
-instance Callcc.Callcc t => Const (ToCallcc t) where
-  data SetRep (ToCallcc t) a = DataCallcc (SSet a) (Callcc.SetRep t a)
+instance Const t => Const (ToCallcc t) where
+  data SetRep (ToCallcc t) a = DataCallcc (SSet a) (SetRep t a)
 
-  constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
+  constant k = DataCallcc (Constant.typeOf k) $ constant k
 
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   letBe (DataCallcc t x) f =
