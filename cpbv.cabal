@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 33988139632661a7bc2463de58ca9b1f5c619c7a6c7ded035995816f44019a2a
+-- hash: fffd6072f31d280ccb3dfd266031e2ac92f4b349017b3ed40b6929c9580483da
 
 name:           cpbv
 version:        0.1.0.0
@@ -31,6 +31,7 @@ library
       Callcc
       Cbpv
       Common
+      Const
       Constant
       Core
       Cps

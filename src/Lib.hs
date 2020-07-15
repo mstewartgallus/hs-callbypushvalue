@@ -18,6 +18,7 @@ import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
+import Const
 import qualified Constant
 import Core
 import qualified Cps
@@ -43,7 +44,7 @@ instance Basic ToCbpv where
   global g = ToCbpv (global g)
 
 instance SystemF.SystemF ToCbpv where
-  constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
+  constant k = ToCbpv $ Cbpv.returns (constant k)
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
 
   -- first (ToCbpv tuple) = ToCbpv x
@@ -67,11 +68,12 @@ instance Callcc.Callcc t => Basic (ToCallcc t) where
   data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (AlgRep t a)
   global g@(Global t _) = CodeCallcc t (global g)
 
-instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
+instance Callcc.Callcc t => Const (ToCallcc t) where
   data SetRep (ToCallcc t) a = DataCallcc (SSet a) (Callcc.SetRep t a)
 
   constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
 
+instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   letBe (DataCallcc t x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ Callcc.letBe x $ \x' ->

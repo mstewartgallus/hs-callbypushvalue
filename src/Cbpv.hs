@@ -11,6 +11,7 @@ module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simp
 
 import Basic
 import Common
+import Const
 import Constant (Constant)
 import qualified Constant
 import Core
@@ -26,9 +27,7 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class Basic t => Cbpv t where
-  data SetRep t :: Set -> *
-
+class (Basic t, Const t) => Cbpv t where
   force :: SetRep t (U a) -> AlgRep t a
   returns :: SetRep t a -> AlgRep t (F a)
   letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
@@ -45,7 +44,6 @@ class Basic t => Cbpv t where
 
   unit :: SetRep t Unit
 
-  constant :: Constant a -> SetRep t a
   thunk :: AlgRep t a -> SetRep t (U a)
 
 data Builder
@@ -57,11 +55,12 @@ instance Basic Builder where
   newtype AlgRep Builder (a :: Alg) = CB (forall s. Unique.Stream s -> (SAlg a, Code a))
   global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
 
-instance Cbpv Builder where
+instance Const Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
-
-  unit = DB $ \_ -> (SUnit, UnitData)
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
+
+instance Cbpv Builder where
+  unit = DB $ \_ -> (SUnit, UnitData)
 
   force (DB thunk) = CB $ \s ->
     let (SU t, thunk') = thunk s
@@ -129,14 +128,15 @@ instance TextShow (Data a) where
 data View
 
 instance Basic View where
-  data AlgRep View a = V (forall s. Unique.Stream s -> TextShow.Builder)
+  newtype AlgRep View a = V (forall s. Unique.Stream s -> TextShow.Builder)
   global g = V $ \_ -> showb g
 
-instance Cbpv View where
-  data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
-
-  unit = VS $ \_ -> fromString "."
+instance Const View where
+  newtype SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
+
+instance Cbpv View where
+  unit = VS $ \_ -> fromString "."
 
   returns (VS value) = V $ \s -> fromString "return " <> value s
 
@@ -287,9 +287,11 @@ instance Basic Intrinsify where
     Nothing -> global g
     Just (Intrinsic intrinsic) -> intrinsic
 
-instance Cbpv Intrinsify where
+instance Const Intrinsify where
   newtype SetRep Intrinsify a = IS (SetRep Builder a)
+  constant k = IS (constant k)
 
+instance Cbpv Intrinsify where
   unit = IS unit
 
   thunk (I x) = IS (thunk x)
@@ -308,8 +310,6 @@ instance Cbpv Intrinsify where
     let I body = f (IS x)
      in body
   apply (I f) (IS x) = I (apply f x)
-
-  constant k = IS (constant k)
 
 newtype Intrinsic t a = Intrinsic (AlgRep t a)
 
