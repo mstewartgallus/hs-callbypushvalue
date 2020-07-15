@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
+module SystemF (lam, simplify, build, Builder, SystemF (..), abstract, Term (..)) where
 
 import Basic
 import Common
@@ -59,70 +59,6 @@ lam = lambda inferAlg
 -- applyType :: t (V a b) -> Type a -> t b
 
 infixl 4 <*>
-
--- | Tagless final newtype to inline letBe clauses based on a simple
--- cost model
---
--- FIXME: for now all the node costs and inline thresholds are
--- arbitrary and will need tuning
---
--- FIXME: use an alternative to the probe function
-data CostInliner t
-
-instance Basic t => Basic (CostInliner t) where
-  data AlgRep (CostInliner t) a = I Int (AlgRep t a)
-  global g = I 0 (global g)
-
-instance SystemF t => SystemF (CostInliner t) where
-  constant k = I 0 (constant k)
-
-  pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (pair x y)
-
-  letBe (I xcost x) f = result
-    where
-      result
-        | xcost <= 3 = inlined
-        | otherwise = notinlined
-      inlined@(I fcost _) = f (I 0 x)
-      notinlined = I (xcost + fcost + 1) $ letBe x $ \x' -> case f (I 0 x') of
-        I _ y -> y
-
-  lambda t f = result
-    where
-      I fcost _ = f (I 0 (global (probe t)))
-      result = I (fcost + 1) $ lambda t $ \x' -> case f (I 0 x') of
-        I _ y -> y
-  I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
-
-data MonoInliner t
-
-instance Basic t => Basic (MonoInliner t) where
-  data AlgRep (MonoInliner t) a = M Int (AlgRep t a)
-  global g = M 0 (global g)
-
-instance SystemF t => SystemF (MonoInliner t) where
-  constant k = M 0 (constant k)
-
-  pair (M xcost x) (M ycost y) = M (xcost + ycost) (pair x y)
-
-  letBe (M xcost x) f = result
-    where
-      result
-        | inlineCost <= 1 = inlined
-        | otherwise = notinlined
-      inlined@(M inlineCost _) = f (M 1 x)
-      notinlined = M (xcost + fcost) $ letBe x $ \x' -> case f (M 0 x') of
-        M _ y -> y
-      M fcost _ = f (M 0 x)
-
-  lambda t f =
-    let M fcost _ = f (M 0 (global (probe t)))
-     in M fcost $ lambda t $ \x' -> case f (M 0 x') of
-          M _ y -> y
-  M fcost f <*> M xcost x = M (fcost + xcost) (f <*> x)
-
-probe :: SAlg a -> Global a
-probe t = Global t $ Name (T.pack "core") (T.pack "probe")
 
 data Term a where
   LabelTerm :: Label a -> Term a
@@ -213,17 +149,6 @@ instance SystemF t => SystemF (Simplifier t) where
 
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
-
-inline :: Term a -> Term a
-inline term = costInline (monoInline term)
-
-monoInline :: Term a -> Term a
-monoInline term = case abstract term of
-  M _ m -> build m
-
-costInline :: Term a -> Term a
-costInline term = case abstract term of
-  I _ x -> build x
 
 data Builder
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 820e194bcef07672f4bf990a66a009930959328514baa0ba65f5540bb83afb8f
+-- hash: 3d846aaf039172fce44493c69e793e2d8e33c9dec3c8534a770687d6607c35ee
 
 name:           cpbv
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       Const
       Constant
       Core
+      CostInliner
       Cps
       Explicit
       Global
@@ -43,6 +44,7 @@ library
       Label
       LabelMap
       Lib
+      MonoInliner
       Name
       Porcelain
       SystemF

@@ -10,6 +10,7 @@ import qualified Cbpv
 import Common
 import qualified Constant
 import Core
+import qualified CostInliner
 import qualified Cps
 import Data.Data
 import qualified Data.Text as T
@@ -17,6 +18,7 @@ import qualified Data.Text.IO as T
 import Data.Word
 import qualified Interpreter
 import Lib
+import qualified MonoInliner
 import qualified Porcelain
 import qualified SystemF as F
 import TextShow
@@ -73,8 +75,18 @@ optimizeTerm = loop iterTerm
     loop 0 term = term
     loop n term =
       let simplified = F.build (F.simplify term)
-          inlined = (F.inline simplified)
+          inlined = ((costInline . monoInline) simplified)
        in loop (n - 1) inlined
+
+monoInline :: F.Term a -> F.Term a
+monoInline term =
+  let x = MonoInliner.extract (F.abstract term)
+   in F.build x
+
+costInline :: F.Term a -> F.Term a
+costInline term =
+  let x = CostInliner.extract (F.abstract term)
+   in F.build x
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
