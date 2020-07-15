@@ -87,39 +87,6 @@ abstract' env term = case term of
     Just x -> x
     Nothing -> error "variable not found in env"
 
-instance TextShow (Term a) where
-  showb = showTerm
-
-showTerm :: forall a. Term a -> TextShow.Builder
-showTerm term = case abstract term of
-  V b -> Unique.withStream b
-
-data View
-
-instance Basic View where
-  data AlgRep View (a :: Alg) = V (forall s. Unique.Stream s -> TextShow.Builder)
-  global g = V $ \_ -> showb g
-
-instance SystemF View where
-  constant k = V $ \_ -> showb k
-  pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
-    let x' = x xs
-        y' = y ys
-     in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
-
-  letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
-        V y = f (V $ \_ -> binder)
-     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
-
-  lambda t f = V $ \(Unique.Stream newId _ ys) ->
-    let binder = fromString "v" <> showb newId
-        V y = f (V $ \_ -> binder)
-     in fromString "λ " <> binder <> fromString ".\n" <> y ys
-
-  V f <*> V x = V $ \(Unique.Stream _ fs xs) ->
-    fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
-
 simplify :: SystemF t => Term a -> AlgRep t a
 simplify term = case abstract term of
   S _ x -> abstract (build x)

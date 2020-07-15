@@ -121,12 +121,12 @@ optimizeCps = loop iterCps
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
-  printT program
+  printT (viewTerm program)
 
   let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases program
 
   putStrLn "\nOptimized Term:"
-  printT optTerm
+  printT (viewTerm optTerm)
 
   putStrLn "\nCall By Push Value:"
   printT (view cbpv)
@@ -160,6 +160,9 @@ main = do
   eff
 
   return ()
+
+viewTerm :: F.Term a -> AlgRep View a
+viewTerm c = F.abstract c
 
 view :: Cbpv.Code a -> AlgRep View a
 view c = Cbpv.abstractCode c
