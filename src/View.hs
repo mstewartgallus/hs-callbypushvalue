@@ -7,4 +7,4 @@ import Common
 import qualified TextShow
 import qualified Unique
 
-newtype View a = V (forall s. Unique.Stream s -> TextShow.Builder)
+newtype View (a :: k) = V (forall s. Unique.Stream s -> TextShow.Builder)

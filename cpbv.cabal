@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f612af6973273e3838322596d1552c98579e210372889f17e4df64a080f709b8
+-- hash: f07a81ebf9e77eda36f8d62cd5254c182c2aff50c2372c1d7670d85b06045b30
 
 name:           cpbv
 version:        0.1.0.0
@@ -40,7 +40,6 @@ library
       Label
       LabelMap
       Lib
-      MonoInliner
       Name
       Porcelain
       SystemF

@@ -2,7 +2,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module SystemF (lam, simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
@@ -18,7 +20,6 @@ import Kind
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import MonoInliner
 import Name
 import TextShow (TextShow, fromString, showb)
 import qualified TextShow (Builder)
@@ -31,7 +32,7 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class SystemF t where
+class SystemF (t :: forall k. k -> *) where
   -- | function application
   (<*>) :: t (a :-> b) -> t a -> t b
 
@@ -39,18 +40,36 @@ class SystemF t where
   --
   -- FIXME find a way to unify constant and lambda into a sort of
   -- pure equivalent
-  constant :: Constant a -> t (F a)
+  constant ::
+    forall (a :: Set).
+    Constant a ->
+    t (F a)
 
-  lambda :: SAlg a -> (t a -> t b) -> t (a :-> b)
+  lambda ::
+    forall (a :: Alg) (b :: Alg).
+    SAlg a ->
+    (t a -> t b) ->
+    t (a :-> b)
 
-  global :: Global a -> t a
+  global ::
+    forall (a :: Alg).
+    Global a ->
+    t a
 
-  letBe :: t a -> (t a -> t b) -> t b
+  letBe ::
+    forall (a :: Alg) (b :: Alg).
+    t a ->
+    (t a -> t b) ->
+    t b
 
   pair :: t a -> t b -> t (Pair a b)
-  unpair :: t (Pair a b) -> (t a -> t b -> t c) -> t c
+  unpair ::
+    forall a b (c :: Alg).
+    t (Pair a b) ->
+    (t a -> t b -> t c) ->
+    t c
 
-lam :: (SystemF t, KnownAlg a) => (t a -> t b) -> t (a :-> b)
+lam :: forall (t :: forall k. k -> *) a b. (SystemF t, KnownAlg a) => (t a -> t b) -> t (a :-> b)
 lam = lambda inferAlg
 
 -- forall :: Kind a -> (Type a -> t b) -> t (V a b)
@@ -65,9 +84,9 @@ infixl 4 <*>
 -- arbitrary and will need tuning
 --
 -- FIXME: use an alternative to the probe function
-data CostInliner t (a :: Alg) = I Int (t a)
+data CostInliner (a :: k) = I Int (Builder a)
 
-instance SystemF t => SystemF (CostInliner t) where
+instance SystemF CostInliner where
   constant k = I 0 (constant k)
   global g = I 0 (global g)
 
@@ -89,7 +108,9 @@ instance SystemF t => SystemF (CostInliner t) where
         I _ y -> y
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
 
-instance SystemF t => SystemF (MonoInliner t) where
+data MonoInliner (a :: k) = M Int (Builder a)
+
+instance SystemF MonoInliner where
   constant k = M 0 (constant k)
   global g = M 0 (global g)
 
@@ -123,10 +144,10 @@ data Term a where
   PairTerm :: Term a -> Term b -> Term (Pair a b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
 
-abstract :: SystemF t => Term a -> t a
+abstract :: forall (t :: forall k. k -> *) a. SystemF t => Term a -> t a
 abstract = abstract' LabelMap.empty
 
-abstract' :: SystemF t => LabelMap t -> Term a -> t a
+abstract' :: forall (t :: forall k. k -> *) a. SystemF t => LabelMap t -> Term a -> t a
 abstract' env term = case term of
   PairTerm x y -> pair (abstract' env x) (abstract' env y)
   LetTerm term binder body ->
@@ -142,8 +163,11 @@ abstract' env term = case term of
     Nothing -> error "variable not found in env"
 
 instance TextShow (Term a) where
-  showb term = case abstract term of
-    V b -> Unique.withStream b
+  showb = showTerm
+
+showTerm :: forall a. Term a -> TextShow.Builder
+showTerm term = case abstract term of
+  V b -> Unique.withStream b
 
 instance SystemF View where
   constant k = V $ \_ -> showb k
@@ -166,17 +190,17 @@ instance SystemF View where
   V f <*> V x = V $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
-simplify :: SystemF t => Term a -> t a
+simplify :: forall (t :: forall k. k -> *) a. SystemF t => Term a -> t a
 simplify term = case abstract term of
-  S _ x -> x
+  S _ x -> abstract (build x)
 
-data Simplifier t a = S (MaybeFn t a) (t a)
+data Simplifier (a :: k) = S (MaybeFn a) (Builder a)
 
-data MaybeFn t a where
-  Fn :: (t a -> t b) -> MaybeFn t (a :-> b)
-  NotFn :: MaybeFn t a
+data MaybeFn (a :: k) where
+  Fn :: (Builder a -> Builder b) -> MaybeFn (a :-> b)
+  NotFn :: MaybeFn a
 
-instance SystemF t => SystemF (Simplifier t) where
+instance SystemF Simplifier where
   constant k = S NotFn (constant k)
   global g = S NotFn (global g)
 
@@ -193,11 +217,20 @@ instance SystemF t => SystemF (Simplifier t) where
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
 
-inline :: SystemF t => Term a -> t a
-inline term = case abstract term of
-  M _ (I _ result) -> result
+inline :: Term a -> Term a
+inline term = costInline (monoInline term)
 
-newtype Builder a = B (forall s. Unique.Stream s -> (SAlg a, Term a))
+monoInline :: Term a -> Term a
+monoInline term = case abstract term of
+  M _ m -> build m
+
+costInline :: Term a -> Term a
+costInline term = case abstract term of
+  I _ x -> build x
+
+data family Builder (a :: k)
+
+newtype instance Builder (a :: Alg) = B (forall s. Unique.Stream s -> (SAlg a, Term a))
 
 build :: Builder a -> Term a
 build (B f) =

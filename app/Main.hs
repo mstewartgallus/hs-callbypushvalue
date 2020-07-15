@@ -32,9 +32,10 @@ iterCallcc = 20
 
 iterCps = 20
 
-mkProgram :: F.SystemF t => t (F U64 :-> F U64 :-> F U64)
-mkProgram =
-  F.lam $ \x ->
+program :: F.Term (F U64 :-> F U64 :-> F U64)
+program = F.build
+  $ F.lam
+  $ \x ->
     F.lam $ \y ->
       ( F.lam $ \z ->
           F.global Core.plus F.<*> z F.<*> y
@@ -54,7 +55,7 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (toCallByPushValue optTerm)
+      cbpv = toCallByPushValue optTerm
       intrinsified = Cbpv.build (Cbpv.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
@@ -70,7 +71,7 @@ optimizeTerm = loop iterTerm
     loop 0 term = term
     loop n term =
       let simplified = F.build (F.simplify term)
-          inlined = F.build (F.inline simplified)
+          inlined = (F.inline simplified)
        in loop (n - 1) inlined
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
@@ -105,8 +106,6 @@ optimizeCps = loop iterCps
 
 main :: IO ()
 main = do
-  let program = F.build $ mkProgram
-
   putStrLn "Lambda Calculus:"
   printT program
 

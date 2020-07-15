@@ -29,14 +29,14 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-toCallByPushValue :: forall (t :: forall k. k -> *) a. Cbpv.Cbpv t => SystemF.Term a -> t a
+toCallByPushValue :: SystemF.Term a -> Cbpv.Code a
 toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
-   in x
+   in Cbpv.build x
 
-newtype ToCbpv (t :: k -> *) (a :: k) = ToCbpv (t a)
+newtype ToCbpv (a :: k) = ToCbpv (Cbpv.Builder a)
 
-instance forall (t :: forall k. k -> *). Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
+instance SystemF.SystemF ToCbpv where
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
