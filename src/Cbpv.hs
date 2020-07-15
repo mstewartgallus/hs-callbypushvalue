@@ -208,27 +208,27 @@ count v = code
 inline :: Cbpv t => Code a -> AlgRep t a
 inline = inlCode VarMap.empty
 
-inlCode :: Cbpv t => VarMap (X t) -> Code a -> AlgRep t a
+inlCode :: Cbpv t => VarMap (SetRep t) -> Code a -> AlgRep t a
 inlCode env code = case code of
   LetBeCode term binder body ->
     let term' = inlValue env term
      in if count binder body <= 1
-          then inlCode (VarMap.insert binder (X term') env) body
+          then inlCode (VarMap.insert binder term' env) body
           else letBe term' $ \x ->
-            inlCode (VarMap.insert binder (X x) env) body
+            inlCode (VarMap.insert binder x env) body
   LetToCode term binder body -> letTo (inlCode env term) $ \x ->
-    inlCode (VarMap.insert binder (X x) env) body
+    inlCode (VarMap.insert binder x env) body
   ApplyCode f x -> apply (inlCode env f) (inlValue env x)
   LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
-    inlCode (VarMap.insert binder (X x) env) body
+    inlCode (VarMap.insert binder x env) body
   ForceCode th -> force (inlValue env th)
   ReturnCode val -> returns (inlValue env val)
   GlobalCode g -> global g
 
-inlValue :: Cbpv t => VarMap (X t) -> Data x -> SetRep t x
+inlValue :: Cbpv t => VarMap (SetRep t) -> Data x -> SetRep t x
 inlValue env x = case x of
   VariableData variable ->
-    let Just (X v) = VarMap.lookup variable env
+    let Just v = VarMap.lookup variable env
      in v
   ThunkData c -> thunk (inlCode env c)
   ConstantData k -> constant k
@@ -242,31 +242,29 @@ abstractCode = abstractCode' VarMap.empty
 abstractData :: Cbpv t => Data a -> SetRep t a
 abstractData = abstractData' VarMap.empty
 
-newtype X t a = X (SetRep t a)
-
-abstractCode' :: Cbpv t => VarMap (X t) -> Code a -> AlgRep t a
+abstractCode' :: Cbpv t => VarMap (SetRep t) -> Code a -> AlgRep t a
 abstractCode' env code = case code of
   LetBeCode term binder body -> letBe (abstractData' env term) $ \x ->
-    let env' = VarMap.insert binder (X x) env
+    let env' = VarMap.insert binder x env
      in abstractCode' env' body
   LetToCode term binder body -> letTo (abstractCode' env term) $ \x ->
-    let env' = VarMap.insert binder (X x) env
+    let env' = VarMap.insert binder x env
      in abstractCode' env' body
   ApplyCode f x ->
     let f' = abstractCode' env f
         x' = abstractData' env x
      in apply f' x'
   LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
-    let env' = VarMap.insert binder (X x) env
+    let env' = VarMap.insert binder x env
      in abstractCode' env' body
   ForceCode th -> force (abstractData' env th)
   ReturnCode val -> returns (abstractData' env val)
   GlobalCode g -> global g
 
-abstractData' :: Cbpv t => VarMap (X t) -> Data x -> SetRep t x
+abstractData' :: Cbpv t => VarMap (SetRep t) -> Data x -> SetRep t x
 abstractData' env x = case x of
   VariableData v@(Variable t u) -> case VarMap.lookup v env of
-    Just (X x) -> x
+    Just x -> x
     Nothing -> error ("could not find var " ++ show u)
   ThunkData c -> thunk (abstractCode' env c)
   ConstantData k -> constant k
@@ -279,19 +277,19 @@ intrinsify :: Cbpv t => Code a -> AlgRep t a
 intrinsify code = case abstractCode code of
   I x -> abstractCode (build x)
 
-data Intrinsify
+data Intrinsify t
 
-instance Basic Intrinsify where
-  newtype AlgRep Intrinsify a = I (AlgRep Builder a)
+instance Cbpv t => Basic (Intrinsify t) where
+  newtype AlgRep (Intrinsify t) a = I (AlgRep t a)
   global g = I $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
-    Just (Intrinsic intrinsic) -> intrinsic
+    Just intrinsic -> intrinsic
 
-instance Const Intrinsify where
-  newtype SetRep Intrinsify a = IS (SetRep Builder a)
+instance Const t => Const (Intrinsify t) where
+  newtype SetRep (Intrinsify t) a = IS (SetRep t a)
   constant k = IS (constant k)
 
-instance Cbpv Intrinsify where
+instance Cbpv t => Cbpv (Intrinsify t) where
   unit = IS unit
 
   thunk (I x) = IS (thunk x)
@@ -311,12 +309,10 @@ instance Cbpv Intrinsify where
      in body
   apply (I f) (IS x) = I (apply f x)
 
-newtype Intrinsic t a = Intrinsic (AlgRep t a)
-
-intrinsics :: Cbpv t => GlobalMap (Intrinsic t)
+intrinsics :: Cbpv t => GlobalMap (AlgRep t)
 intrinsics =
   GlobalMap.fromList
-    [ GlobalMap.Entry plus (Intrinsic plusIntrinsic)
+    [ GlobalMap.Entry plus plusIntrinsic
     ]
 
 plusIntrinsic :: Cbpv t => AlgRep t (F U64 :-> F U64 :-> F U64)
