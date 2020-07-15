@@ -67,13 +67,13 @@ infixl 4 <*>
 -- arbitrary and will need tuning
 --
 -- FIXME: use an alternative to the probe function
-data CostInliner
+data CostInliner t
 
-instance Basic CostInliner where
-  data AlgRep CostInliner a = I Int (AlgRep Builder a)
+instance Basic t => Basic (CostInliner t) where
+  data AlgRep (CostInliner t) a = I Int (AlgRep t a)
   global g = I 0 (global g)
 
-instance SystemF CostInliner where
+instance SystemF t => SystemF (CostInliner t) where
   constant k = I 0 (constant k)
 
   pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (pair x y)
@@ -94,13 +94,13 @@ instance SystemF CostInliner where
         I _ y -> y
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
 
-data MonoInliner
+data MonoInliner t
 
-instance Basic MonoInliner where
-  data AlgRep MonoInliner a = M Int (AlgRep Builder a)
+instance Basic t => Basic (MonoInliner t) where
+  data AlgRep (MonoInliner t) a = M Int (AlgRep t a)
   global g = M 0 (global g)
 
-instance SystemF MonoInliner where
+instance SystemF t => SystemF (MonoInliner t) where
   constant k = M 0 (constant k)
 
   pair (M xcost x) (M ycost y) = M (xcost + ycost) (pair x y)
@@ -188,17 +188,17 @@ simplify :: SystemF t => Term a -> AlgRep t a
 simplify term = case abstract term of
   S _ x -> abstract (build x)
 
-data Simplifier
+data Simplifier t
 
-data MaybeFn a where
-  Fn :: (AlgRep Builder a -> AlgRep Builder b) -> MaybeFn (a :-> b)
-  NotFn :: MaybeFn a
+data MaybeFn t a where
+  Fn :: (AlgRep t a -> AlgRep t b) -> MaybeFn t (a :-> b)
+  NotFn :: MaybeFn t a
 
-instance Basic Simplifier where
-  data AlgRep Simplifier a = S (MaybeFn a) (AlgRep Builder a)
+instance Basic t => Basic (Simplifier t) where
+  data AlgRep (Simplifier t) a = S (MaybeFn t a) (AlgRep t a)
   global g = S NotFn (global g)
 
-instance SystemF Simplifier where
+instance SystemF t => SystemF (Simplifier t) where
   constant k = S NotFn (constant k)
 
   pair (S _ x) (S _ y) = S NotFn (pair x y)

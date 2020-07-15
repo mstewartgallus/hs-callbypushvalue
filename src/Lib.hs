@@ -37,13 +37,13 @@ toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
    in Cbpv.build x
 
-data ToCbpv
+data ToCbpv t
 
-instance Basic ToCbpv where
-  data AlgRep ToCbpv a = ToCbpv (AlgRep Cbpv.Builder a)
+instance Basic t => Basic (ToCbpv t) where
+  newtype AlgRep (ToCbpv t) a = ToCbpv (AlgRep t a)
   global g = ToCbpv (global g)
 
-instance SystemF.SystemF ToCbpv where
+instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ Cbpv.returns (constant k)
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
 
