@@ -9,6 +9,7 @@
 
 module SystemF (lam, simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
 
+import Basic
 import Common
 import Constant (Constant)
 import qualified Constant
@@ -31,9 +32,7 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class SystemF t where
-  data AlgRep t :: Alg -> *
-
+class Basic t => SystemF t where
   -- | function application
   (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
 
@@ -44,8 +43,6 @@ class SystemF t where
   constant :: Constant a -> AlgRep t (F a)
 
   lambda :: SAlg a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
-
-  global :: Global a -> AlgRep t a
 
   letBe :: AlgRep t a -> (AlgRep t a -> AlgRep t b) -> AlgRep t b
 
@@ -72,11 +69,12 @@ infixl 4 <*>
 -- FIXME: use an alternative to the probe function
 data CostInliner
 
-instance SystemF CostInliner where
+instance Basic CostInliner where
   data AlgRep CostInliner a = I Int (AlgRep Builder a)
-
-  constant k = I 0 (constant k)
   global g = I 0 (global g)
+
+instance SystemF CostInliner where
+  constant k = I 0 (constant k)
 
   pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (pair x y)
 
@@ -98,11 +96,12 @@ instance SystemF CostInliner where
 
 data MonoInliner
 
-instance SystemF MonoInliner where
+instance Basic MonoInliner where
   data AlgRep MonoInliner a = M Int (AlgRep Builder a)
-
-  constant k = M 0 (constant k)
   global g = M 0 (global g)
+
+instance SystemF MonoInliner where
+  constant k = M 0 (constant k)
 
   pair (M xcost x) (M ycost y) = M (xcost + ycost) (pair x y)
 
@@ -161,11 +160,12 @@ showTerm term = case abstract term of
 
 data View
 
-instance SystemF View where
+instance Basic View where
   data AlgRep View (a :: Alg) = V (forall s. Unique.Stream s -> TextShow.Builder)
-
-  constant k = V $ \_ -> showb k
   global g = V $ \_ -> showb g
+
+instance SystemF View where
+  constant k = V $ \_ -> showb k
   pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys
@@ -194,11 +194,12 @@ data MaybeFn a where
   Fn :: (AlgRep Builder a -> AlgRep Builder b) -> MaybeFn (a :-> b)
   NotFn :: MaybeFn a
 
-instance SystemF Simplifier where
+instance Basic Simplifier where
   data AlgRep Simplifier a = S (MaybeFn a) (AlgRep Builder a)
-
-  constant k = S NotFn (constant k)
   global g = S NotFn (global g)
+
+instance SystemF Simplifier where
+  constant k = S NotFn (constant k)
 
   pair (S _ x) (S _ y) = S NotFn (pair x y)
 
@@ -231,11 +232,13 @@ build (B f) =
   let (_, x) = Unique.withStream f
    in x
 
-instance SystemF Builder where
+instance Basic Builder where
   newtype AlgRep Builder (a :: Alg) = B (forall s. Unique.Stream s -> (SAlg a, Term a))
-
-  constant k = B $ \_ -> (SF (Constant.typeOf k), ConstantTerm k)
   global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
+
+instance SystemF Builder where
+  constant k = B $ \_ -> (SF (Constant.typeOf k), ConstantTerm k)
+
   pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
     let (tx, vx) = x xs
         (ty, vy) = y ys

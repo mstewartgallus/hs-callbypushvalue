@@ -9,6 +9,7 @@
 
 module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
 
+import Basic
 import Common
 import Constant (Constant)
 import qualified Constant
@@ -25,11 +26,8 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class Cbpv (t :: *) where
-  data AlgRep t :: Alg -> *
+class Basic t => Cbpv t where
   data SetRep t :: Set -> *
-
-  global :: Global a -> AlgRep t a
 
   force :: SetRep t (U a) -> AlgRep t a
   returns :: SetRep t a -> AlgRep t (F a)
@@ -55,11 +53,13 @@ data Builder
 build :: AlgRep Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
 
-instance Cbpv Builder where
+instance Basic Builder where
   newtype AlgRep Builder (a :: Alg) = CB (forall s. Unique.Stream s -> (SAlg a, Code a))
+  global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
+
+instance Cbpv Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
-  global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
   unit = DB $ \_ -> (SUnit, UnitData)
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
@@ -128,11 +128,12 @@ instance TextShow (Data a) where
 
 data View
 
-instance Cbpv View where
+instance Basic View where
   data AlgRep View a = V (forall s. Unique.Stream s -> TextShow.Builder)
-  data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
-
   global g = V $ \_ -> showb g
+
+instance Cbpv View where
+  data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
 
   unit = VS $ \_ -> fromString "."
   constant k = VS $ \_ -> showb k
@@ -280,13 +281,14 @@ intrinsify code = case abstractCode code of
 
 data Intrinsify
 
-instance Cbpv Intrinsify where
+instance Basic Intrinsify where
   newtype AlgRep Intrinsify a = I (AlgRep Builder a)
-  newtype SetRep Intrinsify a = IS (SetRep Builder a)
-
   global g = I $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
     Just (Intrinsic intrinsic) -> intrinsic
+
+instance Cbpv Intrinsify where
+  newtype SetRep Intrinsify a = IS (SetRep Builder a)
 
   unit = IS unit
 

@@ -14,6 +14,7 @@ module Lib
   )
 where
 
+import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
@@ -37,10 +38,12 @@ toCallByPushValue term =
 
 data ToCbpv
 
+instance Basic ToCbpv where
+  data AlgRep ToCbpv a = ToCbpv (AlgRep Cbpv.Builder a)
+  global g = ToCbpv (global g)
+
 instance SystemF.SystemF ToCbpv where
-  data AlgRep ToCbpv a = ToCbpv (Cbpv.AlgRep Cbpv.Builder a)
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
-  global g = ToCbpv $ Cbpv.global g
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
 
   -- first (ToCbpv tuple) = ToCbpv x
@@ -60,12 +63,15 @@ toCallcc code =
 
 data ToCallcc t
 
+instance Callcc.Callcc t => Basic (ToCallcc t) where
+  data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (t (Callcc.Code a))
+  global g@(Global t _) = CodeCallcc t $ Callcc.global g
+
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   data SetRep (ToCallcc t) a = DataCallcc (SSet a) (t (Callcc.Data a))
-  data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (t (Callcc.Code a))
 
   constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
-  global g@(Global t _) = CodeCallcc t $ Callcc.global g
+
   letBe (DataCallcc t x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ Callcc.letBe x $ \x' ->

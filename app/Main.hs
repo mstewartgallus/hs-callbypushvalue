@@ -4,6 +4,7 @@
 
 module Main where
 
+import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
@@ -38,7 +39,7 @@ program = F.build
   $ \x ->
     F.lam $ \y ->
       ( F.lam $ \z ->
-          F.global Core.plus F.<*> z F.<*> y
+          global Core.plus F.<*> z F.<*> y
       )
         F.<*> x
 
