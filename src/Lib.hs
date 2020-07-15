@@ -28,6 +28,7 @@ import Label
 import qualified LabelMap
 import LabelMap (LabelMap)
 import qualified SystemF
+import Tuple
 import Type
 import qualified VarMap
 import VarMap (VarMap)
@@ -46,7 +47,7 @@ instance Basic t => Basic (ToCbpv t) where
 
 instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
   constant k = ToCbpv $ returns (constant k)
-  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
+  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ returns (pair (Cbpv.thunk x) (Cbpv.thunk y))
 
   -- first (ToCbpv tuple) = ToCbpv x
   -- second (ToCbpv tuple) = ToCbpv y
@@ -92,6 +93,8 @@ instance Explicit t => Explicit (ToCallcc t) where
            in body
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
   returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
+
+instance Tuple t => Tuple (ToCallcc t)
 
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)

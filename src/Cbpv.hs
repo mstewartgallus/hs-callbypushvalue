@@ -22,21 +22,16 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
 import qualified TextShow (Builder)
+import Tuple
 import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (Basic t, Const t, Explicit t) => Cbpv t where
+class (Basic t, Const t, Explicit t, Tuple t) => Cbpv t where
   thunk :: AlgRep t a -> SetRep t (U a)
   force :: SetRep t (U a) -> AlgRep t a
-
-  push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
-
-  -- fixme... use an indirect style for this...
-  tail :: SetRep t (a :*: b) -> SetRep t a
-  head :: SetRep t (a :*: b) -> SetRep t b
 
 data Builder
 
@@ -83,6 +78,8 @@ instance Explicit Builder where
         (_, vx) = x xs
      in (b, ApplyCode vf vx)
 
+instance Tuple Builder
+
 instance Cbpv Builder where
   force (DB thunk) = CB $ \s ->
     let (SU t, thunk') = thunk s
@@ -105,9 +102,9 @@ data Data a where
   ConstantData :: Constant a -> Data a
   UnitData :: Data Unit
   ThunkData :: Code a -> Data (U a)
-  PushData :: Data a -> Data b -> Data (a :*: b)
+  PairData :: Data a -> Data b -> Data (a :*: b)
   HeadData :: Data (a :*: b) -> Data b
-  TailData :: Data (a :*: b) -> Data a
+  FirstData :: Data (a :*: b) -> Data a
 
 instance TextShow (Code a) where
   showb term = case abstractCode term of
@@ -127,6 +124,8 @@ instance Const View where
   newtype SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
   unit = VS $ \_ -> fromString "."
+
+instance Tuple View
 
 instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
@@ -151,7 +150,7 @@ instance Cbpv View where
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
 
 {-
-Simplify Call By Push Data Inverses
+Simplify Call By Pair Data Inverses
 
 So far we handle:
 
@@ -191,8 +190,8 @@ count v = code
       _ -> 0
     value :: Data x -> Int
     value x = case x of
-      PushData h t -> value h + value t
-      TailData tuple -> value tuple
+      PairData h t -> value h + value t
+      FirstData tuple -> value tuple
       VariableData binder -> if AnyVariable v == AnyVariable binder then 1 else 0
       ThunkData c -> code c
       _ -> 0
@@ -225,8 +224,8 @@ inlValue env x = case x of
   ThunkData c -> thunk (inlCode env c)
   ConstantData k -> constant k
   UnitData -> unit
-  TailData tuple -> Cbpv.tail (inlValue env tuple)
-  PushData h t -> push (inlValue env h) (inlValue env t)
+  FirstData tuple -> first (inlValue env tuple)
+  PairData h t -> pair (inlValue env h) (inlValue env t)
 
 abstractCode :: Cbpv t => Code a -> AlgRep t a
 abstractCode = abstractCode' VarMap.empty
@@ -261,8 +260,8 @@ abstractData' env x = case x of
   ThunkData c -> thunk (abstractCode' env c)
   ConstantData k -> constant k
   UnitData -> unit
-  TailData tuple -> Cbpv.tail (abstractData' env tuple)
-  PushData h t -> push (abstractData' env h) (abstractData' env t)
+  FirstData tuple -> first (abstractData' env tuple)
+  PairData h t -> pair (abstractData' env h) (abstractData' env t)
 
 -- Fixme... use a different file for this?
 intrinsify :: Cbpv t => Code a -> AlgRep t a
@@ -281,6 +280,11 @@ instance Const t => Const (Intrinsify t) where
   newtype SetRep (Intrinsify t) a = IS (SetRep t a)
   constant k = IS (constant k)
   unit = IS unit
+
+instance Tuple t => Tuple (Intrinsify t) where
+  pair (IS x) (IS y) = IS (pair x y)
+  first (IS tuple) = IS (first tuple)
+  second (IS tuple) = IS (second tuple)
 
 instance Cbpv t => Explicit (Intrinsify t) where
   returns (IS x) = I (returns x)

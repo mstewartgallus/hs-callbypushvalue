@@ -22,6 +22,7 @@ import LabelMap (LabelMap)
 import qualified LabelMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
 import qualified TextShow (Builder)
+import Tuple
 import Unique
 import qualified VarMap
 import VarMap (VarMap)
@@ -45,10 +46,10 @@ typeOfData x = case x of
   VariableData (Variable t _) -> t
   ConstantData k -> Constant.typeOf k
   ThunkData (Label t _) _ -> SU t
-  TailData tuple ->
+  FirstData tuple ->
     let t `SPair` _ = typeOfData tuple
      in t
-  PushData h t -> typeOfData h `SPair` typeOfData t
+  PairData h t -> typeOfData h `SPair` typeOfData t
 
 build :: AlgRep Builder a -> Code a
 build (CB _ s) = Unique.run s
@@ -92,6 +93,8 @@ instance Explicit Builder where
   apply (CB (_ `SFn` b) f) (DB _ x) =
     CB b $
       pure ApplyCode <*> f <*> x
+
+instance Tuple Builder
 
 instance Callcc Builder where
   data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
@@ -156,15 +159,11 @@ abstractData' lenv env x = case x of
       Nothing -> error ("could not find var " ++ show u ++ " of type")
   ConstantData k -> constant k
   UnitData -> unit
-  TailData tuple -> Callcc.tail (abstractData' lenv env tuple)
-  PushData h t -> push (abstractData' lenv env h) (abstractData' lenv env t)
+  FirstData tuple -> first (abstractData' lenv env tuple)
+  PairData h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
 
-class (Basic t, Const t, Explicit t) => Callcc t where
+class (Basic t, Const t, Explicit t, Tuple t) => Callcc t where
   data StackRep t :: Alg -> *
-
-  push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
-  tail :: SetRep t (a :*: b) -> SetRep t a
-  head :: SetRep t (a :*: b) -> SetRep t b
 
   catch :: SAlg a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
   throw :: StackRep t a -> AlgRep t a -> AlgRep t Void
@@ -191,8 +190,8 @@ data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code Void -> Data (U a)
-  PushData :: Data a -> Data b -> Data (a :*: b)
-  TailData :: Data (a :*: b) -> Data a
+  PairData :: Data a -> Data b -> Data (a :*: b)
+  FirstData :: Data (a :*: b) -> Data a
 
 data View
 
@@ -204,6 +203,8 @@ instance Const View where
   data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
   unit = VS $ \_ -> fromString "."
+
+instance Tuple View
 
 instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
@@ -272,8 +273,8 @@ simpCode code = case code of
 simpData :: Data a -> Data a
 simpData x = case x of
   UnitData -> UnitData
-  TailData tuple -> TailData (simpData tuple)
-  PushData x y -> PushData (simpData x) (simpData y)
+  FirstData tuple -> FirstData (simpData tuple)
+  PairData x y -> PairData (simpData x) (simpData y)
   ThunkData label body -> ThunkData label (simpCode body)
   g@(ConstantData _) -> g
   g@(VariableData _) -> g
@@ -295,8 +296,8 @@ count v = code
     value :: Data x -> Int
     value x = case x of
       VariableData binder -> if AnyVariable v == AnyVariable binder then 1 else 0
-      PushData x y -> value x + value y
-      TailData tuple -> value tuple
+      PairData x y -> value x + value y
+      FirstData tuple -> value tuple
       ThunkData _ body -> code body
       _ -> 0
 
@@ -331,8 +332,8 @@ inlValue lenv env x = case x of
   ConstantData k -> constant k
   ThunkData binder@(Label t _) body -> thunk t $ \x ->
     inlCode (LabelMap.insert binder x lenv) env body
-  PushData x y -> push (inlValue lenv env x) (inlValue lenv env y)
-  TailData tuple -> Callcc.tail (inlValue lenv env tuple)
+  PairData x y -> pair (inlValue lenv env x) (inlValue lenv env y)
+  FirstData tuple -> first (inlValue lenv env tuple)
   UnitData -> unit
 
 inlStack :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Stack x -> StackRep t x
