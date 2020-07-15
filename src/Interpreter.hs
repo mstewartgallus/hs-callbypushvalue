@@ -8,6 +8,7 @@
 module Interpreter (evaluate, Value (..), Kont (..), R (..)) where
 
 import Common
+import Const
 import Constant
 import Core
 import Cps
@@ -45,15 +46,16 @@ newtype instance Kont (F a) = Returns (Value a -> R)
 
 data instance Kont (a :=> b) = Apply (Value a) (Kont b)
 
-data family X a
+data X
 
-newtype instance X Code = C R
-
-newtype instance X (Data a) = V (Value a)
-
-newtype instance X (Stack a) = K (Kont a)
+instance Const X where
+  newtype SetRep X a = V (Value a)
+  constant (U64Constant x) = V (I x)
 
 instance Cps X where
+  newtype CodeRep X = C R
+  newtype StackRep X a = K (Kont a)
+
   throw (K (Returns k)) (V x) = C (k x)
   force (V (Thunk f)) (K x) = C (f x)
 
@@ -74,7 +76,6 @@ instance Cps X where
   global g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
-  constant (U64Constant x) = V (I x)
 
 newtype G a = G (Kont a -> R)
 

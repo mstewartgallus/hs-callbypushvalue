@@ -96,15 +96,15 @@ instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   thunk (CodeCallcc t code) = DataCallcc (SU t) $ Callcc.thunk t $ \x ->
     Callcc.throw x code
 
-toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> t (Cps.Data (U a))
+toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> SetRep t (U a)
 toContinuationPassingStyle = toCpsThunk LabelMap.empty VarMap.empty
 
-toCpsThunk :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Data (U a))
+toCpsThunk :: Cps.Cps t => LabelMap (Cps.StackRep t) -> VarMap (SetRep t) -> Callcc.Code a -> SetRep t (U a)
 toCpsThunk lenv env act =
   let t = Callcc.typeOf act
    in Cps.thunk t $ \k -> toCps lenv env act k
 
-toCps :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Code a -> t (Cps.Stack a) -> t Cps.Code
+toCps :: Cps.Cps t => LabelMap (Cps.StackRep t) -> VarMap (SetRep t) -> Callcc.Code a -> Cps.StackRep t a -> Cps.CodeRep t
 toCps lenv env (Callcc.ReturnCode x) k =
   let x' = toCpsData lenv env x
    in Cps.throw k x'
@@ -114,23 +114,23 @@ toCps lenv env (Callcc.ApplyCode f x) k =
 toCps lenv env (Callcc.LetBeCode value binder@(Variable t _) body) k =
   Cps.throw
     ( Cps.letTo t $ \val ->
-        let env' = VarMap.insert binder (Y val) env
+        let env' = VarMap.insert binder val env
          in toCps lenv env' body k
     )
     (toCpsData lenv env value)
 toCps lenv env (Callcc.LambdaCode binder@(Variable t _) body) k =
   let a = Callcc.typeOf body
    in Cps.lambda k $ \x t ->
-        let env' = VarMap.insert binder (Y x) env
+        let env' = VarMap.insert binder x env
          in toCps lenv env' body t
 toCps lenv env (Callcc.LetToCode action binder@(Variable t _) body) k =
   toCps lenv env action $ Cps.letTo t $ \y ->
-    let env' = VarMap.insert binder (Y y) env
+    let env' = VarMap.insert binder y env
      in toCps lenv env' body k
 toCps lenv env (Callcc.CatchCode binder@(Label t _) body) k =
   Cps.force
     ( Cps.thunk t $ \k' ->
-        let lenv' = LabelMap.insert binder (L k') lenv
+        let lenv' = LabelMap.insert binder k' lenv
          in toCps lenv' env body Cps.nil
     )
     k
@@ -144,21 +144,17 @@ toCps lenv env (Callcc.ThrowCode k body) _ =
 --   let tuple' = toCpsData lenv env tuple
 --    in Cps.head tuple' k
 
-newtype L t a = L (t (Cps.Stack a))
-
-newtype Y t a = Y (t (Cps.Data a))
-
-toCpsStack :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Stack a -> t (Cps.Stack a)
+toCpsStack :: Cps.Cps t => LabelMap (Cps.StackRep t) -> VarMap (SetRep t) -> Callcc.Stack a -> Cps.StackRep t a
 toCpsStack lenv _ (Callcc.LabelStack v) =
-  let Just (L x) = LabelMap.lookup v lenv
+  let Just x = LabelMap.lookup v lenv
    in x
 
-toCpsData :: Cps.Cps t => LabelMap (L t) -> VarMap (Y t) -> Callcc.Data a -> t (Cps.Data a)
-toCpsData _ _ (Callcc.ConstantData x) = Cps.constant x
+toCpsData :: Cps.Cps t => LabelMap (Cps.StackRep t) -> VarMap (SetRep t) -> Callcc.Data a -> SetRep t a
+toCpsData _ _ (Callcc.ConstantData x) = constant x
 toCpsData _ env (Callcc.VariableData v) =
-  let Just (Y x) = VarMap.lookup v env
+  let Just x = VarMap.lookup v env
    in x
 toCpsData lenv env (Callcc.ThunkData label@(Label t _) body) =
   Cps.thunk t $ \k ->
-    let lenv' = LabelMap.insert label (L k) lenv
+    let lenv' = LabelMap.insert label k lenv
      in toCps lenv' env body Cps.nil

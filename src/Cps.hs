@@ -2,11 +2,13 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, abstract) where
 
 import Common
+import Const
 import Constant (Constant)
 import qualified Constant
 import Core
@@ -46,35 +48,45 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class Cps t where
-  constant :: Constant a -> t (Data a)
-  global :: Global a -> t (Stack a) -> t Code
+class Const t => Cps t where
+  data CodeRep t :: *
+  data StackRep t :: Alg -> *
 
-  throw :: t (Stack (F a)) -> t (Data a) -> t Code
-  force :: t (Data (U a)) -> t (Stack a) -> t Code
+  global :: Global a -> StackRep t a -> CodeRep t
 
-  thunk :: SAlg a -> (t (Stack a) -> t Code) -> t (Data (U a))
-  letTo :: SSet a -> (t (Data a) -> t Code) -> t (Stack (F a))
+  throw :: StackRep t (F a) -> SetRep t a -> CodeRep t
+  force :: SetRep t (U a) -> StackRep t a -> CodeRep t
 
-  lambda :: t (Stack (a :=> b)) -> (t (Data a) -> (t (Stack b) -> t Code)) -> t Code
+  thunk :: SAlg a -> (StackRep t a -> CodeRep t) -> SetRep t (U a)
+  letTo :: SSet a -> (SetRep t a -> CodeRep t) -> StackRep t (F a)
 
-  head :: t (Data (a :*: b)) -> t (Data a)
-  tail :: t (Data (a :*: b)) -> t (Data b)
+  lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> CodeRep t) -> CodeRep t
 
-  pop :: t (Data (a :*: b)) -> (t (Data a) -> t (Data b) -> t Code) -> t Code
+  head :: SetRep t (a :*: b) -> SetRep t a
+  tail :: SetRep t (a :*: b) -> SetRep t b
 
-  apply :: t (Data a) -> t (Stack b) -> t (Stack (a :=> b))
-  push :: t (Data a) -> t (Data b) -> t (Data (a :*: b))
+  pop :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> CodeRep t) -> CodeRep t
 
-  unit :: t (Data Unit)
-  nil :: t (Stack Void)
+  apply :: SetRep t a -> StackRep t b -> StackRep t (a :=> b)
+  push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
+
+  unit :: SetRep t Unit
+  nil :: StackRep t Void
+
+data Builder
+
+instance Const Builder where
+  newtype SetRep Builder a = DB (forall s. Unique.Stream s -> (SSet a, Data a))
+
+  constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
 instance Cps Builder where
+  newtype CodeRep Builder = CB (forall s. Unique.Stream s -> Code)
+  newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlg a, Stack a))
+
   global g (SB k) = CB $ \s ->
     let (_, k') = k s
      in GlobalCode g k'
-
-  constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
   letTo t f = SB $ \(Unique.Stream newId xs ys) ->
     let binder = Variable t newId
@@ -133,15 +145,8 @@ instance TextShow Code where
     LambdaCode k binder@(Variable t _) label@(Label a _) body ->
       showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
-data Builder a where
-  CB :: (forall s. Unique.Stream s -> Code) -> Builder Code
-  DB :: (forall s. Unique.Stream s -> (SSet a, Data a)) -> Builder (Data a)
-  SB :: (forall s. Unique.Stream s -> (SAlg a, Stack a)) -> Builder (Stack a)
-
-build :: Builder a -> a
-build (CB s) = Unique.withStream s
+build :: SetRep Builder a -> Data a
 build (DB s) = snd (Unique.withStream s)
-build (SB s) = snd (Unique.withStream s)
 
 simplify :: Data a -> Data a
 simplify (ThunkData binder body) = ThunkData binder (simpCode body)
@@ -163,48 +168,44 @@ simpCode code = case code of
   GlobalCode g k -> GlobalCode g (simpStack k)
   LambdaCode k binder label body -> LambdaCode (simpStack k) binder label (simpCode body)
 
-inline :: Cps t => Data a -> t (Data a)
+inline :: Cps t => Data a -> SetRep t a
 inline = inlValue LabelMap.empty VarMap.empty
 
-newtype X t a = X (t (Data a))
-
-newtype L t a = L (t (Stack a))
-
-inlValue :: Cps t => LabelMap (L t) -> VarMap (X t) -> Data a -> t (Data a)
+inlValue :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Data a -> SetRep t a
 inlValue lenv env x = case x of
   VariableData v ->
-    let Just (X x) = VarMap.lookup v env
+    let Just x = VarMap.lookup v env
      in x
   ThunkData binder@(Label t _) body -> thunk t $ \k ->
-    inlCode (LabelMap.insert binder (L k) lenv) env body
-  ConstantData k -> Cps.constant k
+    inlCode (LabelMap.insert binder k lenv) env body
+  ConstantData k -> constant k
 
-inlStack :: Cps t => LabelMap (L t) -> VarMap (X t) -> Stack a -> t (Stack a)
+inlStack :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Stack a -> StackRep t a
 inlStack lenv env stk = case stk of
   LabelStack v ->
-    let Just (L x) = LabelMap.lookup v lenv
+    let Just x = LabelMap.lookup v lenv
      in x
   ApplyStack h t -> Cps.apply (inlValue lenv env h) (inlStack lenv env t)
   ToStack binder@(Variable t _) body -> Cps.letTo t $ \value ->
-    let env' = VarMap.insert binder (X value) env
+    let env' = VarMap.insert binder value env
      in inlCode lenv env' body
 
-inlCode :: Cps t => LabelMap (L t) -> VarMap (X t) -> Code -> t Code
+inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code -> CodeRep t
 inlCode lenv env code = case code of
   LambdaCode k binder@(Variable t _) label@(Label a _) body ->
     let k' = inlStack lenv env k
      in lambda k' $ \h k ->
-          inlCode (LabelMap.insert label (L k) lenv) (VarMap.insert binder (X h) env) body
+          inlCode (LabelMap.insert label k lenv) (VarMap.insert binder h env) body
   LetLabelCode term binder@(Label t _) body -> result
     where
       term' = inlStack lenv env term
       result
         | countLabel binder body <= 1 || isSimpleStack term =
-          inlCode (LabelMap.insert binder (L term') lenv) env body
+          inlCode (LabelMap.insert binder term' lenv) env body
         | otherwise =
           force
             ( thunk t $ \x ->
-                inlCode (LabelMap.insert binder (L x) lenv) env body
+                inlCode (LabelMap.insert binder x lenv) env body
             )
             term'
   LetBeCode term binder@(Variable t _) body -> result
@@ -212,11 +213,11 @@ inlCode lenv env code = case code of
       term' = inlValue lenv env term
       result
         | count binder body <= 1 || isSimple term =
-          inlCode lenv (VarMap.insert binder (X term') env) body
+          inlCode lenv (VarMap.insert binder term' env) body
         | otherwise =
           throw
             ( letTo t $ \x ->
-                inlCode lenv (VarMap.insert binder (X x) env) body
+                inlCode lenv (VarMap.insert binder x env) body
             )
             term'
   ThrowCode k x -> throw (inlStack lenv env k) (inlValue lenv env x)
@@ -272,37 +273,37 @@ countLabel v = code
       GlobalCode _ k -> stack k
       LambdaCode k _ _ body -> stack k + code body
 
-abstract :: Cps t => Data a -> t (Data a)
+abstract :: Cps t => Data a -> SetRep t a
 abstract x = abstData x LabelMap.empty VarMap.empty
 
-abstData :: Cps t => Data a -> LabelMap (L t) -> VarMap (X t) -> t (Data a)
+abstData :: Cps t => Data a -> LabelMap (StackRep t) -> VarMap (SetRep t) -> SetRep t a
 abstData x = case x of
   ConstantData k -> \_ _ -> constant k
   VariableData v -> \_ env -> case VarMap.lookup v env of
-    Just (X x) -> x
+    Just x -> x
     Nothing -> error "variable not found in environment"
   ThunkData label@(Label t _) body ->
     let body' = abstCode body
      in \lenv env ->
           thunk t $ \k ->
-            body' (LabelMap.insert label (L k) lenv) env
+            body' (LabelMap.insert label k lenv) env
 
-abstStack :: Cps t => Stack a -> LabelMap (L t) -> VarMap (X t) -> t (Stack a)
+abstStack :: Cps t => Stack a -> LabelMap (StackRep t) -> VarMap (SetRep t) -> StackRep t a
 abstStack stk = case stk of
   LabelStack v -> \lenv _ -> case LabelMap.lookup v lenv of
-    Just (L x) -> x
+    Just x -> x
     Nothing -> error "label not found in environment"
   ToStack binder@(Variable t _) body ->
     let body' = abstCode body
      in \lenv env ->
           letTo t $ \value ->
-            body' lenv (VarMap.insert binder (X value) env)
+            body' lenv (VarMap.insert binder value env)
   ApplyStack h t ->
     let h' = abstData h
         t' = abstStack t
      in \lenv env -> apply (h' lenv env) (t' lenv env)
 
-abstCode :: Cps t => Code -> LabelMap (L t) -> VarMap (X t) -> t Code
+abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (SetRep t) -> CodeRep t
 abstCode c = case c of
   GlobalCode g k ->
     let k' = abstStack k
@@ -318,11 +319,11 @@ abstCode c = case c of
   LetBeCode value binder body ->
     let value' = abstData value
         body' = abstCode body
-     in \lenv env -> body' lenv (VarMap.insert binder (X (value' lenv env)) env)
+     in \lenv env -> body' lenv (VarMap.insert binder (value' lenv env) env)
   LetLabelCode value binder body ->
     let value' = abstStack value
         body' = abstCode body
-     in \lenv env -> body' (LabelMap.insert binder (L (value' lenv env)) lenv) env
+     in \lenv env -> body' (LabelMap.insert binder (value' lenv env) lenv) env
   LambdaCode k binder@(Variable t _) label@(Label a _) body ->
     let body' = abstCode body
         k' = abstStack k
@@ -330,5 +331,5 @@ abstCode c = case c of
           lambda
             (k' lenv env)
             ( \h n ->
-                body' (LabelMap.insert label (L n) lenv) (VarMap.insert binder (X h) env)
+                body' (LabelMap.insert label n lenv) (VarMap.insert binder h env)
             )
