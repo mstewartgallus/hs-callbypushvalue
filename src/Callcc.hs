@@ -193,63 +193,6 @@ data Data a where
   PairData :: Data a -> Data b -> Data (a :*: b)
   FirstData :: Data (a :*: b) -> Data a
 
-data View
-
-instance Basic View where
-  newtype AlgRep View a = V (forall s. Unique.Stream s -> TextShow.Builder)
-  global g = V $ \_ -> showb g
-
-instance Const View where
-  data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
-  constant k = VS $ \_ -> showb k
-  unit = VS $ \_ -> fromString "."
-
-instance Tuple View
-
-instance Explicit View where
-  returns (VS value) = V $ \s -> fromString "return " <> value s
-
-  letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
-        V y = f (VS $ \_ -> binder)
-     in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
-  letBe (VS x) f = V $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
-        V y = f (VS $ \_ -> binder)
-     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
-
-  lambda t f = V $ \(Unique.Stream newId _ s) ->
-    let binder = fromString "v" <> showb newId
-        V body = f (VS $ \_ -> binder)
-     in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-  apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
-
-instance Callcc View where
-  data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
-
-  catch t f = V $ \(Unique.Stream newId _ s) ->
-    let binder = fromString "l" <> showb newId
-        V body = f (VStk $ \_ -> binder)
-     in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-  thunk t f = VS $ \(Unique.Stream newId _ s) ->
-    let binder = fromString "l" <> showb newId
-        V body = f (VStk $ \_ -> binder)
-     in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-
-  throw (VStk f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
-  force (VS f) (VStk x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
-
-instance TextShow (Code a) where
-  showb term = case abstractCode term of
-    V b -> Unique.withStream b
-
-instance TextShow (Data a) where
-  showb term = case abstractData term of
-    VS b -> Unique.withStream b
-
-instance TextShow (Stack a) where
-  showb (LabelStack b) = showb b
-
 indent :: TextShow.Builder -> TextShow.Builder
 indent body = fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> body)))
 

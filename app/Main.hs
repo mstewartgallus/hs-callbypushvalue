@@ -126,10 +126,10 @@ main = do
   printT (view optIntrinsified)
 
   putStrLn "\nCatch/Throw:"
-  printT catchThrow
+  printT (viewCc catchThrow)
 
   putStrLn "\nOptimized Catch/Throw:"
-  printT optCatchThrow
+  printT (viewCc optCatchThrow)
 
   putStrLn "\nCps:"
   printT cps
@@ -151,6 +151,9 @@ main = do
 
 view :: Cbpv.Code a -> AlgRep View a
 view c = Cbpv.abstractCode c
+
+viewCc :: Callcc.Code a -> AlgRep View a
+viewCc c = Callcc.abstractCode c
 
 t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)
