@@ -38,7 +38,7 @@ toCallByPushValue term =
 data ToCbpv
 
 instance SystemF.SystemF ToCbpv where
-  data AlgRep ToCbpv a = ToCbpv (Cbpv.Builder a)
+  data AlgRep ToCbpv a = ToCbpv (Cbpv.AlgRep Cbpv.Builder a)
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
@@ -58,11 +58,12 @@ toCallcc code =
   let CodeCallcc _ x = Cbpv.abstractCode code
    in Callcc.build x
 
-data ToCallcc (t :: * -> *) :: forall k. k -> * where
-  DataCallcc :: SSet a -> t (Callcc.Data a) -> ToCallcc t a
-  CodeCallcc :: SAlg a -> t (Callcc.Code a) -> ToCallcc t a
+data ToCallcc t
 
 instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
+  data SetRep (ToCallcc t) a = DataCallcc (SSet a) (t (Callcc.Data a))
+  data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (t (Callcc.Code a))
+
   constant k = DataCallcc (Constant.typeOf k) $ Callcc.constant k
   global g@(Global t _) = CodeCallcc t $ Callcc.global g
   letBe (DataCallcc t x) f =
