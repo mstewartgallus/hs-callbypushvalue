@@ -70,7 +70,6 @@ class Const t => Cps t where
   apply :: SetRep t a -> StackRep t b -> StackRep t (a :=> b)
   push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
 
-  unit :: SetRep t Unit
   nil :: StackRep t Void
 
 data Builder

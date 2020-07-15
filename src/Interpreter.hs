@@ -51,6 +51,7 @@ data X
 instance Const X where
   newtype SetRep X a = V (Value a)
   constant (U64Constant x) = V (I x)
+  unit = V Coin
 
 instance Cps X where
   newtype CodeRep X = C R
@@ -70,7 +71,6 @@ instance Cps X where
   pop (V (h ::: t)) f = f (V h) (V t)
   push (V h) (V t) = V (h ::: t)
 
-  unit = V Coin
   nil = K Nil
 
   global g (K k) = case GlobalMap.lookup g globals of

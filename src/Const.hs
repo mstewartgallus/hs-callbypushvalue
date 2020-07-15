@@ -10,3 +10,5 @@ class Const t where
   data SetRep t :: Set -> *
 
   constant :: Constant a -> SetRep t a
+
+  unit :: SetRep t Unit

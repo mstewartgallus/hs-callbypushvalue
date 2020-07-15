@@ -29,8 +29,6 @@ import qualified VarMap as VarMap
 import Variable
 
 class (Basic t, Const t, Explicit t) => Cbpv t where
-  unit :: SetRep t Unit
-
   thunk :: AlgRep t a -> SetRep t (U a)
   force :: SetRep t (U a) -> AlgRep t a
 
@@ -52,6 +50,7 @@ instance Basic Builder where
 instance Const Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
+  unit = DB $ \_ -> (SUnit, UnitData)
 
 instance Explicit Builder where
   returns (DB value) = CB $ \s ->
@@ -85,8 +84,6 @@ instance Explicit Builder where
      in (b, ApplyCode vf vx)
 
 instance Cbpv Builder where
-  unit = DB $ \_ -> (SUnit, UnitData)
-
   force (DB thunk) = CB $ \s ->
     let (SU t, thunk') = thunk s
      in (t, ForceCode thunk')
@@ -129,6 +126,7 @@ instance Basic View where
 instance Const View where
   newtype SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
+  unit = VS $ \_ -> fromString "."
 
 instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
@@ -149,8 +147,6 @@ instance Explicit View where
   apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
 
 instance Cbpv View where
-  unit = VS $ \_ -> fromString "."
-
   thunk (V code) = VS $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
 
@@ -284,6 +280,7 @@ instance Cbpv t => Basic (Intrinsify t) where
 instance Const t => Const (Intrinsify t) where
   newtype SetRep (Intrinsify t) a = IS (SetRep t a)
   constant k = IS (constant k)
+  unit = IS unit
 
 instance Cbpv t => Explicit (Intrinsify t) where
   returns (IS x) = I (returns x)
@@ -301,8 +298,6 @@ instance Cbpv t => Explicit (Intrinsify t) where
   apply (I f) (IS x) = I (apply f x)
 
 instance Cbpv t => Cbpv (Intrinsify t) where
-  unit = IS unit
-
   thunk (I x) = IS (thunk x)
   force (IS x) = I (force x)
 

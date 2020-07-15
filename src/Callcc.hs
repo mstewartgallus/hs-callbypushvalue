@@ -62,6 +62,7 @@ instance Basic Builder where
 instance Const Builder where
   data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
+  unit = DB SUnit $ pure UnitData
 
 instance Explicit Builder where
   returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
@@ -94,8 +95,6 @@ instance Explicit Builder where
 
 instance Callcc Builder where
   data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
-
-  unit = DB SUnit $ pure UnitData
 
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
@@ -163,8 +162,6 @@ abstractData' lenv env x = case x of
 class (Basic t, Const t, Explicit t) => Callcc t where
   data StackRep t :: Alg -> *
 
-  unit :: SetRep t Unit
-
   push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
   tail :: SetRep t (a :*: b) -> SetRep t a
   head :: SetRep t (a :*: b) -> SetRep t b
@@ -206,6 +203,7 @@ instance Basic View where
 instance Const View where
   data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
+  unit = VS $ \_ -> fromString "."
 
 instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
@@ -227,8 +225,6 @@ instance Explicit View where
 
 instance Callcc View where
   data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
-
-  unit = VS $ \_ -> fromString "."
 
   catch t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
@@ -337,7 +333,7 @@ inlValue lenv env x = case x of
     inlCode (LabelMap.insert binder x lenv) env body
   PushData x y -> push (inlValue lenv env x) (inlValue lenv env y)
   TailData tuple -> Callcc.tail (inlValue lenv env tuple)
-  UnitData -> Callcc.unit
+  UnitData -> unit
 
 inlStack :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Stack x -> StackRep t x
 inlStack lenv _ (LabelStack l) =
