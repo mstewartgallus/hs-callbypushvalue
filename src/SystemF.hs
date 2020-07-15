@@ -25,51 +25,37 @@ import TextShow (TextShow, fromString, showb)
 import qualified TextShow (Builder)
 import Type
 import qualified Unique
-import View
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class SystemF (t :: forall k. k -> *) where
+class SystemF t where
+  data AlgRep t :: Alg -> *
+
   -- | function application
-  (<*>) :: t (a :-> b) -> t a -> t b
+  (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
 
   -- |
   --
   -- FIXME find a way to unify constant and lambda into a sort of
   -- pure equivalent
-  constant ::
-    forall (a :: Set).
-    Constant a ->
-    t (F a)
+  constant :: Constant a -> AlgRep t (F a)
 
-  lambda ::
-    forall (a :: Alg) (b :: Alg).
-    SAlg a ->
-    (t a -> t b) ->
-    t (a :-> b)
+  lambda :: SAlg a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 
-  global ::
-    forall (a :: Alg).
-    Global a ->
-    t a
+  global :: Global a -> AlgRep t a
 
-  letBe ::
-    forall (a :: Alg) (b :: Alg).
-    t a ->
-    (t a -> t b) ->
-    t b
+  letBe :: AlgRep t a -> (AlgRep t a -> AlgRep t b) -> AlgRep t b
 
-  pair :: t a -> t b -> t (Pair a b)
+  pair :: AlgRep t a -> AlgRep t b -> AlgRep t (Pair a b)
   unpair ::
-    forall a b (c :: Alg).
-    t (Pair a b) ->
-    (t a -> t b -> t c) ->
-    t c
+    AlgRep t (Pair a b) ->
+    (AlgRep t a -> AlgRep t b -> AlgRep t c) ->
+    AlgRep t c
 
-lam :: forall (t :: forall k. k -> *) a b. (SystemF t, KnownAlg a) => (t a -> t b) -> t (a :-> b)
+lam :: (SystemF t, KnownAlg a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 lam = lambda inferAlg
 
 -- forall :: Kind a -> (Type a -> t b) -> t (V a b)
@@ -84,9 +70,11 @@ infixl 4 <*>
 -- arbitrary and will need tuning
 --
 -- FIXME: use an alternative to the probe function
-data CostInliner (a :: k) = I Int (Builder a)
+data CostInliner
 
 instance SystemF CostInliner where
+  data AlgRep CostInliner a = I Int (AlgRep Builder a)
+
   constant k = I 0 (constant k)
   global g = I 0 (global g)
 
@@ -108,9 +96,11 @@ instance SystemF CostInliner where
         I _ y -> y
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f <*> x)
 
-data MonoInliner (a :: k) = M Int (Builder a)
+data MonoInliner
 
 instance SystemF MonoInliner where
+  data AlgRep MonoInliner a = M Int (AlgRep Builder a)
+
   constant k = M 0 (constant k)
   global g = M 0 (global g)
 
@@ -144,10 +134,10 @@ data Term a where
   PairTerm :: Term a -> Term b -> Term (Pair a b)
   ApplyTerm :: Term (a :-> b) -> Term a -> Term b
 
-abstract :: forall (t :: forall k. k -> *) a. SystemF t => Term a -> t a
+abstract :: SystemF t => Term a -> AlgRep t a
 abstract = abstract' LabelMap.empty
 
-abstract' :: forall (t :: forall k. k -> *) a. SystemF t => LabelMap t -> Term a -> t a
+abstract' :: SystemF t => LabelMap (AlgRep t) -> Term a -> AlgRep t a
 abstract' env term = case term of
   PairTerm x y -> pair (abstract' env x) (abstract' env y)
   LetTerm term binder body ->
@@ -169,7 +159,11 @@ showTerm :: forall a. Term a -> TextShow.Builder
 showTerm term = case abstract term of
   V b -> Unique.withStream b
 
+data View
+
 instance SystemF View where
+  data AlgRep View (a :: Alg) = V (forall s. Unique.Stream s -> TextShow.Builder)
+
   constant k = V $ \_ -> showb k
   global g = V $ \_ -> showb g
   pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
@@ -190,17 +184,19 @@ instance SystemF View where
   V f <*> V x = V $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
-simplify :: forall (t :: forall k. k -> *) a. SystemF t => Term a -> t a
+simplify :: SystemF t => Term a -> AlgRep t a
 simplify term = case abstract term of
   S _ x -> abstract (build x)
 
-data Simplifier (a :: k) = S (MaybeFn a) (Builder a)
+data Simplifier
 
-data MaybeFn (a :: k) where
-  Fn :: (Builder a -> Builder b) -> MaybeFn (a :-> b)
+data MaybeFn a where
+  Fn :: (AlgRep Builder a -> AlgRep Builder b) -> MaybeFn (a :-> b)
   NotFn :: MaybeFn a
 
 instance SystemF Simplifier where
+  data AlgRep Simplifier a = S (MaybeFn a) (AlgRep Builder a)
+
   constant k = S NotFn (constant k)
   global g = S NotFn (global g)
 
@@ -228,16 +224,16 @@ costInline :: Term a -> Term a
 costInline term = case abstract term of
   I _ x -> build x
 
-data family Builder (a :: k)
+data Builder
 
-newtype instance Builder (a :: Alg) = B (forall s. Unique.Stream s -> (SAlg a, Term a))
-
-build :: Builder a -> Term a
+build :: AlgRep Builder a -> Term a
 build (B f) =
   let (_, x) = Unique.withStream f
    in x
 
 instance SystemF Builder where
+  newtype AlgRep Builder (a :: Alg) = B (forall s. Unique.Stream s -> (SAlg a, Term a))
+
   constant k = B $ \_ -> (SF (Constant.typeOf k), ConstantTerm k)
   global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
   pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->

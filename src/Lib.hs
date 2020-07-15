@@ -4,6 +4,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Lib
@@ -34,9 +35,10 @@ toCallByPushValue term =
   let ToCbpv x = SystemF.abstract term
    in Cbpv.build x
 
-newtype ToCbpv (a :: k) = ToCbpv (Cbpv.Builder a)
+data ToCbpv
 
 instance SystemF.SystemF ToCbpv where
+  data AlgRep ToCbpv a = ToCbpv (Cbpv.Builder a)
   constant k = ToCbpv $ Cbpv.returns (Cbpv.constant k)
   global g = ToCbpv $ Cbpv.global g
   pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
