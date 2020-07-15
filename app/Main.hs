@@ -34,9 +34,9 @@ iterCps = 20
 
 mkProgram :: F.SystemF t => t (F U64 :-> F U64 :-> F U64)
 mkProgram =
-  F.lambda (SF SU64) $ \x ->
-    F.lambda (SF SU64) $ \y ->
-      ( F.lambda (SF SU64) $ \z ->
+  F.lam $ \x ->
+    F.lam $ \y ->
+      ( F.lam $ \z ->
           F.global Core.plus F.<*> z F.<*> y
       )
         F.<*> x

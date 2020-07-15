@@ -1,11 +1,13 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalAlg, equalSet, (:->), Pair, Kind (..), SSet (..), SAlg (..), Set (..), Alg (..)) where
+module Common (equalAlg, equalSet, (:->), Pair, Dict, Kind (..), SSet (..), SAlg (..), Set (..), Alg (..), inferSet, inferAlg, KnownSet (..), KnownAlg (..)) where
 
+import Data.Proxy
 import Data.Typeable
 import TextShow
 
@@ -17,15 +19,44 @@ data Alg = Void | F Set | Set :=> Alg
 
 infixr 9 :=>
 
--- data Kind a where
---   AlgKind :: Kind Alg
---   SetKind :: Kind Set
-
 class Kind (a :: *)
 
 instance Kind Alg
 
-instance Kind Set
+data Dict k = k => Dict
+
+inferSet :: KnownSet a => SSet a
+inferSet = reifySet Proxy
+
+inferAlg :: KnownAlg a => SAlg a
+inferAlg = reifyAlg Proxy
+
+class KnownSet (a :: Set) where
+  reifySet :: Proxy a -> SSet a
+
+class KnownAlg (a :: Alg) where
+  reifyAlg :: Proxy a -> SAlg a
+
+instance KnownSet U64 where
+  reifySet Proxy = SU64
+
+instance KnownSet Unit where
+  reifySet Proxy = SUnit
+
+instance KnownAlg a => KnownSet (U a) where
+  reifySet Proxy = SU (reifyAlg Proxy)
+
+instance (KnownSet x, KnownSet y) => KnownSet (x :*: y) where
+  reifySet Proxy = SPair (reifySet Proxy) (reifySet Proxy)
+
+instance KnownAlg Void where
+  reifyAlg Proxy = SVoid
+
+instance KnownSet a => KnownAlg (F a) where
+  reifyAlg Proxy = SF (reifySet Proxy)
+
+instance (KnownSet x, KnownAlg y) => KnownAlg (x :=> y) where
+  reifyAlg Proxy = SFn (reifySet Proxy) (reifyAlg Proxy)
 
 data SSet (a :: Set) where
   SU64 :: SSet U64

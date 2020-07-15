@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
+module SystemF (lam, simplify, inline, build, Builder, SystemF (..), abstract, Term (..)) where
 
 import Common
 import Constant (Constant)
@@ -49,6 +49,9 @@ class SystemF t where
 
   pair :: t a -> t b -> t (Pair a b)
   unpair :: t (Pair a b) -> (t a -> t b -> t c) -> t c
+
+lam :: (SystemF t, KnownAlg a) => (t a -> t b) -> t (a :-> b)
+lam = lambda inferAlg
 
 -- forall :: Kind a -> (Type a -> t b) -> t (V a b)
 -- applyType :: t (V a b) -> Type a -> t b
