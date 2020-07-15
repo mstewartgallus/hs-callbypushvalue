@@ -21,6 +21,7 @@ import qualified Porcelain
 import qualified SystemF as F
 import TextShow
 import Type
+import View
 
 -- mkProgram :: (SystemF.SystemF t => Data a => t SystemF.Term a)
 -- mkProgram = undefined
@@ -116,13 +117,13 @@ main = do
   printT optTerm
 
   putStrLn "\nCall By Push Value:"
-  printT cbpv
+  printT (view cbpv)
 
   putStrLn "\nIntrinsified:"
-  printT intrinsified
+  printT (view intrinsified)
 
   putStrLn "\nOptimized Intrinsified:"
-  printT optIntrinsified
+  printT (view optIntrinsified)
 
   putStrLn "\nCatch/Throw:"
   printT catchThrow
@@ -147,6 +148,9 @@ main = do
   eff
 
   return ()
+
+view :: Cbpv.Code a -> AlgRep View a
+view c = Cbpv.abstractCode c
 
 t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)
