@@ -16,6 +16,7 @@ import Constant (Constant)
 import qualified Constant
 import Core
 import qualified Data.Text as T
+import Explicit
 import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
@@ -27,24 +28,17 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (Basic t, Const t) => Cbpv t where
-  force :: SetRep t (U a) -> AlgRep t a
-  returns :: SetRep t a -> AlgRep t (F a)
-  letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
-  letBe :: SetRep t a -> (SetRep t a -> AlgRep t b) -> AlgRep t b
+class (Basic t, Const t, Explicit t) => Cbpv t where
+  unit :: SetRep t Unit
 
-  lambda :: SSet a -> (SetRep t a -> AlgRep t b) -> AlgRep t (a :=> b)
-  apply :: AlgRep t (a :=> b) -> SetRep t a -> AlgRep t b
+  thunk :: AlgRep t a -> SetRep t (U a)
+  force :: SetRep t (U a) -> AlgRep t a
 
   push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
 
   -- fixme... use an indirect style for this...
   tail :: SetRep t (a :*: b) -> SetRep t a
   head :: SetRep t (a :*: b) -> SetRep t b
-
-  unit :: SetRep t Unit
-
-  thunk :: AlgRep t a -> SetRep t (U a)
 
 data Builder
 
@@ -59,16 +53,7 @@ instance Const Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
-instance Cbpv Builder where
-  unit = DB $ \_ -> (SUnit, UnitData)
-
-  force (DB thunk) = CB $ \s ->
-    let (SU t, thunk') = thunk s
-     in (t, ForceCode thunk')
-  thunk (CB code) = DB $ \s ->
-    let (t, code') = code s
-     in (SU t, ThunkData code')
-
+instance Explicit Builder where
   returns (DB value) = CB $ \s ->
     let (t, value') = value s
      in (SF t, ReturnCode value')
@@ -98,6 +83,16 @@ instance Cbpv Builder where
     let (_ `SFn` b, vf) = f fs
         (_, vx) = x xs
      in (b, ApplyCode vf vx)
+
+instance Cbpv Builder where
+  unit = DB $ \_ -> (SUnit, UnitData)
+
+  force (DB thunk) = CB $ \s ->
+    let (SU t, thunk') = thunk s
+     in (t, ForceCode thunk')
+  thunk (CB code) = DB $ \s ->
+    let (t, code') = code s
+     in (SU t, ThunkData code')
 
 data Code a where
   LambdaCode :: Variable a -> Code b -> Code (a :=> b)
@@ -135,9 +130,7 @@ instance Const View where
   newtype SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
 
-instance Cbpv View where
-  unit = VS $ \_ -> fromString "."
-
+instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
 
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
@@ -154,6 +147,9 @@ instance Cbpv View where
         V body = f (VS $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+
+instance Cbpv View where
+  unit = VS $ \_ -> fromString "."
 
   thunk (V code) = VS $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
@@ -289,12 +285,7 @@ instance Const t => Const (Intrinsify t) where
   newtype SetRep (Intrinsify t) a = IS (SetRep t a)
   constant k = IS (constant k)
 
-instance Cbpv t => Cbpv (Intrinsify t) where
-  unit = IS unit
-
-  thunk (I x) = IS (thunk x)
-  force (IS x) = I (force x)
-
+instance Cbpv t => Explicit (Intrinsify t) where
   returns (IS x) = I (returns x)
 
   letTo (I x) f = I $ letTo x $ \x' ->
@@ -308,6 +299,12 @@ instance Cbpv t => Cbpv (Intrinsify t) where
     let I body = f (IS x)
      in body
   apply (I f) (IS x) = I (apply f x)
+
+instance Cbpv t => Cbpv (Intrinsify t) where
+  unit = IS unit
+
+  thunk (I x) = IS (thunk x)
+  force (IS x) = I (force x)
 
 intrinsics :: Cbpv t => GlobalMap (AlgRep t)
 intrinsics =

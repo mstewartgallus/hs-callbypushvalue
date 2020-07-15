@@ -22,6 +22,7 @@ import Const
 import qualified Constant
 import Core
 import qualified Cps
+import Explicit
 import Global
 import Label
 import qualified LabelMap
@@ -44,18 +45,18 @@ instance Basic t => Basic (ToCbpv t) where
   global g = ToCbpv (global g)
 
 instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
-  constant k = ToCbpv $ Cbpv.returns (constant k)
-  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ Cbpv.returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
+  constant k = ToCbpv $ returns (constant k)
+  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ returns (Cbpv.push (Cbpv.thunk x) (Cbpv.thunk y))
 
   -- first (ToCbpv tuple) = ToCbpv x
   -- second (ToCbpv tuple) = ToCbpv y
-  letBe (ToCbpv x) f = ToCbpv $ Cbpv.letBe (Cbpv.thunk x) $ \x' ->
+  letBe (ToCbpv x) f = ToCbpv $ letBe (Cbpv.thunk x) $ \x' ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x'))
      in body
-  lambda t f = ToCbpv $ Cbpv.lambda (SU t) $ \x ->
+  lambda t f = ToCbpv $ lambda (SU t) $ \x ->
     let ToCbpv body = f (ToCbpv (Cbpv.force x))
      in body
-  ToCbpv f <*> ToCbpv x = ToCbpv $ Cbpv.apply f (Cbpv.thunk x)
+  ToCbpv f <*> ToCbpv x = ToCbpv $ apply f (Cbpv.thunk x)
 
 toCallcc :: Cbpv.Code a -> Callcc.Code a
 toCallcc code =
@@ -73,25 +74,26 @@ instance Const t => Const (ToCallcc t) where
 
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
-instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
+instance Explicit t => Explicit (ToCallcc t) where
   letBe (DataCallcc t x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ Callcc.letBe x $ \x' ->
+     in CodeCallcc bt $ letBe x $ \x' ->
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
   letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ Callcc.letTo x $ \x' ->
+     in CodeCallcc bt $ letTo x $ \x' ->
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
   lambda t f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc (t `SFn` bt) $ Callcc.lambda t $ \x ->
+     in CodeCallcc (t `SFn` bt) $ lambda t $ \x ->
           let CodeCallcc _ body = f (DataCallcc t x)
            in body
-  apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ Callcc.apply f x
-  returns (DataCallcc t x) = CodeCallcc (SF t) $ Callcc.returns x
+  apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
+  returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
 
+instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
   force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
   thunk (CodeCallcc t code) = DataCallcc (SU t) $ Callcc.thunk t $ \x ->
     Callcc.throw x code

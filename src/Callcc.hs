@@ -15,6 +15,7 @@ import Constant (Constant)
 import qualified Constant
 import Core
 import Data.Text as T
+import Explicit
 import Global
 import Label
 import LabelMap (LabelMap)
@@ -62,9 +63,7 @@ instance Const Builder where
   data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
 
-instance Callcc Builder where
-  data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
-
+instance Explicit Builder where
   returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
   letTo x@(CB (SF t) xs) f =
     let CB bt _ = f (DB t (pure undefined))
@@ -89,10 +88,14 @@ instance Callcc Builder where
           let CB _ body = f ((DB t . pure) $ VariableData v)
           body' <- body
           pure $ LambdaCode v body'
-  unit = DB SUnit $ pure UnitData
   apply (CB (_ `SFn` b) f) (DB _ x) =
     CB b $
       pure ApplyCode <*> f <*> x
+
+instance Callcc Builder where
+  data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
+
+  unit = DB SUnit $ pure UnitData
 
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
@@ -157,15 +160,8 @@ abstractData' lenv env x = case x of
   TailData tuple -> Callcc.tail (abstractData' lenv env tuple)
   PushData h t -> push (abstractData' lenv env h) (abstractData' lenv env t)
 
-class (Basic t, Const t) => Callcc t where
+class (Basic t, Const t, Explicit t) => Callcc t where
   data StackRep t :: Alg -> *
-
-  returns :: SetRep t a -> AlgRep t (F a)
-  letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
-  letBe :: SetRep t a -> (SetRep t a -> AlgRep t b) -> AlgRep t b
-
-  lambda :: SSet a -> (SetRep t a -> AlgRep t b) -> AlgRep t (a :=> b)
-  apply :: AlgRep t (a :=> b) -> SetRep t a -> AlgRep t b
 
   unit :: SetRep t Unit
 
@@ -190,8 +186,6 @@ data Code a where
   ThrowCode :: Stack a -> Code a -> Code Void
   ForceCode :: Data (U a) -> Stack a -> Code Void
 
--- HeadCode :: Data (a :*: b) -> Code a
-
 data Stack a where
   LabelStack :: Label a -> Stack a
 
@@ -213,11 +207,7 @@ instance Const View where
   data SetRep View a = VS (forall s. Unique.Stream s -> TextShow.Builder)
   constant k = VS $ \_ -> showb k
 
-instance Callcc View where
-  data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
-
-  unit = VS $ \_ -> fromString "."
-
+instance Explicit View where
   returns (VS value) = V $ \s -> fromString "return " <> value s
 
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
@@ -234,6 +224,11 @@ instance Callcc View where
         V body = f (VS $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+
+instance Callcc View where
+  data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
+
+  unit = VS $ \_ -> fromString "."
 
   catch t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
