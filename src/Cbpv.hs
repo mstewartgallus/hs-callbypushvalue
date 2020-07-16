@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify, inline) where
+module Cbpv (abstractCode, build, Builder, Cbpv (..), Code (..), Data (..), simplify, intrinsify) where
 
 import Basic
 import Common
@@ -132,57 +132,6 @@ simplifyData x = case x of
   ThunkData (ForceCode x) -> simplifyData x
   ThunkData x -> ThunkData (simplify x)
   x -> x
-
-count :: Variable a -> Code b -> Int
-count v = code
-  where
-    code :: Code x -> Int
-    code c = case c of
-      LetBeCode x binder body -> value x + code body
-      LetToCode action binder body -> code action + code body
-      LambdaCode binder body -> code body
-      ApplyCode f x -> code f + value x
-      ForceCode thunk -> value thunk
-      ReturnCode x -> value x
-      _ -> 0
-    value :: Data x -> Int
-    value x = case x of
-      PairData h t -> value h + value t
-      FirstData tuple -> value tuple
-      VariableData binder -> if AnyVariable v == AnyVariable binder then 1 else 0
-      ThunkData c -> code c
-      _ -> 0
-
-inline :: Cbpv t => Code a -> AlgRep t a
-inline = inlCode VarMap.empty
-
-inlCode :: Cbpv t => VarMap (SetRep t) -> Code a -> AlgRep t a
-inlCode env code = case code of
-  LetBeCode term binder body ->
-    let term' = inlValue env term
-     in if count binder body <= 1
-          then inlCode (VarMap.insert binder term' env) body
-          else letBe term' $ \x ->
-            inlCode (VarMap.insert binder x env) body
-  LetToCode term binder body -> letTo (inlCode env term) $ \x ->
-    inlCode (VarMap.insert binder x env) body
-  ApplyCode f x -> apply (inlCode env f) (inlValue env x)
-  LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
-    inlCode (VarMap.insert binder x env) body
-  ForceCode th -> force (inlValue env th)
-  ReturnCode val -> returns (inlValue env val)
-  GlobalCode g -> global g
-
-inlValue :: Cbpv t => VarMap (SetRep t) -> Data x -> SetRep t x
-inlValue env x = case x of
-  VariableData variable ->
-    let Just v = VarMap.lookup variable env
-     in v
-  ThunkData c -> thunk (inlCode env c)
-  ConstantData k -> constant k
-  UnitData -> unit
-  FirstData tuple -> first (inlValue env tuple)
-  PairData h t -> pair (inlValue env h) (inlValue env t)
 
 abstractCode :: Cbpv t => Code a -> AlgRep t a
 abstractCode = abstractCode' VarMap.empty
