@@ -17,6 +17,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import qualified Interpreter
+import qualified Intrinsify
 import Lib
 import qualified MonoInliner
 import qualified Porcelain
@@ -60,7 +61,7 @@ phases ::
 phases term =
   let optTerm = optimizeTerm term
       cbpv = toCallByPushValue optTerm
-      intrinsified = Cbpv.build (Cbpv.intrinsify cbpv)
+      intrinsified = Cbpv.build (Intrinsify.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = toCallcc optIntrinsified
       optCatchThrow = optimizeCallcc catchThrow
