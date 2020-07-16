@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -14,19 +12,47 @@ import Const
 import Constant (Constant)
 import qualified Constant
 import Core
-import Data.Text as T
 import Explicit
 import Global
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import TextShow (TextShow, fromString, fromText, showb, toText)
-import qualified TextShow (Builder)
 import Tuple
-import Unique
+import qualified Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
+
+class (Basic t, Const t, Explicit t, Tuple t) => Callcc t where
+  data StackRep t :: Alg -> *
+
+  catch :: SAlg a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
+  throw :: StackRep t a -> AlgRep t a -> AlgRep t Void
+
+  thunk :: SAlg a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
+  force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
+
+data Code a where
+  GlobalCode :: Global a -> Code a
+  LambdaCode :: Variable a -> Code b -> Code (a :=> b)
+  ApplyCode :: Code (a :=> b) -> Data a -> Code b
+  ReturnCode :: Data a -> Code (F a)
+  LetBeCode :: Data a -> Variable a -> Code b -> Code b
+  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
+  CatchCode :: Label a -> Code Void -> Code a
+  ThrowCode :: Stack a -> Code a -> Code Void
+  ForceCode :: Data (U a) -> Stack a -> Code Void
+
+data Stack a where
+  LabelStack :: Label a -> Stack a
+
+data Data a where
+  UnitData :: Data Unit
+  ConstantData :: Constant a -> Data a
+  VariableData :: Variable a -> Data a
+  ThunkData :: Label a -> Code Void -> Data (U a)
+  PairData :: Data a -> Data b -> Data (a :*: b)
+  FirstData :: Data (a :*: b) -> Data a
 
 typeOf :: Code a -> SAlg a
 typeOf x = case x of
@@ -161,37 +187,6 @@ abstractData' lenv env x = case x of
   UnitData -> unit
   FirstData tuple -> first (abstractData' lenv env tuple)
   PairData h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
-
-class (Basic t, Const t, Explicit t, Tuple t) => Callcc t where
-  data StackRep t :: Alg -> *
-
-  catch :: SAlg a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
-  throw :: StackRep t a -> AlgRep t a -> AlgRep t Void
-
-  thunk :: SAlg a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
-  force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
-
-data Code a where
-  GlobalCode :: Global a -> Code a
-  LambdaCode :: Variable a -> Code b -> Code (a :=> b)
-  ApplyCode :: Code (a :=> b) -> Data a -> Code b
-  ReturnCode :: Data a -> Code (F a)
-  LetBeCode :: Data a -> Variable a -> Code b -> Code b
-  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Label a -> Code Void -> Code a
-  ThrowCode :: Stack a -> Code a -> Code Void
-  ForceCode :: Data (U a) -> Stack a -> Code Void
-
-data Stack a where
-  LabelStack :: Label a -> Stack a
-
-data Data a where
-  UnitData :: Data Unit
-  ConstantData :: Constant a -> Data a
-  VariableData :: Variable a -> Data a
-  ThunkData :: Label a -> Code Void -> Data (U a)
-  PairData :: Data a -> Data b -> Data (a :*: b)
-  FirstData :: Data (a :*: b) -> Data a
 
 simplify :: Code a -> Code a
 simplify = simpCode

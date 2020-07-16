@@ -15,16 +15,11 @@ import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
-import qualified Data.Text as T
 import Global
-import Kind
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
-import TextShow (TextShow, fromString, showb)
-import qualified TextShow (Builder)
-import Type
 import qualified Unique
 import Prelude hiding ((<*>))
 

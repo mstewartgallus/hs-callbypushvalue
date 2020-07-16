@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4809d430818de249e513652d6c683d9847cf9d1b38548d66c740e36c415dabd0
+-- hash: 087eb0bef9e9b0b8a9f6da3f2f8c55650d3912a7ee3d1d9829bda2b7d9835727
 
 name:           cpbv
 version:        0.1.0.0
@@ -41,7 +41,6 @@ library
       GlobalMap
       Interpreter
       Intrinsify
-      Kind
       Label
       LabelMap
       Lib
@@ -50,7 +49,6 @@ library
       Porcelain
       SystemF
       Tuple
-      Type
       Unique
       Variable
       VarMap

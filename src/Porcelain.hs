@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -13,15 +12,8 @@ import qualified Cps
 import Data.Text
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
-import Label
-import LabelMap (LabelMap)
-import qualified LabelMap
 import TextShow
-import Type
 import qualified Unique
-import VarMap (VarMap)
-import qualified VarMap
-import Variable
 
 porcelain :: Cps.Data a -> Text
 porcelain x = case Cps.abstract x of

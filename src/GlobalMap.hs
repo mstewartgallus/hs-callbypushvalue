@@ -10,8 +10,7 @@ import Data.Typeable
 import Global
 import Name (Name)
 
-data Dyn t where
-  Dyn :: SAlg a -> t a -> Dyn t
+data Dyn t = forall a. Dyn (SAlg a) (t a)
 
 newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 
@@ -26,8 +25,7 @@ lookup (Global t name) (GlobalMap m) = case Map.lookup name m of
 insert :: Global a -> t a -> GlobalMap t -> GlobalMap t
 insert (Global t name) value (GlobalMap m) = GlobalMap (Map.insert name (Dyn t value) m)
 
-data Entry t where
-  Entry :: Global a -> t a -> Entry t
+data Entry t = forall a. Entry (Global a) (t a)
 
 fromList :: [Entry t] -> GlobalMap t
 fromList entries = GlobalMap (Map.fromList (map entryToDyn entries))

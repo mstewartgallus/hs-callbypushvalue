@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -15,15 +13,11 @@ import Const
 import Constant (Constant)
 import qualified Constant
 import Core
-import qualified Data.Text as T
 import Explicit
 import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
-import TextShow (TextShow, fromString, fromText, showb, toText)
-import qualified TextShow (Builder)
 import Tuple
-import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap

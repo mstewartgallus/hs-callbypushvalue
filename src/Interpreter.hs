@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -15,12 +14,6 @@ import Cps
 import Data.Word
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
-import Label
-import LabelMap (LabelMap)
-import qualified LabelMap
-import VarMap (VarMap)
-import qualified VarMap
-import Variable
 
 evaluate :: Data a -> Value a
 evaluate x = case abstract x of

@@ -1,18 +1,15 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Label (AnyLabel (..), Label (..)) where
 
 import Common
 import TextShow
-import Type (Action)
 import Unique (Unique)
 
 data Label a = Label (SAlg a) Unique
 
-data AnyLabel where
-  AnyLabel :: Label a -> AnyLabel
+data AnyLabel = forall a. AnyLabel (Label a)
 
 instance Eq (Label a) where
   (Label _ x) == (Label _ y) = x == y

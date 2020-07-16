@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
@@ -23,7 +22,6 @@ import qualified MonoInliner
 import qualified Porcelain
 import qualified SystemF as F
 import TextShow
-import Type
 import View
 
 -- mkProgram :: (SystemF.SystemF t => Data a => t SystemF.Term a)

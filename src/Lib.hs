@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
@@ -29,7 +28,6 @@ import qualified LabelMap
 import LabelMap (LabelMap)
 import qualified SystemF
 import Tuple
-import Type
 import qualified VarMap
 import VarMap (VarMap)
 import Variable

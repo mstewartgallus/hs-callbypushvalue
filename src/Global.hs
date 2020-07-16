@@ -5,7 +5,6 @@ module Global (Global (..)) where
 import Common
 import Name (Name)
 import TextShow
-import Type (Action)
 
 data Global a = Global (SAlg a) Name
 

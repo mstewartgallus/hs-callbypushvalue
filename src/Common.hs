@@ -1,11 +1,10 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalAlg, equalSet, (:->), Pair, Dict, Kind (..), SSet (..), SAlg (..), Set (..), Alg (..), inferSet, inferAlg, KnownSet (..), KnownAlg (..)) where
+module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlg (..), Set (..), Alg (..), inferSet, inferAlg, KnownSet (..), KnownAlg (..)) where
 
 import Data.Proxy
 import Data.Typeable
@@ -18,12 +17,6 @@ infixr 0 :*:
 data Alg = Void | F Set | Set :=> Alg
 
 infixr 9 :=>
-
-class Kind (a :: *)
-
-instance Kind Alg
-
-data Dict k = k => Dict
 
 inferSet :: KnownSet a => SSet a
 inferSet = reifySet Proxy

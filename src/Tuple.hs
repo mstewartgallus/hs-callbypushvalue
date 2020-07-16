@@ -6,7 +6,6 @@ module Tuple (Tuple (..)) where
 
 import Common
 import Const
-import Global
 
 class Const t => Tuple t where
   pair :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)

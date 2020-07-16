@@ -18,7 +18,6 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
-import Type
 import Unique
 import VarMap (VarMap)
 import qualified VarMap

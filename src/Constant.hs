@@ -7,7 +7,6 @@ module Constant (Constant (..), typeOf) where
 import Common
 import Data.Word
 import TextShow
-import Type
 
 data Constant a where
   U64Constant :: Word64 -> Constant U64

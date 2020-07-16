@@ -1,5 +1,3 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module CostInliner (extract, CostInliner (..)) where
@@ -14,7 +12,6 @@ import Explicit
 import Global
 import Name
 import qualified SystemF as F
-import TextShow
 import Tuple
 import qualified Unique
 import Prelude hiding ((<*>))

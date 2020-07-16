@@ -11,13 +11,10 @@ import Common
 import Const
 import Constant
 import Core
-import Data.Text
 import Explicit
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
-import TextShow
 import Tuple
-import Type
 import qualified Unique
 
 intrinsify :: Cbpv t => Code a -> AlgRep t a
