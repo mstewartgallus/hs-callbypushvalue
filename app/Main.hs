@@ -10,6 +10,7 @@ import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
+import Const
 import qualified Constant
 import qualified Core
 import qualified CostInliner
@@ -21,6 +22,7 @@ import qualified Interpreter
 import qualified Intrinsify
 import qualified MonoInliner
 import qualified Porcelain
+import qualified Pure
 import qualified SystemF as F
 import TextShow
 import View
@@ -39,7 +41,7 @@ program = F.lam $ \x ->
     ( F.lam $ \z ->
         global Core.plus F.<*> z F.<*> y
     )
-      F.<*> x
+      F.<*> (global Core.plus F.<*> Pure.pure (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
   F.Term a ->

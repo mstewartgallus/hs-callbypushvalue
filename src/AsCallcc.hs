@@ -14,6 +14,7 @@ import Core
 import qualified Cps
 import Explicit
 import Global
+import qualified Pure
 import qualified SystemF
 import Tuple
 
@@ -28,8 +29,10 @@ instance Basic t => Basic (AsCallcc t) where
 
 instance Const t => Const (AsCallcc t) where
   data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)
-
   constant k = DataCallcc (Constant.typeOf k) $ constant k
+
+instance Pure.Pure t => Pure.Pure (AsCallcc t) where
+  pure (DataCallcc t x) = CodeCallcc (SF t) $ Pure.pure x
 
 instance Explicit t => Explicit (AsCallcc t) where
   letBe (DataCallcc t x) f =
@@ -48,7 +51,6 @@ instance Explicit t => Explicit (AsCallcc t) where
           let CodeCallcc _ body = f (DataCallcc t x)
            in body
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
-  returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
 
 instance Tuple t => Tuple (AsCallcc t)
 

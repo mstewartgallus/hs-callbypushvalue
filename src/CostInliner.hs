@@ -66,8 +66,6 @@ instance Tuple t => Tuple (CostInliner t) where
   second (CS cost tuple) = CS (cost + 1) (second tuple)
 
 instance Explicit t => Explicit (CostInliner t) where
-  returns (CS cost value) = I (cost + 1) (returns value)
-
   letBe (CS xcost x) f = result
     where
       result

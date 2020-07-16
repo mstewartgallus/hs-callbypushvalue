@@ -14,6 +14,7 @@ import Core
 import Explicit
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import qualified Pure
 import Tuple
 import qualified Unique
 
@@ -39,9 +40,10 @@ instance Tuple t => Tuple (Intrinsify t) where
   first (IS tuple) = IS (first tuple)
   second (IS tuple) = IS (second tuple)
 
-instance Cbpv t => Explicit (Intrinsify t) where
-  returns (IS x) = I (returns x)
+instance Cbpv t => Pure.Pure (Intrinsify t) where
+  pure (IS x) = I (Pure.pure x)
 
+instance Cbpv t => Explicit (Intrinsify t) where
   letTo (I x) f = I $ letTo x $ \x' ->
     let I body = f (IS x')
      in body

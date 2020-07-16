@@ -7,10 +7,9 @@ module Explicit (Explicit (..)) where
 import Basic
 import Common
 import Const
+import qualified Pure
 
-class (Basic t, Const t) => Explicit t where
-  returns :: SetRep t a -> AlgRep t (F a)
-
+class (Basic t, Const t, Pure.Pure t) => Explicit t where
   letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
   letBe :: SetRep t a -> (SetRep t a -> AlgRep t b) -> AlgRep t b
 

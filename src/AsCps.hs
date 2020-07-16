@@ -13,6 +13,7 @@ import Core
 import qualified Cps
 import Explicit
 import Global
+import qualified Pure
 import Tuple
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> SetRep t (U a)
@@ -29,6 +30,9 @@ instance Const t => Const (AsCps t) where
   data SetRep (AsCps t) a = DataCallcc (SSet a) (SetRep t a)
 
   constant k = DataCallcc (Constant.typeOf k) $ constant k
+
+instance Cps.Cps t => Pure.Pure (AsCps t) where
+  pure (DataCallcc t x) = CodeCallcc (SF t) $ \k -> Cps.throw k x
 
 instance Cps.Cps t => Explicit (AsCps t) where
   letBe (DataCallcc t x) f =
@@ -56,7 +60,6 @@ instance Cps.Cps t => Explicit (AsCps t) where
           let CodeCallcc _ body = f (DataCallcc t x)
            in body k
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ \k -> f (Cps.apply x k)
-  returns (DataCallcc t x) = CodeCallcc (SF t) $ \k -> Cps.throw k x
 
 instance Cps.Cps t => Tuple (AsCps t)
 

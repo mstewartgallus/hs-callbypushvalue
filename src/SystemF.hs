@@ -62,6 +62,7 @@ instance Basic t => Basic (Simplifier t) where
 
 instance Const t => Const (Simplifier t) where
   newtype SetRep (Simplifier t) a = SS (SetRep t a)
+  constant k = SS (constant k)
   unit = SS unit
 
 instance Pure.Pure t => Pure.Pure (Simplifier t) where

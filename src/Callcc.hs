@@ -17,13 +17,14 @@ import Global
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
+import qualified Pure
 import Tuple
 import qualified Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (Basic t, Const t, Explicit t, Tuple t) => Callcc t where
+class (Basic t, Const t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
   data StackRep t :: Alg -> *
 
   catch :: SAlg a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
@@ -91,8 +92,10 @@ instance Const Builder where
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
   unit = DB SUnit $ pure UnitData
 
+instance Pure.Pure Builder where
+  pure (DB t value) = CB (SF t) $ pure ReturnCode <*> value
+
 instance Explicit Builder where
-  returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
   letTo x@(CB (SF t) xs) f =
     let CB bt _ = f (DB t (pure undefined))
      in CB bt $ do
@@ -164,7 +167,7 @@ abstractCode' lenv env code = case code of
   LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
     let env' = VarMap.insert binder x env
      in abstractCode' lenv env' body
-  ReturnCode val -> returns (abstractData' lenv env val)
+  ReturnCode val -> Pure.pure (abstractData' lenv env val)
   GlobalCode g -> global g
   CatchCode lbl@(Label t _) body -> catch t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv

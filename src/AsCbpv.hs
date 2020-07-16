@@ -28,12 +28,13 @@ instance Basic t => Basic (AsCbpv t) where
 instance Const t => Const (AsCbpv t) where
   newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
   unit = SetRep unit
+  constant k = SetRep (constant k)
 
 instance Explicit t => Pure.Pure (AsCbpv t) where
-  pure (SetRep k) = AsCbpv (returns k)
+  pure (SetRep k) = AsCbpv (Pure.pure k)
 
 instance Cbpv t => F.SystemF (AsCbpv t) where
-  pair (AsCbpv x) (AsCbpv y) = AsCbpv $ returns (pair (thunk x) (thunk y))
+  pair (AsCbpv x) (AsCbpv y) = AsCbpv $ Pure.pure (pair (thunk x) (thunk y))
 
   -- first (AsCbpv tuple) = AsCbpv x
   -- second (AsCbpv tuple) = AsCbpv y

@@ -17,13 +17,14 @@ import Explicit
 import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
+import qualified Pure
 import Tuple
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (Basic t, Const t, Explicit t, Tuple t) => Cbpv t where
+class (Basic t, Const t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
   thunk :: AlgRep t a -> SetRep t (U a)
   force :: SetRep t (U a) -> AlgRep t a
 
@@ -41,11 +42,12 @@ instance Const Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
   unit = DB $ \_ -> (SUnit, UnitData)
 
-instance Explicit Builder where
-  returns (DB value) = CB $ \s ->
+instance Pure.Pure Builder where
+  pure (DB value) = CB $ \s ->
     let (t, value') = value s
      in (SF t, ReturnCode value')
 
+instance Explicit Builder where
   letTo (CB x) f = CB $ \(Unique.Stream newId xs fs) ->
     let (SF tx, vx) = x xs
         binder = Variable tx newId
@@ -149,7 +151,7 @@ abstractCode' env code = case code of
     let env' = VarMap.insert binder x env
      in abstractCode' env' body
   ForceCode th -> force (abstractData' env th)
-  ReturnCode val -> returns (abstractData' env val)
+  ReturnCode val -> Pure.pure (abstractData' env val)
   GlobalCode g -> global g
 
 abstractData' :: Cbpv t => VarMap (SetRep t) -> Data x -> SetRep t x

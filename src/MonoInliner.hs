@@ -40,8 +40,6 @@ instance Tuple t => Tuple (MonoInliner t) where
   second (MS cost tuple) = MS cost (second tuple)
 
 instance Explicit t => Explicit (MonoInliner t) where
-  returns (MS cost value) = M cost (returns value)
-
   letBe (MS xcost x) f = result
     where
       result

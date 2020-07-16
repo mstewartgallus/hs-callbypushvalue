@@ -58,8 +58,6 @@ instance SystemF.SystemF View where
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
 instance Explicit View where
-  returns (VS value) = V $ \s -> fromString "return " <> value s
-
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
         V y = f (VS $ \_ -> binder)
