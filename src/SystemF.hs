@@ -8,6 +8,7 @@ module SystemF (lam, simplify, Simplifier, build, SystemF (..), abstract, Term (
 
 import Basic
 import Common
+import Const
 import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
@@ -21,15 +22,11 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class Basic t => SystemF t where
+class (Basic t, Const t) => SystemF t where
   -- | function application
   (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
 
-  -- |
-  --
-  -- FIXME find a way to unify constant and lambda into a sort of
-  -- pure equivalent
-  constant :: Constant a -> AlgRep t (F a)
+  constant :: SetRep t a -> AlgRep t (F a)
 
   lambda :: SAlg a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 
@@ -64,8 +61,12 @@ instance Basic t => Basic (Simplifier t) where
   data AlgRep (Simplifier t) a = S (MaybeFn t a) (AlgRep t a)
   global g = S NotFn (global g)
 
+instance Const t => Const (Simplifier t) where
+  newtype SetRep (Simplifier t) a = SS (SetRep t a)
+  unit = SS unit
+
 instance SystemF t => SystemF (Simplifier t) where
-  constant k = S NotFn (constant k)
+  constant (SS k) = S NotFn (SystemF.constant k)
 
   pair (S _ x) (S _ y) = S NotFn (pair x y)
 

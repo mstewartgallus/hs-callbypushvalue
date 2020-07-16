@@ -34,7 +34,7 @@ instance Const View where
 instance Tuple View
 
 instance SystemF.SystemF View where
-  constant k = V $ \_ -> showb k
+  constant (VS k) = V k
   pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys

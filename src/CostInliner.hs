@@ -33,7 +33,7 @@ instance Basic t => Basic (CostInliner t) where
   global g = I 0 (global g)
 
 instance F.SystemF t => F.SystemF (CostInliner t) where
-  constant k = I 0 (F.constant k)
+  constant (CS cost k) = I cost (F.constant k)
 
   pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (F.pair x y)
 

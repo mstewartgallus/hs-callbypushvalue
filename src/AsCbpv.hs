@@ -24,8 +24,12 @@ instance Basic t => Basic (AsCbpv t) where
   newtype AlgRep (AsCbpv t) a = AsCbpv (AlgRep t a)
   global g = AsCbpv (global g)
 
+instance Const t => Const (AsCbpv t) where
+  newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
+  unit = SetRep unit
+
 instance Cbpv t => F.SystemF (AsCbpv t) where
-  constant k = AsCbpv $ returns (constant k)
+  constant (SetRep k) = AsCbpv (returns k)
 
   pair (AsCbpv x) (AsCbpv y) = AsCbpv $ returns (pair (thunk x) (thunk y))
 

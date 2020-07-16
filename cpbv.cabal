@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6c1f6e06639fcd8ff38bf944a787e4112ce1c670fb89c1a878c0d6d35708dab9
+-- hash: 6131b60be2749740fc1184c8798c58627e09e9c438fd52d77338c441abf64654
 
 name:           cpbv
 version:        0.1.0.0
@@ -39,7 +39,6 @@ library
       Core
       CostInliner
       Cps
-      Duplicate
       Explicit
       Global
       GlobalMap

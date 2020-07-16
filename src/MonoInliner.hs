@@ -84,7 +84,7 @@ instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
   throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
 
 instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
-  constant k = M 0 (SystemF.constant k)
+  constant (MS cost k) = M cost (SystemF.constant k)
 
   pair (M xcost x) (M ycost y) = M (xcost + ycost) (SystemF.pair x y)
 
