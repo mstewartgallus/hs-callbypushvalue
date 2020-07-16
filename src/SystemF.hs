@@ -1,8 +1,5 @@
-{-# LANGUAGE ConstrainedClassMethods #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -16,9 +13,6 @@ import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
 import Global
-import Label
-import LabelMap (LabelMap)
-import qualified LabelMap
 import Name
 import qualified Unique
 import Prelude hiding ((<*>))
