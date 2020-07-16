@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, inline, simplify, abstractCode, abstractData) where
+module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, simplify, abstractCode, abstractData) where
 
 import Basic
 import Common
@@ -193,9 +193,6 @@ data Data a where
   PairData :: Data a -> Data b -> Data (a :*: b)
   FirstData :: Data (a :*: b) -> Data a
 
-indent :: TextShow.Builder -> TextShow.Builder
-indent body = fromString " {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> body)))
-
 simplify :: Code a -> Code a
 simplify = simpCode
 
@@ -221,65 +218,3 @@ simpData x = case x of
   ThunkData label body -> ThunkData label (simpCode body)
   g@(ConstantData _) -> g
   g@(VariableData _) -> g
-
-count :: Variable a -> Code b -> Int
-count v = code
-  where
-    code :: Code x -> Int
-    code c = case c of
-      LetBeCode x binder body -> value x + code body
-      LetToCode action binder body -> code action + code body
-      LambdaCode binder body -> code body
-      ApplyCode f x -> code f + value x
-      ThrowCode _ f -> code f
-      ForceCode x _ -> value x
-      CatchCode _ body -> code body
-      ReturnCode x -> value x
-      _ -> 0
-    value :: Data x -> Int
-    value x = case x of
-      VariableData binder -> if AnyVariable v == AnyVariable binder then 1 else 0
-      PairData x y -> value x + value y
-      FirstData tuple -> value tuple
-      ThunkData _ body -> code body
-      _ -> 0
-
-inline :: Callcc t => Code a -> AlgRep t a
-inline = inlCode LabelMap.empty VarMap.empty
-
-inlCode :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code a -> AlgRep t a
-inlCode lenv env code = case code of
-  LetBeCode term binder body ->
-    let term' = inlValue lenv env term
-     in if Callcc.count binder body <= 1
-          then inlCode lenv (VarMap.insert binder term' env) body
-          else letBe term' $ \x ->
-            inlCode lenv (VarMap.insert binder x env) body
-  LetToCode term binder body -> letTo (inlCode lenv env term) $ \x ->
-    inlCode lenv (VarMap.insert binder x env) body
-  ApplyCode f x -> apply (inlCode lenv env f) (inlValue lenv env x)
-  LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
-    inlCode lenv (VarMap.insert binder x env) body
-  ReturnCode val -> returns (inlValue lenv env val)
-  ThrowCode x f -> throw (inlStack lenv env x) (inlCode lenv env f)
-  CatchCode binder@(Label t _) body -> catch t $ \x ->
-    inlCode (LabelMap.insert binder x lenv) env body
-  ForceCode x f -> force (inlValue lenv env x) (inlStack lenv env f)
-  GlobalCode g -> global g
-
-inlValue :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Data x -> SetRep t x
-inlValue lenv env x = case x of
-  VariableData v ->
-    let Just r = VarMap.lookup v env
-     in r
-  ConstantData k -> constant k
-  ThunkData binder@(Label t _) body -> thunk t $ \x ->
-    inlCode (LabelMap.insert binder x lenv) env body
-  PairData x y -> pair (inlValue lenv env x) (inlValue lenv env y)
-  FirstData tuple -> first (inlValue lenv env tuple)
-  UnitData -> unit
-
-inlStack :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Stack x -> StackRep t x
-inlStack lenv _ (LabelStack l) =
-  let Just x = LabelMap.lookup l lenv
-   in x
