@@ -77,16 +77,14 @@ optimizeTerm = loop iterTerm
       let simplified = F.build (F.simplify term)
           inlined = ((costInline . monoInline) simplified)
        in loop (n - 1) inlined
-
-monoInline :: F.Term a -> F.Term a
-monoInline term =
-  let x = MonoInliner.extract (F.abstract term)
-   in F.build x
-
-costInline :: F.Term a -> F.Term a
-costInline term =
-  let x = CostInliner.extract (F.abstract term)
-   in F.build x
+    monoInline :: F.Term a -> F.Term a
+    monoInline term =
+      let x = MonoInliner.extract (F.abstract term)
+       in F.build x
+    costInline :: F.Term a -> F.Term a
+    costInline term =
+      let x = CostInliner.extract (F.abstract term)
+       in F.build x
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
@@ -94,9 +92,15 @@ optimizeCbpv = loop iterCbpv
     loop :: Int -> Cbpv.Code a -> Cbpv.Code a
     loop 0 term = term
     loop n term =
-      let simplified = Cbpv.simplify term
-          inlined = Cbpv.build (Cbpv.inline simplified)
-       in loop (n - 1) inlined
+      loop (n - 1) ((costInline . monoInline . Cbpv.simplify) term)
+    monoInline :: Cbpv.Code a -> Cbpv.Code a
+    monoInline term =
+      let x = MonoInliner.extract (Cbpv.abstractCode term)
+       in Cbpv.build x
+    costInline :: Cbpv.Code a -> Cbpv.Code a
+    costInline term =
+      let x = CostInliner.extract (Cbpv.abstractCode term)
+       in Cbpv.build x
 
 optimizeCallcc :: Callcc.Code a -> Callcc.Code a
 optimizeCallcc = loop iterCallcc

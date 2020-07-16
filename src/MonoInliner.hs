@@ -6,7 +6,7 @@ module MonoInliner (extract, MonoInliner (..)) where
 
 import Basic
 import qualified Callcc
-import qualified Cbpv
+import Cbpv
 import Common
 import Const
 import qualified Data.Text as T
@@ -63,6 +63,19 @@ instance Explicit t => Explicit (MonoInliner t) where
           M _ y -> y
 
   apply (M fcost f) (MS xcost x) = M (fcost + xcost) (apply f x)
+
+instance Cbpv t => Cbpv (MonoInliner t) where
+  force (MS cost thunk) = M cost (force thunk)
+  thunk (M cost code) = MS cost (thunk code)
+
+instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
+  data StackRep (MonoInliner t) a = SB Int (Callcc.StackRep t a)
+
+  thunk t f = undefined
+  force (MS tcost thunk) (SB scost stack) = M (tcost + scost) (Callcc.force thunk stack)
+
+  catch t f = undefined
+  throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
 
 instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
   constant k = M 0 (SystemF.constant k)
