@@ -71,10 +71,16 @@ instance Cbpv t => Cbpv (MonoInliner t) where
 instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
   data StackRep (MonoInliner t) a = SB Int (Callcc.StackRep t a)
 
-  thunk t f = undefined
+  thunk t f =
+    let M fcost _ = f (SB 0 undefined)
+     in MS fcost $ Callcc.thunk t $ \x' -> case f (SB 0 x') of
+          M _ y -> y
   force (MS tcost thunk) (SB scost stack) = M (tcost + scost) (Callcc.force thunk stack)
 
-  catch t f = undefined
+  catch t f =
+    let M fcost _ = f (SB 0 undefined)
+     in M fcost $ Callcc.catch t $ \x' -> case f (SB 0 x') of
+          M _ y -> y
   throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
 
 instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where

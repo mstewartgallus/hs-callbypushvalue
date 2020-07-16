@@ -96,5 +96,20 @@ instance Cbpv t => Cbpv (CostInliner t) where
   force (CS cost thunk) = I (cost + 1) (force thunk)
   thunk (I cost code) = CS (cost + 1) (thunk code)
 
+instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
+  data StackRep (CostInliner t) a = SB Int (Callcc.StackRep t a)
+
+  thunk t f =
+    let I fcost _ = f (SB 0 undefined)
+     in CS (fcost + 1) $ Callcc.thunk t $ \x' -> case f (SB 0 x') of
+          I _ y -> y
+  force (CS tcost thunk) (SB scost stack) = I (tcost + scost + 1) (Callcc.force thunk stack)
+
+  catch t f =
+    let I fcost _ = f (SB 0 undefined)
+     in I (fcost + 1) $ Callcc.catch t $ \x' -> case f (SB 0 x') of
+          I _ y -> y
+  throw (SB scost stack) (I xcost x) = I (scost + xcost + 1) (Callcc.throw stack x)
+
 probe :: SAlg a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

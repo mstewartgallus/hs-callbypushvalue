@@ -108,9 +108,15 @@ optimizeCallcc = loop iterCallcc
     loop :: Int -> Callcc.Code a -> Callcc.Code a
     loop 0 term = term
     loop n term =
-      let simplified = Callcc.simplify term
-          inlined = Callcc.build (Callcc.inline simplified)
-       in loop (n - 1) inlined
+      loop (n - 1) ((costInline . monoInline . Callcc.simplify) term)
+    monoInline :: Callcc.Code a -> Callcc.Code a
+    monoInline term =
+      let x = MonoInliner.extract (Callcc.abstractCode term)
+       in Callcc.build x
+    costInline :: Callcc.Code a -> Callcc.Code a
+    costInline term =
+      let x = CostInliner.extract (Callcc.abstractCode term)
+       in Callcc.build x
 
 optimizeCps :: Cps.Data a -> Cps.Data a
 optimizeCps = loop iterCps
