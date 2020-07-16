@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, Simplifier, build, Builder, SystemF (..), abstract, Term (..)) where
+module SystemF (lam, simplify, Simplifier, build, SystemF (..), abstract, Term (..)) where
 
 import Basic
 import Common
@@ -50,37 +50,12 @@ class Basic t => SystemF t where
 lam :: (SystemF t, KnownAlg a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 lam = lambda inferAlg
 
--- forall :: Kind a -> (Type a -> t b) -> t (V a b)
--- applyType :: t (V a b) -> Type a -> t b
-
 infixl 4 <*>
 
-data Term a where
-  LabelTerm :: Label a -> Term a
-  ConstantTerm :: Constant a -> Term (F a)
-  GlobalTerm :: Global a -> Term a
-  LetTerm :: Term a -> Label a -> Term b -> Term b
-  LambdaTerm :: Label a -> Term b -> Term (a :-> b)
-  PairTerm :: Term a -> Term b -> Term (Pair a b)
-  ApplyTerm :: Term (a :-> b) -> Term a -> Term b
+newtype Term a = Term (forall t. SystemF t => AlgRep t a)
 
 abstract :: SystemF t => Term a -> AlgRep t a
-abstract = abstract' LabelMap.empty
-
-abstract' :: SystemF t => LabelMap (AlgRep t) -> Term a -> AlgRep t a
-abstract' env term = case term of
-  PairTerm x y -> pair (abstract' env x) (abstract' env y)
-  LetTerm term binder body ->
-    let term' = abstract' env term
-     in letBe term' $ \value -> abstract' (LabelMap.insert binder value env) body
-  LambdaTerm binder@(Label t _) body -> lambda t $ \value ->
-    abstract' (LabelMap.insert binder value env) body
-  ApplyTerm f x -> abstract' env f <*> abstract' env x
-  ConstantTerm c -> constant c
-  GlobalTerm g -> global g
-  LabelTerm v -> case LabelMap.lookup v env of
-    Just x -> x
-    Nothing -> error "variable not found in env"
+abstract (Term x) = x
 
 simplify :: SystemF t => AlgRep (Simplifier t) a -> AlgRep t a
 simplify (S _ x) = x
@@ -111,36 +86,5 @@ instance SystemF t => SystemF (Simplifier t) where
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
 
-data Builder
-
-build :: AlgRep Builder a -> Term a
-build (B f) =
-  let (_, x) = Unique.withStream f
-   in x
-
-instance Basic Builder where
-  newtype AlgRep Builder (a :: Alg) = B (forall s. Unique.Stream s -> (SAlg a, Term a))
-  global g@(Global t _) = B $ \_ -> (t, GlobalTerm g)
-
-instance SystemF Builder where
-  constant k = B $ \_ -> (SF (Constant.typeOf k), ConstantTerm k)
-
-  pair (B x) (B y) = B $ \(Unique.Stream _ xs ys) ->
-    let (tx, vx) = x xs
-        (ty, vy) = y ys
-     in (SF (SU tx `SPair` SU ty), PairTerm vx vy)
-  letBe (B x) f = B $ \(Unique.Stream newId xs fs) ->
-    let (tx, vx) = x xs
-        binder = Label tx newId
-        B b = f (B $ \_ -> (tx, LabelTerm binder))
-        (result, body) = b fs
-     in (result, LetTerm vx binder body)
-  lambda t f = B $ \(Unique.Stream newId _ tail) ->
-    let binder = Label t newId
-        B b = f (B $ \_ -> (t, LabelTerm binder))
-        (result, body) = b tail
-     in (SU t `SFn` result, LambdaTerm binder body)
-  B f <*> B x = B $ \(Unique.Stream _ fs xs) ->
-    let (SFn _ b, vf) = f fs
-        (_, vx) = x xs
-     in (b, ApplyTerm vf vx)
+build :: (forall t. SystemF t => AlgRep t a) -> Term a
+build = Term
