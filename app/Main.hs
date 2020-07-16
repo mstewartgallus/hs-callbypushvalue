@@ -5,6 +5,7 @@ module Main where
 
 import qualified AsCallcc
 import qualified AsCbpv
+import AsCps
 import Basic
 import qualified Callcc
 import qualified Cbpv
@@ -19,7 +20,6 @@ import Data.Word
 import qualified Duplicate
 import qualified Interpreter
 import qualified Intrinsify
-import Lib
 import qualified MonoInliner
 import qualified Porcelain
 import qualified SystemF as F
