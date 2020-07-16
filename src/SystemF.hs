@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, build, Builder, SystemF (..), abstract, Term (..)) where
+module SystemF (lam, simplify, Simplifier, build, Builder, SystemF (..), abstract, Term (..)) where
 
 import Basic
 import Common
@@ -82,9 +82,8 @@ abstract' env term = case term of
     Just x -> x
     Nothing -> error "variable not found in env"
 
-simplify :: SystemF t => Term a -> AlgRep t a
-simplify term = case abstract term of
-  S _ x -> abstract (build x)
+simplify :: SystemF t => AlgRep (Simplifier t) a -> AlgRep t a
+simplify (S _ x) = x
 
 data Simplifier t
 

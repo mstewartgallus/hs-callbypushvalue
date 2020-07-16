@@ -16,6 +16,7 @@ import qualified Cps
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
+import qualified Duplicate
 import qualified Interpreter
 import qualified Intrinsify
 import Lib
@@ -66,20 +67,15 @@ phases term =
 optimizeTerm :: F.Term a -> F.Term a
 optimizeTerm = loop iterTerm
   where
+    step :: F.SystemF t => F.Term a -> AlgRep t a
+    step term =
+      let simplified = F.simplify (F.abstract term)
+          monoInlined = MonoInliner.extract simplified
+          inlined = CostInliner.extract monoInlined
+       in inlined
     loop :: Int -> F.Term a -> F.Term a
     loop 0 term = term
-    loop n term =
-      let simplified = F.build (F.simplify term)
-          inlined = ((costInline . monoInline) simplified)
-       in loop (n - 1) inlined
-    monoInline :: F.Term a -> F.Term a
-    monoInline term =
-      let x = MonoInliner.extract (F.abstract term)
-       in F.build x
-    costInline :: F.Term a -> F.Term a
-    costInline term =
-      let x = CostInliner.extract (F.abstract term)
-       in F.build x
+    loop n term = loop (n - 1) (F.build (step term))
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
