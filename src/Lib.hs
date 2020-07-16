@@ -1,21 +1,12 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Lib
-  ( toCallByPushValue,
-    toCallcc,
-    toContinuationPassingStyle,
-  )
-where
+module Lib (toContinuationPassingStyle) where
 
 import Basic
 import qualified Callcc
-import qualified Cbpv
 import Common
 import Const
 import qualified Constant
@@ -26,78 +17,10 @@ import Global
 import Label
 import qualified LabelMap
 import LabelMap (LabelMap)
-import qualified SystemF
 import Tuple
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
-
-toCallByPushValue :: SystemF.Term a -> Cbpv.Code a
-toCallByPushValue term =
-  let ToCbpv x = SystemF.abstract term
-   in Cbpv.build x
-
-data ToCbpv t
-
-instance Basic t => Basic (ToCbpv t) where
-  newtype AlgRep (ToCbpv t) a = ToCbpv (AlgRep t a)
-  global g = ToCbpv (global g)
-
-instance Cbpv.Cbpv t => SystemF.SystemF (ToCbpv t) where
-  constant k = ToCbpv $ returns (constant k)
-  pair (ToCbpv x) (ToCbpv y) = ToCbpv $ returns (pair (Cbpv.thunk x) (Cbpv.thunk y))
-
-  -- first (ToCbpv tuple) = ToCbpv x
-  -- second (ToCbpv tuple) = ToCbpv y
-  letBe (ToCbpv x) f = ToCbpv $ letBe (Cbpv.thunk x) $ \x' ->
-    let ToCbpv body = f (ToCbpv (Cbpv.force x'))
-     in body
-  lambda t f = ToCbpv $ lambda (SU t) $ \x ->
-    let ToCbpv body = f (ToCbpv (Cbpv.force x))
-     in body
-  ToCbpv f <*> ToCbpv x = ToCbpv $ apply f (Cbpv.thunk x)
-
-toCallcc :: Cbpv.Code a -> Callcc.Code a
-toCallcc code =
-  let CodeCallcc _ x = Cbpv.abstractCode code
-   in Callcc.build x
-
-data ToCallcc t
-
-instance Basic t => Basic (ToCallcc t) where
-  data AlgRep (ToCallcc t) a = CodeCallcc (SAlg a) (AlgRep t a)
-  global g@(Global t _) = CodeCallcc t (global g)
-
-instance Const t => Const (ToCallcc t) where
-  data SetRep (ToCallcc t) a = DataCallcc (SSet a) (SetRep t a)
-
-  constant k = DataCallcc (Constant.typeOf k) $ constant k
-
-instance Explicit t => Explicit (ToCallcc t) where
-  letBe (DataCallcc t x) f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ letBe x $ \x' ->
-          let CodeCallcc _ body = f (DataCallcc t x')
-           in body
-  letTo (CodeCallcc (SF t) x) f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ letTo x $ \x' ->
-          let CodeCallcc _ body = f (DataCallcc t x')
-           in body
-  lambda t f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc (t `SFn` bt) $ lambda t $ \x ->
-          let CodeCallcc _ body = f (DataCallcc t x)
-           in body
-  apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
-  returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
-
-instance Tuple t => Tuple (ToCallcc t)
-
-instance Callcc.Callcc t => Cbpv.Cbpv (ToCallcc t) where
-  force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
-  thunk (CodeCallcc t code) = DataCallcc (SU t) $ Callcc.thunk t $ \x ->
-    Callcc.throw x code
 
 toContinuationPassingStyle :: Cps.Cps t => Callcc.Code a -> SetRep t (U a)
 toContinuationPassingStyle = toCpsThunk LabelMap.empty VarMap.empty

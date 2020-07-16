@@ -3,15 +3,16 @@
 
 module Main where
 
+import qualified AsCallcc
+import qualified AsCbpv
 import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
 import qualified Constant
-import Core
+import qualified Core
 import qualified CostInliner
 import qualified Cps
-import Data.Data
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
@@ -23,9 +24,6 @@ import qualified Porcelain
 import qualified SystemF as F
 import TextShow
 import View
-
--- mkProgram :: (SystemF.SystemF t => Data a => t SystemF.Term a)
--- mkProgram = undefined
 
 iterTerm = 20
 
@@ -58,10 +56,10 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = toCallByPushValue optTerm
+      cbpv = Cbpv.build (AsCbpv.extract (F.abstract optTerm))
       intrinsified = Cbpv.build (Intrinsify.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
-      catchThrow = toCallcc optIntrinsified
+      catchThrow = Callcc.build (AsCallcc.extract (Cbpv.abstractCode optIntrinsified))
       optCatchThrow = optimizeCallcc catchThrow
       cps = Cps.build (toContinuationPassingStyle optCatchThrow)
       optCps = optimizeCps cps
