@@ -12,6 +12,7 @@ import Common
 import Const
 import qualified Data.Text as T
 import Explicit
+import qualified Pure
 import qualified SystemF
 import TextShow
 import Tuple
@@ -33,8 +34,11 @@ instance Const View where
 
 instance Tuple View
 
+instance Pure.Pure View where
+  pure (VS k) = V $ \s ->
+    fromString "(pure " <> k s <> fromString ")"
+
 instance SystemF.SystemF View where
-  constant (VS k) = V k
   pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys

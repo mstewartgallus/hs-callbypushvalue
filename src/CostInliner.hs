@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Explicit
 import Global
 import Name
+import qualified Pure
 import qualified SystemF as F
 import Tuple
 import qualified Unique
@@ -32,9 +33,10 @@ instance Basic t => Basic (CostInliner t) where
   data AlgRep (CostInliner t) a = I Int (AlgRep t a)
   global g = I 0 (global g)
 
-instance F.SystemF t => F.SystemF (CostInliner t) where
-  constant (CS cost k) = I cost (F.constant k)
+instance Pure.Pure t => Pure.Pure (CostInliner t) where
+  pure (CS cost k) = I cost (Pure.pure k)
 
+instance F.SystemF t => F.SystemF (CostInliner t) where
   pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (F.pair x y)
 
   letBe (I xcost x) f = result

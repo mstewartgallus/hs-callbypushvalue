@@ -12,6 +12,7 @@ import qualified Constant
 import Core
 import Explicit
 import Global
+import qualified Pure
 import qualified SystemF as F
 import Tuple
 
@@ -28,9 +29,10 @@ instance Const t => Const (AsCbpv t) where
   newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
   unit = SetRep unit
 
-instance Cbpv t => F.SystemF (AsCbpv t) where
-  constant (SetRep k) = AsCbpv (returns k)
+instance Explicit t => Pure.Pure (AsCbpv t) where
+  pure (SetRep k) = AsCbpv (returns k)
 
+instance Cbpv t => F.SystemF (AsCbpv t) where
   pair (AsCbpv x) (AsCbpv y) = AsCbpv $ returns (pair (thunk x) (thunk y))
 
   -- first (AsCbpv tuple) = AsCbpv x

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6131b60be2749740fc1184c8798c58627e09e9c438fd52d77338c441abf64654
+-- hash: 7d4d0949b4cd81ba9e92608416cde4b674725d0605c681aae78332aa2824653c
 
 name:           cpbv
 version:        0.1.0.0
@@ -49,6 +49,7 @@ library
       MonoInliner
       Name
       Porcelain
+      Pure
       SystemF
       Tuple
       Unique

@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import Explicit
 import Global
 import Name
+import qualified Pure
 import qualified SystemF
 import TextShow
 import Tuple
@@ -83,9 +84,10 @@ instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
           M _ y -> y
   throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
 
-instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
-  constant (MS cost k) = M cost (SystemF.constant k)
+instance Pure.Pure t => Pure.Pure (MonoInliner t) where
+  pure (MS cost k) = M cost (Pure.pure k)
 
+instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
   pair (M xcost x) (M ycost y) = M (xcost + ycost) (SystemF.pair x y)
 
   letBe (M xcost x) f = result

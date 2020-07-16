@@ -15,6 +15,7 @@ import Core hiding (minus, plus)
 import qualified Core
 import Global
 import Name
+import qualified Pure
 import qualified Unique
 import Prelude hiding ((<*>))
 
@@ -22,11 +23,9 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class (Basic t, Const t) => SystemF t where
+class (Basic t, Const t, Pure.Pure t) => SystemF t where
   -- | function application
   (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
-
-  constant :: SetRep t a -> AlgRep t (F a)
 
   lambda :: SAlg a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 
@@ -65,9 +64,10 @@ instance Const t => Const (Simplifier t) where
   newtype SetRep (Simplifier t) a = SS (SetRep t a)
   unit = SS unit
 
-instance SystemF t => SystemF (Simplifier t) where
-  constant (SS k) = S NotFn (SystemF.constant k)
+instance Pure.Pure t => Pure.Pure (Simplifier t) where
+  pure (SS k) = S NotFn (Pure.pure k)
 
+instance SystemF t => SystemF (Simplifier t) where
   pair (S _ x) (S _ y) = S NotFn (pair x y)
 
   letBe (S _ x) f = S NotFn $ letBe x $ \x' -> case f (S NotFn x') of
