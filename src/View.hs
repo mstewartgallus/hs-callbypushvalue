@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module View (View (..)) where
+module View (extract, View (..)) where
 
 import Basic
 import qualified Callcc
@@ -19,11 +19,8 @@ import qualified Unique
 
 data View
 
-instance TextShow (AlgRep View a) where
-  showb (V x) = Unique.withStream x
-
-instance TextShow (SetRep View a) where
-  showb (VS x) = Unique.withStream x
+extract :: AlgRep View a -> T.Text
+extract (V x) = toText (Unique.withStream x)
 
 instance Basic View where
   newtype AlgRep View a = V (forall s. Unique.Stream s -> Builder)

@@ -33,15 +33,13 @@ iterCallcc = 20
 
 iterCps = 20
 
-program :: F.Term (F U64 :-> F U64 :-> F U64)
-program = F.build
-  $ F.lam
-  $ \x ->
-    F.lam $ \y ->
-      ( F.lam $ \z ->
-          global Core.plus F.<*> z F.<*> y
-      )
-        F.<*> x
+program :: F.SystemF t => AlgRep t (F U64 :-> F U64 :-> F U64)
+program = F.lam $ \x ->
+  F.lam $ \y ->
+    ( F.lam $ \z ->
+        global Core.plus F.<*> z F.<*> y
+    )
+      F.<*> x
 
 phases ::
   F.Term a ->
@@ -128,27 +126,27 @@ optimizeCps = loop iterCps
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
-  printT (viewTerm program)
+  T.putStrLn (View.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases program
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (F.build program)
 
   putStrLn "\nOptimized Term:"
-  printT (viewTerm optTerm)
+  T.putStrLn (View.extract (F.abstract optTerm))
 
   putStrLn "\nCall By Push Value:"
-  printT (view cbpv)
+  T.putStrLn (View.extract (Cbpv.abstractCode cbpv))
 
   putStrLn "\nIntrinsified:"
-  printT (view intrinsified)
+  T.putStrLn (View.extract (Cbpv.abstractCode intrinsified))
 
   putStrLn "\nOptimized Intrinsified:"
-  printT (view optIntrinsified)
+  T.putStrLn (View.extract (Cbpv.abstractCode optIntrinsified))
 
   putStrLn "\nCatch/Throw:"
-  printT (viewCc catchThrow)
+  T.putStrLn (View.extract (Callcc.abstractCode catchThrow))
 
   putStrLn "\nOptimized Catch/Throw:"
-  printT (viewCc optCatchThrow)
+  T.putStrLn (View.extract (Callcc.abstractCode optCatchThrow))
 
   putStrLn "\nCps:"
   printT cps
