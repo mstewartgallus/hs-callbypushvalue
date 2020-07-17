@@ -52,14 +52,14 @@ data Stack a where
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
 class (Const t, HasCode t, Tuple t) => Cps t where
-  data StackRep t :: Alg -> *
+  data StackRep t :: Algebra -> *
 
   global :: Global a -> StackRep t a -> AlgRep t Void
 
   throw :: StackRep t (F a) -> SetRep t a -> AlgRep t Void
   force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
 
-  thunk :: SAlg a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
+  thunk :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
   letTo :: SSet a -> (SetRep t a -> AlgRep t Void) -> StackRep t (F a)
 
   lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> AlgRep t Void) -> AlgRep t Void
@@ -85,7 +85,7 @@ instance Tuple Builder where
      in (SPair xt yt, PairData x' y')
 
 instance Cps Builder where
-  newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlg a, Stack a))
+  newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlgebra a, Stack a))
 
   global g (SB k) = CB $ \s ->
     let (_, k') = k s

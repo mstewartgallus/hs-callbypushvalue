@@ -36,7 +36,7 @@ build :: AlgRep Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
 
 instance HasCode Builder where
-  newtype AlgRep Builder (a :: Alg) = CB (forall s. Unique.Stream s -> (SAlg a, Code a))
+  newtype AlgRep Builder (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, Code a))
 
 instance HasData Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))

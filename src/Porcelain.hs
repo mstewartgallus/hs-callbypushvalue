@@ -39,7 +39,7 @@ fresh = do
 pType :: SSet a -> Builder
 pType = showb
 
-pAction :: SAlg a -> Builder
+pAction :: SAlgebra a -> Builder
 pAction = showb
 
 data X

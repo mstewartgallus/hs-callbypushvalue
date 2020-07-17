@@ -6,7 +6,7 @@ import Common
 import Name (Name)
 import TextShow
 
-data Global a = Global (SAlg a) Name
+data Global a = Global (SAlgebra a) Name
 
 instance Eq (Global a) where
   (Global _ n) == (Global _ n') = n == n && n == n'

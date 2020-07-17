@@ -12,7 +12,7 @@ import Unique
 
 newtype LabelMap t = LabelMap (Map Unique (Dyn t))
 
-data Dyn t = forall a. Dyn (SAlg a) (t a)
+data Dyn t = forall a. Dyn (SAlgebra a) (t a)
 
 empty :: LabelMap t
 empty = LabelMap Map.empty

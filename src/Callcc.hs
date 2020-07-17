@@ -27,12 +27,12 @@ import VarMap (VarMap)
 import Variable
 
 class (Basic t, Const t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
-  data StackRep t :: Alg -> *
+  data StackRep t :: Algebra -> *
 
-  catch :: SAlg a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
+  catch :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
   throw :: StackRep t a -> AlgRep t a -> AlgRep t Void
 
-  thunk :: SAlg a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
+  thunk :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
   force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
 
 data Code a where
@@ -56,7 +56,7 @@ data Data a where
   ThunkData :: Label a -> Code Void -> Data (U a)
   PairData :: Data a -> Data b -> Data (a :*: b)
 
-typeOf :: Code a -> SAlg a
+typeOf :: Code a -> SAlgebra a
 typeOf x = case x of
   LambdaCode (Variable t _) body -> t `SFn` typeOf body
   ReturnCode value -> SF (typeOfData value)
@@ -82,7 +82,7 @@ build (CB _ s) = Unique.run s
 data Builder
 
 instance HasCode Builder where
-  data AlgRep Builder a = CB (SAlg a) (Unique.State (Code a))
+  data AlgRep Builder a = CB (SAlgebra a) (Unique.State (Code a))
 
 instance HasData Builder where
   data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
@@ -128,7 +128,7 @@ instance Explicit Builder where
 instance Tuple Builder
 
 instance Callcc Builder where
-  data StackRep Builder a = SB (SAlg a) (Unique.State (Stack a))
+  data StackRep Builder a = SB (SAlgebra a) (Unique.State (Stack a))
 
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId

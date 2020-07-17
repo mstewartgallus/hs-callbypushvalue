@@ -26,7 +26,7 @@ extract (CodeCallcc _ x) = x
 data AsCallcc t
 
 instance HasCode t => HasCode (AsCallcc t) where
-  data AlgRep (AsCallcc t) a = CodeCallcc (SAlg a) (AlgRep t a)
+  data AlgRep (AsCallcc t) a = CodeCallcc (SAlgebra a) (AlgRep t a)
 
 instance HasData t => HasData (AsCallcc t) where
   data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)

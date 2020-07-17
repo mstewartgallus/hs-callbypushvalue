@@ -108,5 +108,5 @@ instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
           M _ y -> y
   M fcost f <*> M xcost x = M (fcost + xcost) (f SystemF.<*> x)
 
-probe :: SAlg a -> Global a
+probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

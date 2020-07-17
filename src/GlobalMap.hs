@@ -10,7 +10,7 @@ import Data.Typeable
 import Global
 import Name (Name)
 
-data Dyn t = forall a. Dyn (SAlg a) (t a)
+data Dyn t = forall a. Dyn (SAlgebra a) (t a)
 
 newtype GlobalMap t = GlobalMap (Map Name (Dyn t))
 

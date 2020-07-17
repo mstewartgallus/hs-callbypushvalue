@@ -112,5 +112,5 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
           I _ y -> y
   throw (SB scost stack) (I xcost x) = I (scost + xcost + 1) (Callcc.throw stack x)
 
-probe :: SAlg a -> Global a
+probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

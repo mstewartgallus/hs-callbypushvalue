@@ -25,7 +25,7 @@ toContinuationPassingStyle code = case Callcc.abstractCode code of
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data AlgRep (AsCps t) a = CodeCallcc (SAlg a) (Cps.StackRep t a -> AlgRep t Void)
+  data AlgRep (AsCps t) a = CodeCallcc (SAlgebra a) (Cps.StackRep t a -> AlgRep t Void)
 
 instance HasData t => HasData (AsCps t) where
   data SetRep (AsCps t) a = DataCallcc (SSet a) (SetRep t a)
@@ -69,7 +69,7 @@ instance (Cps.Cps t) => Explicit (AsCps t) where
 instance (HasCode t, Cps.Cps t) => Tuple (AsCps t)
 
 instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
-  data StackRep (AsCps t) a = SB (SAlg a) (Cps.StackRep t a)
+  data StackRep (AsCps t) a = SB (SAlgebra a) (Cps.StackRep t a)
 
   thunk t f = DataCallcc (SU t) $ Cps.thunk t $ \k ->
     case f (SB t k) of

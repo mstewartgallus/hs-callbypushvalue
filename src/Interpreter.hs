@@ -34,7 +34,7 @@ data instance Value (a :*: b) = Value a ::: Value b
 
 newtype R = Behaviour (IO ())
 
-data family Kont (a :: Alg) :: *
+data family Kont (a :: Algebra) :: *
 
 data instance Kont Void = Nil
 

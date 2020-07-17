@@ -7,7 +7,7 @@ import Common
 import TextShow
 import Unique (Unique)
 
-data Label a = Label (SAlg a) Unique
+data Label a = Label (SAlgebra a) Unique
 
 data AnyLabel = forall a. AnyLabel (Label a)
 

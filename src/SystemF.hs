@@ -29,7 +29,7 @@ class (Basic t, Const t, Pure.Pure t) => SystemF t where
   -- | function application
   (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
 
-  lambda :: SAlg a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
+  lambda :: SAlgebra a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 
   letBe :: AlgRep t a -> (AlgRep t a -> AlgRep t b) -> AlgRep t b
 
@@ -39,7 +39,7 @@ class (Basic t, Const t, Pure.Pure t) => SystemF t where
     (AlgRep t a -> AlgRep t b -> AlgRep t c) ->
     AlgRep t c
 
-lam :: (SystemF t, KnownAlg a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
+lam :: (SystemF t, KnownAlgebra a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
 lam = lambda inferAlg
 
 infixl 4 <*>
