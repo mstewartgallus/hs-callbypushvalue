@@ -23,6 +23,7 @@ import qualified CostInliner
 import CostInliner (CostInliner)
 import qualified Cps
 import Cps (Cps)
+import qualified CpsSimplifier
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
@@ -134,9 +135,9 @@ optimizeCallcc = loop iterCallcc
 optimizeCps :: Value Cps a -> Value Cps a
 optimizeCps = loop iterCps
   where
-    step :: Cps t => DataRep Cps.Builder a -> DataRep t a
+    step :: Cps t => DataRep CpsSimplifier.Simplifier a -> DataRep t a
     step term =
-      let simplified = Cps.simplifyExtract term
+      let simplified = CpsSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined
