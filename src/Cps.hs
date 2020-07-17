@@ -20,6 +20,7 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import TextShow (TextShow, fromString, fromText, showb, toText)
+import Tuple
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -29,6 +30,7 @@ data Data a where
   ConstantData :: Constant a -> Data a
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code -> Data (U a)
+  PairData :: Data a -> Data b -> Data (a :*: b)
 
 data Code where
   GlobalCode :: Global a -> Stack a -> Code
@@ -49,7 +51,7 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (Const t, HasCode t) => Cps t where
+class (Const t, HasCode t, Tuple t) => Cps t where
   data StackRep t :: Alg -> *
 
   global :: Global a -> StackRep t a -> AlgRep t Void
@@ -61,14 +63,7 @@ class (Const t, HasCode t) => Cps t where
   letTo :: SSet a -> (SetRep t a -> AlgRep t Void) -> StackRep t (F a)
 
   lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> AlgRep t Void) -> AlgRep t Void
-
-  head :: SetRep t (a :*: b) -> SetRep t a
-  tail :: SetRep t (a :*: b) -> SetRep t b
-
-  pop :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> AlgRep t Void) -> AlgRep t Void
-
   apply :: SetRep t a -> StackRep t b -> StackRep t (a :=> b)
-  push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
 
   nil :: StackRep t Void
 
@@ -82,6 +77,12 @@ instance HasCode Builder where
 
 instance Const Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
+
+instance Tuple Builder where
+  pair (DB x) (DB y) = DB $ \(Unique.Stream _ ks xs) ->
+    let (xt, x') = x xs
+        (yt, y') = y xs
+     in (SPair xt yt, PairData x' y')
 
 instance Cps Builder where
   newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlg a, Stack a))

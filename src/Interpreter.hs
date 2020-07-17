@@ -16,6 +16,7 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
 import HasData
+import Tuple
 
 evaluate :: Data a -> Value a
 evaluate x = case abstract x of
@@ -53,6 +54,10 @@ instance Const X where
   constant (U64Constant x) = V (I x)
   unit = V Coin
 
+instance Tuple X where
+  pair (V x) (V y) = V (x ::: y)
+  unpair (V (x ::: y)) f = f (V x) (V y)
+
 instance Cps X where
   newtype StackRep X a = K (Kont a)
 
@@ -66,9 +71,6 @@ instance Cps X where
 
   lambda (K (Apply h t)) f = f (V h) (K t)
   apply (V h) (K t) = K (Apply h t)
-
-  pop (V (h ::: t)) f = f (V h) (V t)
-  push (V h) (V t) = V (h ::: t)
 
   nil = K Nil
 
