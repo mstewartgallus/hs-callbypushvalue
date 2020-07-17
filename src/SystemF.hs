@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, Simplifier, build, SystemF (..), abstract, Term (..)) where
+module SystemF (lam, simplify, Simplifier, box, SystemF (..), interpret, Term) where
 
 import Common
 import Constant (Constant)
@@ -46,8 +46,8 @@ infixl 4 <*>
 
 newtype Term a = Term (forall t. SystemF t => CodeRep t a)
 
-abstract :: SystemF t => Term a -> CodeRep t a
-abstract (Term x) = x
+interpret :: SystemF t => Term a -> CodeRep t a
+interpret (Term x) = x
 
 simplify :: SystemF t => CodeRep (Simplifier t) a -> CodeRep t a
 simplify (S _ x) = x
@@ -88,5 +88,5 @@ instance SystemF t => SystemF (Simplifier t) where
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
 
-build :: (forall t. SystemF t => CodeRep t a) -> Term a
-build = Term
+box :: (forall t. SystemF t => CodeRep t a) -> Term a
+box = Term

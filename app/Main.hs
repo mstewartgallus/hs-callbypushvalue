@@ -13,6 +13,7 @@ import Common
 import qualified Constant
 import qualified Core
 import qualified CostInliner
+import CostInliner (CostInliner)
 import qualified Cps
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -22,6 +23,7 @@ import HasConstants
 import HasGlobals
 import qualified Interpreter
 import qualified Intrinsify
+import MonoInliner (MonoInliner)
 import qualified MonoInliner
 import qualified Porcelain
 import qualified Pure
@@ -57,7 +59,7 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (AsCbpv.extract (F.abstract optTerm))
+      cbpv = Cbpv.build (AsCbpv.extract (F.interpret optTerm))
       intrinsified = Cbpv.build (Intrinsify.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = Callcc.build (AsCallcc.extract (Cbpv.abstractCode optIntrinsified))
@@ -66,18 +68,20 @@ phases term =
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
+type OptF t = F.Simplifier (MonoInliner (CostInliner t))
+
 optimizeTerm :: F.Term a -> F.Term a
 optimizeTerm = loop iterTerm
   where
-    step :: F.SystemF t => F.Term a -> CodeRep t a
+    step :: F.SystemF t => CodeRep (OptF t) a -> CodeRep t a
     step term =
-      let simplified = F.simplify (F.abstract term)
+      let simplified = F.simplify term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
     loop :: Int -> F.Term a -> F.Term a
     loop 0 term = term
-    loop n term = loop (n - 1) (F.build (step term))
+    loop n term = loop (n - 1) (F.box (step (F.interpret term)))
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
@@ -132,10 +136,10 @@ main = do
   putStrLn "Lambda Calculus:"
   T.putStrLn (AsText.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (F.build program)
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (F.box program)
 
   putStrLn "\nOptimized Term:"
-  T.putStrLn (AsText.extract (F.abstract optTerm))
+  T.putStrLn (AsText.extract (F.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract (Cbpv.abstractCode cbpv))
