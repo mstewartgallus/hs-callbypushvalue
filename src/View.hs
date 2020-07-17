@@ -15,6 +15,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasStack
 import qualified Pure
 import qualified SystemF
 import TextShow
@@ -86,9 +87,10 @@ instance Cbpv.Cbpv View where
   thunk (V code) = VS $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
 
-instance Callcc.Callcc View where
+instance HasStack View where
   data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
 
+instance Callcc.Callcc View where
   catch t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
         V body = f (VStk $ \_ -> binder)

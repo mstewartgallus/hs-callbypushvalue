@@ -13,6 +13,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasStack
 import Name
 import qualified Pure
 import qualified SystemF as F
@@ -37,6 +38,9 @@ instance HasData t => HasData (CostInliner t) where
 
 instance HasCode t => HasCode (CostInliner t) where
   data AlgRep (CostInliner t) a = I Int (AlgRep t a)
+
+instance HasStack t => HasStack (CostInliner t) where
+  data StackRep (CostInliner t) a = SB Int (StackRep t a)
 
 instance HasGlobals t => HasGlobals (CostInliner t) where
   global g = I 0 (global g)
@@ -100,8 +104,6 @@ instance Cbpv t => Cbpv (CostInliner t) where
   thunk (I cost code) = CS (cost + 1) (thunk code)
 
 instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
-  data StackRep (CostInliner t) a = SB Int (Callcc.StackRep t a)
-
   thunk t f =
     let I fcost _ = f (SB 0 undefined)
      in CS (fcost + 1) $ Callcc.thunk t $ \x' -> case f (SB 0 x') of

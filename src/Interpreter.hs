@@ -17,6 +17,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasStack
 import Tuple
 
 evaluate :: Data a -> Value a
@@ -51,6 +52,9 @@ instance HasData X where
 instance HasCode X where
   newtype AlgRep X a = C R
 
+instance HasStack X where
+  newtype StackRep X a = K (Kont a)
+
 instance HasConstants X where
   constant (U64Constant x) = V (I x)
   unit = V Coin
@@ -63,8 +67,6 @@ instance HasLet X where
   letBe x f = f x
 
 instance Cps X where
-  newtype StackRep X a = K (Kont a)
-
   throw (K (Returns k)) (V x) = C (k x)
   force (V (Thunk f)) (K x) = C (f x)
 

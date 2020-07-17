@@ -16,6 +16,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasStack
 import qualified Pure
 import Tuple
 
@@ -26,10 +27,13 @@ toContinuationPassingStyle code = case Callcc.abstractCode code of
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data AlgRep (AsCps t) a = CodeCallcc (SAlgebra a) (Cps.StackRep t a -> AlgRep t Void)
+  data AlgRep (AsCps t) a = CodeCallcc (SAlgebra a) (StackRep t a -> AlgRep t Void)
 
 instance HasData t => HasData (AsCps t) where
   data SetRep (AsCps t) a = DataCallcc (SSet a) (SetRep t a)
+
+instance (HasStack t) => HasStack (AsCps t) where
+  data StackRep (AsCps t) a = SB (SAlgebra a) (StackRep t a)
 
 instance (HasCode t, Cps.Cps t) => HasGlobals (AsCps t) where
   global g@(Global t _) = CodeCallcc t $ \stack -> Cps.global g stack
@@ -68,8 +72,6 @@ instance (Cps.Cps t) => Explicit (AsCps t) where
 instance (HasCode t, Cps.Cps t) => Tuple (AsCps t)
 
 instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
-  data StackRep (AsCps t) a = SB (SAlgebra a) (Cps.StackRep t a)
-
   thunk t f = DataCallcc (SU t) $ Cps.thunk t $ \k ->
     case f (SB t k) of
       CodeCallcc _ y -> y Cps.nil
