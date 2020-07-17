@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Stack (..), Code (..), Data (..), typeOf, simplify, abstractCode, abstractData) where
+module Callcc (build, Builder (..), Callcc (..), Stack, Code, Data, typeOf, simplify, abstractCode, abstractData) where
 
 import Basic
 import Common

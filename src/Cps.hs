@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack (..), Code (..), Data (..), Builder (..), simplify, inline, abstract) where
+module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, inline, abstract) where
 
 import Common
 import Const
