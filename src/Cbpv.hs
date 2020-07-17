@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (abstractCode, build, Builder, Cbpv (..), Code, Data, simplify) where
+module Cbpv (abstractCode, build, Builder, Cbpv (..), simplifyExtract) where
 
 import Common
 import Constant (Constant)
@@ -32,10 +32,13 @@ class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, HasReturn t)
   thunk :: CodeRep t a -> DataRep t (U a)
   force :: DataRep t (U a) -> CodeRep t a
 
-data Builder
+simplifyExtract :: Cbpv t => CodeRep Builder a -> CodeRep t a
+simplifyExtract term = abstractCode (simplify (build term))
 
 build :: CodeRep Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
+
+data Builder
 
 instance HasCode Builder where
   newtype CodeRep Builder (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, Code a))

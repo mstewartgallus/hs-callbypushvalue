@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
@@ -6,9 +7,11 @@ module Main where
 import qualified AsCallcc
 import qualified AsCbpv
 import AsCps
+import qualified AsIntrinsified
 import qualified AsPorcelain
 import AsText
 import qualified Callcc
+import Cbpv (Cbpv)
 import qualified Cbpv
 import Common
 import qualified Constant
@@ -24,7 +27,6 @@ import HasConstants
 import HasGlobals
 import HasReturn
 import qualified Interpreter
-import qualified Intrinsify
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
 import Program (Program (..))
@@ -52,9 +54,9 @@ program = F.lam $ \x ->
 phases ::
   Program SystemF a ->
   ( Program SystemF a,
-    Cbpv.Code a,
-    Cbpv.Code a,
-    Cbpv.Code a,
+    Program Cbpv a,
+    Program Cbpv a,
+    Program Cbpv a,
     Callcc.Code a,
     Callcc.Code a,
     Cps.Data (U a),
@@ -62,14 +64,17 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (AsCbpv.extract (Program.interpret optTerm))
-      intrinsified = Cbpv.build (Intrinsify.intrinsify cbpv)
+      cbpv = cbpvProgram (AsCbpv.extract (Program.interpret optTerm))
+      intrinsified = cbpvProgram (AsIntrinsified.extract (Program.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
-      catchThrow = Callcc.build (AsCallcc.extract (Cbpv.abstractCode optIntrinsified))
+      catchThrow = Callcc.build (AsCallcc.extract (Program.interpret optIntrinsified))
       optCatchThrow = optimizeCallcc catchThrow
       cps = Cps.build (toContinuationPassingStyle optCatchThrow)
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
+
+cbpvProgram :: (forall t. Cbpv t => CodeRep t a) -> Program Cbpv a
+cbpvProgram = Program
 
 type OptF t = F.Simplifier (MonoInliner (CostInliner t))
 
@@ -86,21 +91,18 @@ optimizeTerm = loop iterTerm
     loop 0 term = term
     loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
-optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
+optimizeCbpv :: Program Cbpv a -> Program Cbpv a
 optimizeCbpv = loop iterCbpv
   where
-    loop :: Int -> Cbpv.Code a -> Cbpv.Code a
+    step :: Cbpv t => CodeRep Cbpv.Builder a -> CodeRep t a
+    step term =
+      let simplified = Cbpv.simplifyExtract term
+          monoInlined = MonoInliner.extract simplified
+          inlined = CostInliner.extract monoInlined
+       in inlined
+    loop :: Int -> Program Cbpv a -> Program Cbpv a
     loop 0 term = term
-    loop n term =
-      loop (n - 1) ((costInline . monoInline . Cbpv.simplify) term)
-    monoInline :: Cbpv.Code a -> Cbpv.Code a
-    monoInline term =
-      let x = MonoInliner.extract (Cbpv.abstractCode term)
-       in Cbpv.build x
-    costInline :: Cbpv.Code a -> Cbpv.Code a
-    costInline term =
-      let x = CostInliner.extract (Cbpv.abstractCode term)
-       in Cbpv.build x
+    loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
 optimizeCallcc :: Callcc.Code a -> Callcc.Code a
 optimizeCallcc = loop iterCallcc
@@ -145,13 +147,13 @@ main = do
   T.putStrLn (AsText.extract (Program.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
-  T.putStrLn (AsText.extract (Cbpv.abstractCode cbpv))
+  T.putStrLn (AsText.extract (Program.interpret cbpv))
 
   putStrLn "\nIntrinsified:"
-  T.putStrLn (AsText.extract (Cbpv.abstractCode intrinsified))
+  T.putStrLn (AsText.extract (Program.interpret intrinsified))
 
   putStrLn "\nOptimized Intrinsified:"
-  T.putStrLn (AsText.extract (Cbpv.abstractCode optIntrinsified))
+  T.putStrLn (AsText.extract (Program.interpret optIntrinsified))
 
   putStrLn "\nCatch/Throw:"
   T.putStrLn (AsText.extract (Callcc.abstractCode catchThrow))

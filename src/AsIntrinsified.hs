@@ -1,9 +1,8 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Intrinsify (intrinsify) where
+module AsIntrinsified (Intrinsify, extract) where
 
 import Cbpv
 import Common
@@ -21,9 +20,8 @@ import HasReturn
 import Tuple
 import qualified Unique
 
-intrinsify :: Cbpv t => Code a -> CodeRep t a
-intrinsify code = case abstractCode code of
-  I x -> abstractCode (build x)
+extract :: Cbpv t => CodeRep (Intrinsify t) a -> CodeRep t a
+extract (I x) = x
 
 data Intrinsify t
 

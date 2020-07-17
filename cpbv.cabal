@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: caea7df5355d1dd3c9ee3ac038e497efc9d5fd1d473aed02abdfb49169132c6b
+-- hash: ebf95432f1337dbb3fb0b7a8a62de068db6bd129323cd79e4ba91d33729a418f
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       AsCallcc
       AsCbpv
       AsCps
+      AsIntrinsified
       AsPorcelain
       AsText
       Callcc
@@ -52,7 +53,6 @@ library
       HasStack
       HasThunk
       Interpreter
-      Intrinsify
       Label
       LabelMap
       MonoInliner
