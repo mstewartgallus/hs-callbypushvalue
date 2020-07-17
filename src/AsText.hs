@@ -129,4 +129,4 @@ instance Cps.Cps AsText where
     fromString "throw " <> k ks <> fromString " " <> x xs
 
   apply (VS x) (VStk k) = VStk $ \(Unique.Stream _ ks xs) ->
-    k ks <> fromString "  :: " <> x xs
+    k ks <> fromString " :: " <> x xs
