@@ -14,6 +14,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import Name
 import qualified Pure
 import qualified SystemF
@@ -43,7 +44,7 @@ instance HasConstants t => HasConstants (MonoInliner t) where
 instance Tuple t => Tuple (MonoInliner t) where
   pair (MS xcost x) (MS ycost y) = MS (xcost + ycost) (pair x y)
 
-instance Explicit t => Explicit (MonoInliner t) where
+instance HasLet t => HasLet (MonoInliner t) where
   letBe (MS xcost x) f = result
     where
       result
@@ -54,6 +55,7 @@ instance Explicit t => Explicit (MonoInliner t) where
         M _ y -> y
       M fcost _ = f (MS 0 x)
 
+instance Explicit t => Explicit (MonoInliner t) where
   letTo (M xcost x) f =
     let -- fixme... figure out a better probe...
         M fcost _ = f (MS 0 undefined)

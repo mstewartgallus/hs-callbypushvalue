@@ -19,6 +19,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import Tuple
 import Unique
@@ -26,7 +27,7 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (HasGlobals t, HasConstants t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
+class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
   thunk :: AlgRep t a -> SetRep t (U a)
   force :: SetRep t (U a) -> AlgRep t a
 
@@ -53,6 +54,15 @@ instance Pure.Pure Builder where
     let (t, value') = value s
      in (SF t, ReturnCode value')
 
+instance HasLet Builder where
+  letBe (DB x) f = CB $ \(Unique.Stream newId xs fs) ->
+    let (tx, vx) = x xs
+        binder = Variable tx newId
+     in case f (DB $ \_ -> (tx, VariableData binder)) of
+          CB b ->
+            let (result, body) = b fs
+             in (result, LetBeCode vx binder body)
+
 instance Explicit Builder where
   letTo (CB x) f = CB $ \(Unique.Stream newId xs fs) ->
     let (SF tx, vx) = x xs
@@ -61,13 +71,6 @@ instance Explicit Builder where
           CB b ->
             let (result, body) = b fs
              in (result, LetToCode vx binder body)
-  letBe (DB x) f = CB $ \(Unique.Stream newId xs fs) ->
-    let (tx, vx) = x xs
-        binder = Variable tx newId
-     in case f (DB $ \_ -> (tx, VariableData binder)) of
-          CB b ->
-            let (result, body) = b fs
-             in (result, LetBeCode vx binder body)
 
   lambda t f = CB $ \(Unique.Stream newId xs fs) ->
     let binder = Variable t newId

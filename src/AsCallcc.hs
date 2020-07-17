@@ -16,6 +16,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import qualified SystemF
 import Tuple
@@ -40,12 +41,14 @@ instance HasConstants t => HasConstants (AsCallcc t) where
 instance Pure.Pure t => Pure.Pure (AsCallcc t) where
   pure (DataCallcc t x) = CodeCallcc (SF t) $ Pure.pure x
 
-instance Explicit t => Explicit (AsCallcc t) where
+instance HasLet t => HasLet (AsCallcc t) where
   letBe (DataCallcc t x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ letBe x $ \x' ->
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
+
+instance Explicit t => Explicit (AsCallcc t) where
   letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ letTo x $ \x' ->

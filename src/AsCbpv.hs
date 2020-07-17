@@ -14,6 +14,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import qualified SystemF as F
 import Tuple

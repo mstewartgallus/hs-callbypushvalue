@@ -16,6 +16,7 @@ import Global
 import HasCode
 import HasConstants
 import HasData
+import HasLet
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -51,7 +52,7 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCode t, Tuple t) => Cps t where
+class (HasConstants t, HasCode t, HasLet t, Tuple t) => Cps t where
   data StackRep t :: Algebra -> *
 
   global :: Global a -> StackRep t a -> AlgRep t Void
@@ -74,6 +75,15 @@ instance HasData Builder where
 
 instance HasCode Builder where
   newtype AlgRep Builder a = CB (forall s. Unique.Stream s -> Code)
+
+instance HasLet Builder where
+  letBe (DB x) f = CB $ \(Unique.Stream newId xs ys) ->
+    let (xt, x') = x xs
+        binder = Variable xt newId
+     in case f (DB $ \_ -> (xt, VariableData binder)) of
+          CB y ->
+            let y' = y ys
+             in LetBeCode x' binder y'
 
 instance HasConstants Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)

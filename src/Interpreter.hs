@@ -16,6 +16,7 @@ import qualified GlobalMap
 import HasCode
 import HasConstants
 import HasData
+import HasLet
 import Tuple
 
 evaluate :: Data a -> Value a
@@ -57,6 +58,9 @@ instance HasConstants X where
 instance Tuple X where
   pair (V x) (V y) = V (x ::: y)
   unpair (V (x ::: y)) f = f (V x) (V y)
+
+instance HasLet X where
+  letBe x f = f x
 
 instance Cps X where
   newtype StackRep X a = K (Kont a)

@@ -40,7 +40,7 @@ class (HasGlobals t, HasConstants t, Pure.Pure t) => SystemF t where
     AlgRep t c
 
 lam :: (SystemF t, KnownAlgebra a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
-lam = lambda inferAlg
+lam = lambda inferAlgebra
 
 infixl 4 <*>
 

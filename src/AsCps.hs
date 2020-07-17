@@ -15,6 +15,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import Tuple
 
@@ -39,17 +40,15 @@ instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
 instance (HasCode t, Cps.Cps t) => Pure.Pure (AsCps t) where
   pure (DataCallcc t x) = CodeCallcc (SF t) $ \k -> Cps.throw k x
 
-instance (Cps.Cps t) => Explicit (AsCps t) where
+instance (HasLet t) => HasLet (AsCps t) where
   letBe (DataCallcc t x) f =
     let CodeCallcc b _ = f (DataCallcc t x)
      in CodeCallcc b $ \k ->
-          Cps.throw
-            ( Cps.letTo t $ \val ->
-                case f (DataCallcc t val) of
-                  CodeCallcc _ f' -> f' k
-            )
-            x
+          letBe x $ \val ->
+            case f (DataCallcc t val) of
+              CodeCallcc _ f' -> f' k
 
+instance (Cps.Cps t) => Explicit (AsCps t) where
   letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc b _ = f (DataCallcc t undefined)
      in CodeCallcc b $ \k ->

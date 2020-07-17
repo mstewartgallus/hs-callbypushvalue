@@ -16,6 +16,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import Tuple
 import qualified Unique
@@ -50,11 +51,13 @@ instance Cbpv t => Tuple (Intrinsify t) where
 instance Cbpv t => Pure.Pure (Intrinsify t) where
   pure (IS x) = I (Pure.pure x)
 
-instance Cbpv t => Explicit (Intrinsify t) where
-  letTo (I x) f = I $ letTo x $ \x' ->
+instance HasLet t => HasLet (Intrinsify t) where
+  letBe (IS x) f = I $ letBe x $ \x' ->
     let I body = f (IS x')
      in body
-  letBe (IS x) f = I $ letBe x $ \x' ->
+
+instance Cbpv t => Explicit (Intrinsify t) where
+  letTo (I x) f = I $ letTo x $ \x' ->
     let I body = f (IS x')
      in body
 

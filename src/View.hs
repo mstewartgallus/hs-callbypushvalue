@@ -14,6 +14,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import qualified Pure
 import qualified SystemF
 import TextShow
@@ -51,7 +52,7 @@ instance SystemF.SystemF View where
      in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
 
   letBe (V x) f = V $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
+    let binder = fromString "l" <> showb newId
         V y = f (V $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
@@ -63,15 +64,17 @@ instance SystemF.SystemF View where
   V f <*> V x = V $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
+instance HasLet View where
+  letBe (VS x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        V y = f (VS $ \_ -> binder)
+     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
+
 instance Explicit View where
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
         V y = f (VS $ \_ -> binder)
      in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
-  letBe (VS x) f = V $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
-        V y = f (VS $ \_ -> binder)
-     in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
   lambda t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId

@@ -12,6 +12,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import Name
 import qualified Pure
 import qualified SystemF as F
@@ -69,7 +70,7 @@ instance HasConstants t => HasConstants (CostInliner t) where
 instance Tuple t => Tuple (CostInliner t) where
   pair (CS xcost x) (CS ycost y) = CS (xcost + ycost + 1) (pair x y)
 
-instance Explicit t => Explicit (CostInliner t) where
+instance HasLet t => HasLet (CostInliner t) where
   letBe (CS xcost x) f = result
     where
       result
@@ -80,6 +81,7 @@ instance Explicit t => Explicit (CostInliner t) where
         I _ y -> y
       I fcost _ = f (CS 0 x)
 
+instance Explicit t => Explicit (CostInliner t) where
   letTo (I xcost x) f =
     let -- fixme... figure out a better probe...
         I fcost _ = f (CS 0 undefined)

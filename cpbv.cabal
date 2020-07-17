@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f208aa4611ed00a75522c136a2318b83f83ec7f34558e9ec7306300f8f1c518c
+-- hash: 4e7b1b5655e1d724526f0985c3708e866ccd1b5f1c9e007233c14c900fa23691
 
 name:           cpbv
 version:        0.1.0.0
@@ -44,6 +44,7 @@ library
       HasConstants
       HasData
       HasGlobals
+      HasLet
       Interpreter
       Intrinsify
       Label

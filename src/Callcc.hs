@@ -16,6 +16,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasLet
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -26,7 +27,7 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (HasGlobals t, HasConstants t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
+class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
   data StackRep t :: Algebra -> *
 
   catch :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
@@ -97,6 +98,16 @@ instance HasConstants Builder where
 instance Pure.Pure Builder where
   pure (DB t value) = CB (SF t) $ pure ReturnCode <*> value
 
+instance HasLet Builder where
+  letBe x@(DB t xs) f =
+    let CB bt _ = f (DB t (pure undefined))
+     in CB bt $ do
+          x' <- xs
+          v <- pure (Variable t) <*> Unique.uniqueId
+          let CB _ body = f ((DB t . pure) $ VariableData v)
+          body' <- body
+          pure $ LetBeCode x' v body'
+
 instance Explicit Builder where
   letTo x@(CB (SF t) xs) f =
     let CB bt _ = f (DB t (pure undefined))
@@ -106,14 +117,6 @@ instance Explicit Builder where
           let CB _ body = f ((DB t . pure) $ VariableData v)
           body' <- body
           pure $ LetToCode x' v body'
-  letBe x@(DB t xs) f =
-    let CB bt _ = f (DB t (pure undefined))
-     in CB bt $ do
-          x' <- xs
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableData v)
-          body' <- body
-          pure $ LetBeCode x' v body'
   lambda t f =
     let CB result _ = f (DB t (pure undefined))
      in CB (t `SFn` result) $ do

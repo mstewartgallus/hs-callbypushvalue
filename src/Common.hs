@@ -4,7 +4,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlgebra (..), Set (..), Algebra (..), inferSet, inferAlg, KnownSet (..), KnownAlgebra (..)) where
+module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlgebra (..), Set (..), Algebra (..), inferSet, inferAlgebra, KnownSet (..), KnownAlgebra (..)) where
 
 import Data.Proxy
 import Data.Typeable
@@ -21,14 +21,14 @@ infixr 9 :=>
 inferSet :: KnownSet a => SSet a
 inferSet = reifySet Proxy
 
-inferAlg :: KnownAlgebra a => SAlgebra a
-inferAlg = reifyAlg Proxy
+inferAlgebra :: KnownAlgebra a => SAlgebra a
+inferAlgebra = reifyAlgebra Proxy
 
 class KnownSet (a :: Set) where
   reifySet :: Proxy a -> SSet a
 
 class KnownAlgebra (a :: Algebra) where
-  reifyAlg :: Proxy a -> SAlgebra a
+  reifyAlgebra :: Proxy a -> SAlgebra a
 
 instance KnownSet U64 where
   reifySet Proxy = SU64
@@ -37,19 +37,19 @@ instance KnownSet Unit where
   reifySet Proxy = SUnit
 
 instance KnownAlgebra a => KnownSet (U a) where
-  reifySet Proxy = SU (reifyAlg Proxy)
+  reifySet Proxy = SU (reifyAlgebra Proxy)
 
 instance (KnownSet x, KnownSet y) => KnownSet (x :*: y) where
   reifySet Proxy = SPair (reifySet Proxy) (reifySet Proxy)
 
 instance KnownAlgebra Void where
-  reifyAlg Proxy = SVoid
+  reifyAlgebra Proxy = SVoid
 
 instance KnownSet a => KnownAlgebra (F a) where
-  reifyAlg Proxy = SF (reifySet Proxy)
+  reifyAlgebra Proxy = SF (reifySet Proxy)
 
 instance (KnownSet x, KnownAlgebra y) => KnownAlgebra (x :=> y) where
-  reifyAlg Proxy = SFn (reifySet Proxy) (reifyAlg Proxy)
+  reifyAlgebra Proxy = SFn (reifySet Proxy) (reifyAlgebra Proxy)
 
 data SSet (a :: Set) where
   SU64 :: SSet U64

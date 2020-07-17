@@ -14,6 +14,7 @@ import qualified GlobalMap
 import HasCode
 import HasConstants
 import HasData
+import HasLet
 import TextShow
 import Tuple
 import qualified Unique
@@ -54,6 +55,8 @@ instance HasConstants X where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x
 
 instance Tuple X
+
+instance HasLet X
 
 instance Cps.Cps X where
   newtype StackRep X a = XS (Unique.State Builder)
