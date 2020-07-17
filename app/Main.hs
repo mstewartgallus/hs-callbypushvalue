@@ -22,11 +22,11 @@ import Data.Word
 import HasCode
 import HasConstants
 import HasGlobals
+import HasReturn
 import qualified Interpreter
 import qualified Intrinsify
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
-import qualified Pure
 import qualified SystemF as F
 import TextShow
 
@@ -44,7 +44,7 @@ program = F.lam $ \x ->
     ( F.lam $ \z ->
         global Core.plus F.<*> z F.<*> y
     )
-      F.<*> (global Core.plus F.<*> Pure.pure (constant (Constant.U64Constant 8)) F.<*> y)
+      F.<*> (global Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
   F.Term a ->

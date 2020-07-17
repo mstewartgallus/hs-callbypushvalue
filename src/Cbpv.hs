@@ -20,14 +20,14 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
-import qualified Pure
+import HasReturn
 import Tuple
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
+class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, HasReturn t) => Cbpv t where
   lambda :: SSet a -> (DataRep t a -> CodeRep t b) -> CodeRep t (a :=> b)
   thunk :: CodeRep t a -> DataRep t (U a)
   force :: DataRep t (U a) -> CodeRep t a
@@ -50,8 +50,8 @@ instance HasConstants Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
   unit = DB $ \_ -> (SUnit, UnitData)
 
-instance Pure.Pure Builder where
-  pure (DB value) = CB $ \s ->
+instance HasReturn Builder where
+  returns (DB value) = CB $ \s ->
     let (t, value') = value s
      in (SF t, ReturnCode value')
 
@@ -164,7 +164,7 @@ abstractCode' env code = case code of
     let env' = VarMap.insert binder x env
      in abstractCode' env' body
   ForceCode th -> force (abstractData' env th)
-  ReturnCode val -> Pure.pure (abstractData' env val)
+  ReturnCode val -> returns (abstractData' env val)
   GlobalCode g -> global g
 
 abstractData' :: Cbpv t => VarMap (DataRep t) -> Data x -> DataRep t x

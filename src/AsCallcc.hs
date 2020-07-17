@@ -17,8 +17,8 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasReturn
 import qualified HasThunk
-import qualified Pure
 import qualified SystemF
 import Tuple
 
@@ -39,8 +39,8 @@ instance Callcc.Callcc t => HasGlobals (AsCallcc t) where
 instance HasConstants t => HasConstants (AsCallcc t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
-instance Pure.Pure t => Pure.Pure (AsCallcc t) where
-  pure (DataCallcc t x) = CodeCallcc (SF t) $ Pure.pure x
+instance HasReturn t => HasReturn (AsCallcc t) where
+  returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
 
 instance HasLet t => HasLet (AsCallcc t) where
   letBe (DataCallcc t x) f =

@@ -16,16 +16,15 @@ import HasCode
 import HasConstants
 import HasData
 import HasGlobals
+import HasReturn
 import Name
-import qualified Pure
-import qualified Unique
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class (HasGlobals t, HasConstants t, Pure.Pure t) => SystemF t where
+class (HasGlobals t, HasConstants t, HasReturn t) => SystemF t where
   -- | function application
   (<*>) :: CodeRep t (a :-> b) -> CodeRep t a -> CodeRep t b
 
@@ -71,8 +70,8 @@ instance HasConstants t => HasConstants (Simplifier t) where
   constant k = SS (constant k)
   unit = SS unit
 
-instance Pure.Pure t => Pure.Pure (Simplifier t) where
-  pure (SS k) = S NotFn (Pure.pure k)
+instance HasReturn t => HasReturn (Simplifier t) where
+  returns (SS k) = S NotFn (returns k)
 
 instance SystemF t => SystemF (Simplifier t) where
   pair (S _ x) (S _ y) = S NotFn (pair x y)

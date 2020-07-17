@@ -17,10 +17,10 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasReturn
 import HasStack
 import qualified HasThunk
 import Name
-import qualified Pure
 import qualified SystemF
 import TextShow
 import Tuple
@@ -113,7 +113,7 @@ instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
           M _ y -> y
   throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
 
-instance (Cps.Cps t) => Cps.Cps (MonoInliner t) where
+instance Cps.Cps t => Cps.Cps (MonoInliner t) where
   letTo t f =
     let M fcost _ = f (MS 0 undefined)
      in SB fcost $ Cps.letTo t $ \x' -> case f (MS 0 x') of
@@ -123,8 +123,8 @@ instance (Cps.Cps t) => Cps.Cps (MonoInliner t) where
 
   apply (MS xcost x) (SB kcost k) = SB (xcost + kcost) $ Cps.apply x k
 
-instance Pure.Pure t => Pure.Pure (MonoInliner t) where
-  pure (MS cost k) = M cost (Pure.pure k)
+instance HasReturn t => HasReturn (MonoInliner t) where
+  returns (MS cost k) = M cost (returns k)
 
 instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
   pair (M xcost x) (M ycost y) = M (xcost + ycost) (SystemF.pair x y)

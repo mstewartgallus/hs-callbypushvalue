@@ -17,7 +17,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
-import qualified Pure
+import HasReturn
 import Tuple
 import qualified Unique
 
@@ -48,8 +48,8 @@ instance Cbpv t => Tuple (Intrinsify t) where
     let I result = f (IS x) (IS y)
      in result
 
-instance Cbpv t => Pure.Pure (Intrinsify t) where
-  pure (IS x) = I (Pure.pure x)
+instance Cbpv t => HasReturn (Intrinsify t) where
+  returns (IS x) = I (returns x)
 
 instance HasLet t => HasLet (Intrinsify t) where
   letBe (IS x) f = I $ letBe x $ \x' ->

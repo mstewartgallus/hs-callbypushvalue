@@ -16,19 +16,19 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasReturn
 import HasStack
 import HasThunk
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import qualified Pure
 import Tuple
 import qualified Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
+class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, HasReturn t) => Callcc t where
   catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a
   throw :: StackRep t a -> CodeRep t a -> CodeRep t Void
 
@@ -68,8 +68,8 @@ instance HasConstants Builder where
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
   unit = DB SUnit $ pure UnitData
 
-instance Pure.Pure Builder where
-  pure (DB t value) = CB (SF t) $ pure ReturnCode <*> value
+instance HasReturn Builder where
+  returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
 
 instance HasLet Builder where
   letBe x@(DB t vx) f =
@@ -155,7 +155,7 @@ abstractCode' lenv env code = case code of
       let env' = VarMap.insert binder x env
           lenv' = LabelMap.insert lbl n lenv
        in abstractCode' lenv' env' body
-  ReturnCode val -> Pure.pure (abstractData' lenv env val)
+  ReturnCode val -> returns (abstractData' lenv env val)
   GlobalCode g k -> call g (abstractStack lenv env k)
   CatchCode lbl@(Label t _) body -> catch t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv

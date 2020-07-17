@@ -15,7 +15,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
-import qualified Pure
+import HasReturn
 import qualified SystemF as F
 import Tuple
 
@@ -37,11 +37,11 @@ instance HasConstants t => HasConstants (AsCbpv t) where
   unit = DataRep unit
   constant k = DataRep (constant k)
 
-instance Pure.Pure t => Pure.Pure (AsCbpv t) where
-  pure (DataRep k) = AsCbpv (Pure.pure k)
+instance HasReturn t => HasReturn (AsCbpv t) where
+  returns (DataRep k) = AsCbpv (returns k)
 
 instance Cbpv t => F.SystemF (AsCbpv t) where
-  pair (AsCbpv x) (AsCbpv y) = AsCbpv $ Pure.pure (pair (thunk x) (thunk y))
+  pair (AsCbpv x) (AsCbpv y) = AsCbpv $ returns (pair (thunk x) (thunk y))
 
   letBe (AsCbpv x) f = AsCbpv $ letBe (Cbpv.thunk x) $ \x' ->
     let AsCbpv body = f (AsCbpv (Cbpv.force x'))

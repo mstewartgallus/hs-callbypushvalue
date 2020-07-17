@@ -17,9 +17,9 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasReturn
 import HasStack
 import HasThunk
-import qualified Pure
 import Tuple
 
 toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Callcc.Code a -> DataRep t (U a)
@@ -40,8 +40,8 @@ instance (HasStack t) => HasStack (AsCps t) where
 instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
-instance (HasCode t, Cps.Cps t) => Pure.Pure (AsCps t) where
-  pure (DataCallcc t x) = CodeCallcc (SF t) $ \k -> Cps.throw k x
+instance (HasCode t, Cps.Cps t) => HasReturn (AsCps t) where
+  returns (DataCallcc t x) = CodeCallcc (SF t) $ \k -> Cps.throw k x
 
 instance (HasLet t) => HasLet (AsCps t) where
   letBe (DataCallcc t x) f =

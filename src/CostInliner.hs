@@ -15,10 +15,10 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasReturn
 import HasStack
 import qualified HasThunk
 import Name
-import qualified Pure
 import qualified SystemF as F
 import Tuple
 import qualified Unique
@@ -51,8 +51,8 @@ instance HasStack t => HasStack (CostInliner t) where
 instance HasGlobals t => HasGlobals (CostInliner t) where
   global g = I 0 (global g)
 
-instance Pure.Pure t => Pure.Pure (CostInliner t) where
-  pure (CS cost k) = I cost (Pure.pure k)
+instance HasReturn t => HasReturn (CostInliner t) where
+  returns (CS cost k) = I cost (returns k)
 
 instance F.SystemF t => F.SystemF (CostInliner t) where
   pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (F.pair x y)
@@ -139,7 +139,7 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
           I _ y -> y
   throw (SB scost stack) (I xcost x) = I (scost + xcost + 1) (Callcc.throw stack x)
 
-instance (Cps.Cps t) => Cps.Cps (CostInliner t) where
+instance Cps.Cps t => Cps.Cps (CostInliner t) where
   letTo t f =
     let I fcost _ = f (CS 0 undefined)
      in SB fcost $ Cps.letTo t $ \x' -> case f (CS 0 x') of

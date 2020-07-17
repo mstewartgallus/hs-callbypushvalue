@@ -17,9 +17,9 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasReturn
 import qualified HasStack
 import qualified HasThunk
-import qualified Pure
 import qualified SystemF
 import TextShow
 import Tuple
@@ -48,9 +48,9 @@ instance HasConstants AsText where
 
 instance Tuple AsText
 
-instance Pure.Pure AsText where
-  pure (VS k) = V $ \s ->
-    fromString "(pure " <> k s <> fromString ")"
+instance HasReturn AsText where
+  returns (VS k) = V $ \s ->
+    fromString "(return " <> k s <> fromString ")"
 
 instance SystemF.SystemF AsText where
   pair (V x) (V y) = V $ \(Unique.Stream _ xs ys) ->
