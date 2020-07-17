@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, abstract) where
+module Cps (build, Cps (..), Builder, simplifyExtract) where
 
 import Common
 import Constant (Constant)
@@ -46,6 +46,9 @@ data Stack a where
   LabelStack :: Label a -> Stack a
   ToStack :: Variable a -> Code -> Stack (F a)
   ApplyStack :: Data a -> Stack b -> Stack (a :=> b)
+
+simplifyExtract :: Cps t => DataRep Builder a -> DataRep t a
+simplifyExtract term = abstract (simplify (build term))
 
 -- |
 --

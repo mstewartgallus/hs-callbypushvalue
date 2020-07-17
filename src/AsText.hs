@@ -77,6 +77,12 @@ instance HasLet AsText where
         V y = f (VS $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
+instance HasLetLabel AsText where
+  letLabel (VStk x) f = V $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "l" <> showb newId
+        V y = f (VStk $ \_ -> binder)
+     in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys
+
 instance Explicit AsText where
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
@@ -116,8 +122,6 @@ instance Callcc.Callcc AsText where
         V body = f (VStk $ \_ -> binder)
      in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   throw (VStk f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
-
-instance HasLetLabel AsText
 
 instance Cps.Cps AsText where
   letTo t f = VStk $ \(Unique.Stream newId _ s) ->

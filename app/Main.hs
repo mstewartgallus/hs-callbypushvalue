@@ -20,11 +20,13 @@ import qualified Core
 import qualified CostInliner
 import CostInliner (CostInliner)
 import qualified Cps
+import Cps (Cps)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCode
 import HasConstants
+import HasData
 import HasGlobals
 import HasReturn
 import qualified Interpreter
@@ -35,6 +37,8 @@ import qualified Program
 import SystemF (SystemF)
 import qualified SystemF as F
 import TextShow
+import Value (Value (..))
+import qualified Value
 
 iterTerm = 20
 
@@ -60,8 +64,8 @@ phases ::
     Program Cbpv a,
     Program Callcc a,
     Program Callcc a,
-    Cps.Data (U a),
-    Cps.Data (U a)
+    Value Cps (U a),
+    Value Cps (U a)
   )
 phases term =
   let optTerm = optimizeTerm term
@@ -70,7 +74,7 @@ phases term =
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = callccProgram (AsCallcc.extract (Program.interpret optIntrinsified))
       optCatchThrow = optimizeCallcc catchThrow
-      cps = Cps.build (toContinuationPassingStyle (Program.interpret optCatchThrow))
+      cps = cpsValue (toContinuationPassingStyle (Program.interpret optCatchThrow))
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
@@ -79,6 +83,9 @@ cbpvProgram = Program
 
 callccProgram :: (forall t. Callcc t => CodeRep t a) -> Program Callcc a
 callccProgram = Program
+
+cpsValue :: (forall t. Cps t => DataRep t a) -> Value Cps a
+cpsValue = Value
 
 type OptF t = F.Simplifier (MonoInliner (CostInliner t))
 
@@ -121,21 +128,18 @@ optimizeCallcc = loop iterCallcc
     loop 0 term = term
     loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
-optimizeCps :: Cps.Data a -> Cps.Data a
+optimizeCps :: Value Cps a -> Value Cps a
 optimizeCps = loop iterCps
   where
-    loop :: Int -> Cps.Data a -> Cps.Data a
+    step :: Cps t => DataRep Cps.Builder a -> DataRep t a
+    step term =
+      let simplified = Cps.simplifyExtract term
+          monoInlined = MonoInliner.extractData simplified
+          inlined = CostInliner.extractData monoInlined
+       in inlined
+    loop :: Int -> Value Cps a -> Value Cps a
     loop 0 term = term
-    loop n term =
-      loop (n - 1) ((costInline . monoInline . Cps.simplify) term)
-    monoInline :: Cps.Data a -> Cps.Data a
-    monoInline term =
-      let x = MonoInliner.extractData (Cps.abstract term)
-       in Cps.build x
-    costInline :: Cps.Data a -> Cps.Data a
-    costInline term =
-      let x = CostInliner.extractData (Cps.abstract term)
-       in Cps.build x
+    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
 
 main :: IO ()
 main = do
@@ -163,16 +167,16 @@ main = do
   T.putStrLn (AsText.extract (Program.interpret optCatchThrow))
 
   putStrLn "\nCps:"
-  T.putStrLn (AsText.extractData (Cps.abstract cps))
+  T.putStrLn (AsText.extractData (Value.interpret cps))
 
   putStrLn "\nOptimized Cps:"
-  T.putStrLn (AsText.extractData (Cps.abstract optCps))
+  T.putStrLn (AsText.extractData (Value.interpret optCps))
 
   putStrLn "\nPorcelain Output:"
-  T.putStrLn (AsPorcelain.extract (Cps.abstract optCps))
+  T.putStrLn (AsPorcelain.extract (Value.interpret optCps))
 
   putStrLn "\nEvaluates to:"
-  let cpsData = Interpreter.evaluate optCps
+  let cpsData = Interpreter.evaluate (Value.interpret optCps)
 
   let Interpreter.Thunk k = cpsData
   let Interpreter.Behaviour eff = k (t 4 `Interpreter.Apply` t 8 `Interpreter.Apply` (Interpreter.Returns $ \(Interpreter.I x) -> Interpreter.Behaviour $ printT x))

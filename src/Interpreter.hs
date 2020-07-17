@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Interpreter (evaluate, Value (..), Kont (..), R (..)) where
+module Interpreter (evaluate, X, Value (..), Kont (..), R (..)) where
 
 import Common
 import Constant
@@ -22,9 +22,8 @@ import HasStack
 import HasThunk
 import Tuple
 
-evaluate :: Data a -> Value a
-evaluate x = case abstract x of
-  V value -> value
+evaluate :: DataRep X a -> Value a
+evaluate (V value) = value
 
 data family Value (a :: Set) :: *
 
