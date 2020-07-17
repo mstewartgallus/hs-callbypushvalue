@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Stack, Code, Data, typeOf, simplify, abstractCode, abstractData) where
+module Callcc (build, Builder (..), Callcc (..), Stack, Code, Data, simplify, abstractCode, abstractData) where
 
 import Common
 import Constant (Constant)
@@ -53,26 +53,6 @@ data Data a where
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code Void -> Data (U a)
   PairData :: Data a -> Data b -> Data (a :*: b)
-
-typeOf :: Code a -> SAlgebra a
-typeOf x = case x of
-  LambdaCode (Variable t _) body -> t `SFn` typeOf body
-  ReturnCode value -> SF (typeOfData value)
-  LetBeCode _ _ body -> typeOf body
-  LetToCode _ _ body -> typeOf body
-  ApplyCode f _ ->
-    let _ `SFn` result = typeOf f
-     in result
-  CatchCode (Label t _) _ -> t
-  ThrowCode _ _ -> SVoid
-  GlobalCode (Global t _) -> t
-
-typeOfData :: Data a -> SSet a
-typeOfData x = case x of
-  VariableData (Variable t _) -> t
-  ConstantData k -> Constant.typeOf k
-  ThunkData (Label t _) _ -> SU t
-  PairData h t -> typeOfData h `SPair` typeOfData t
 
 build :: CodeRep Builder a -> Code a
 build (CB _ s) = Unique.run s
