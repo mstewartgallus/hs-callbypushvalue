@@ -20,17 +20,17 @@ import HasStack
 import qualified Pure
 import Tuple
 
-toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Callcc.Code a -> SetRep t (U a)
+toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Callcc.Code a -> DataRep t (U a)
 toContinuationPassingStyle code = case Callcc.abstractCode code of
   CodeCallcc t x -> Cps.thunk t x
 
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data AlgRep (AsCps t) a = CodeCallcc (SAlgebra a) (StackRep t a -> AlgRep t Void)
+  data CodeRep (AsCps t) a = CodeCallcc (SAlgebra a) (StackRep t a -> CodeRep t Void)
 
 instance HasData t => HasData (AsCps t) where
-  data SetRep (AsCps t) a = DataCallcc (SSet a) (SetRep t a)
+  data DataRep (AsCps t) a = DataCallcc (SSet a) (DataRep t a)
 
 instance (HasStack t) => HasStack (AsCps t) where
   data StackRep (AsCps t) a = SB (SAlgebra a) (StackRep t a)

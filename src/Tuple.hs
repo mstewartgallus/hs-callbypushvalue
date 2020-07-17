@@ -9,5 +9,5 @@ import HasCode
 import HasData
 
 class (HasData t, HasCode t) => Tuple t where
-  pair :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
-  unpair :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> AlgRep t c) -> AlgRep t c
+  pair :: DataRep t a -> DataRep t b -> DataRep t (a :*: b)
+  unpair :: DataRep t (a :*: b) -> (DataRep t a -> DataRep t b -> CodeRep t c) -> CodeRep t c

@@ -27,42 +27,42 @@ import Prelude hiding ((<*>))
 -- FIXME: forall and applyType are still experimental
 class (HasGlobals t, HasConstants t, Pure.Pure t) => SystemF t where
   -- | function application
-  (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
+  (<*>) :: CodeRep t (a :-> b) -> CodeRep t a -> CodeRep t b
 
-  lambda :: SAlgebra a -> (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
+  lambda :: SAlgebra a -> (CodeRep t a -> CodeRep t b) -> CodeRep t (a :-> b)
 
-  letBe :: AlgRep t a -> (AlgRep t a -> AlgRep t b) -> AlgRep t b
+  letBe :: CodeRep t a -> (CodeRep t a -> CodeRep t b) -> CodeRep t b
 
-  pair :: AlgRep t a -> AlgRep t b -> AlgRep t (Pair a b)
+  pair :: CodeRep t a -> CodeRep t b -> CodeRep t (Pair a b)
   unpair ::
-    AlgRep t (Pair a b) ->
-    (AlgRep t a -> AlgRep t b -> AlgRep t c) ->
-    AlgRep t c
+    CodeRep t (Pair a b) ->
+    (CodeRep t a -> CodeRep t b -> CodeRep t c) ->
+    CodeRep t c
 
-lam :: (SystemF t, KnownAlgebra a) => (AlgRep t a -> AlgRep t b) -> AlgRep t (a :-> b)
+lam :: (SystemF t, KnownAlgebra a) => (CodeRep t a -> CodeRep t b) -> CodeRep t (a :-> b)
 lam = lambda inferAlgebra
 
 infixl 4 <*>
 
-newtype Term a = Term (forall t. SystemF t => AlgRep t a)
+newtype Term a = Term (forall t. SystemF t => CodeRep t a)
 
-abstract :: SystemF t => Term a -> AlgRep t a
+abstract :: SystemF t => Term a -> CodeRep t a
 abstract (Term x) = x
 
-simplify :: SystemF t => AlgRep (Simplifier t) a -> AlgRep t a
+simplify :: SystemF t => CodeRep (Simplifier t) a -> CodeRep t a
 simplify (S _ x) = x
 
 data Simplifier t
 
 data MaybeFn t a where
-  Fn :: (AlgRep t a -> AlgRep t b) -> MaybeFn t (a :-> b)
+  Fn :: (CodeRep t a -> CodeRep t b) -> MaybeFn t (a :-> b)
   NotFn :: MaybeFn t a
 
 instance HasCode t => HasCode (Simplifier t) where
-  data AlgRep (Simplifier t) a = S (MaybeFn t a) (AlgRep t a)
+  data CodeRep (Simplifier t) a = S (MaybeFn t a) (CodeRep t a)
 
 instance HasData t => HasData (Simplifier t) where
-  newtype SetRep (Simplifier t) a = SS (SetRep t a)
+  newtype DataRep (Simplifier t) a = SS (DataRep t a)
 
 instance HasGlobals t => HasGlobals (Simplifier t) where
   global g = S NotFn (global g)
@@ -88,5 +88,5 @@ instance SystemF t => SystemF (Simplifier t) where
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
 
-build :: (forall t. SystemF t => AlgRep t a) -> Term a
+build :: (forall t. SystemF t => CodeRep t a) -> Term a
 build = Term

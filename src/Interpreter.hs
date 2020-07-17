@@ -47,10 +47,10 @@ data instance Kont (a :=> b) = Apply (Value a) (Kont b)
 data X
 
 instance HasData X where
-  newtype SetRep X a = V (Value a)
+  newtype DataRep X a = V (Value a)
 
 instance HasCode X where
-  newtype AlgRep X a = C R
+  newtype CodeRep X a = C R
 
 instance HasStack X where
   newtype StackRep X a = K (Kont a)

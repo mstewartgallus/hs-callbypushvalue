@@ -21,7 +21,7 @@ import Tuple
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: AlgRep (CostInliner t) a -> AlgRep t a
+extract :: CodeRep (CostInliner t) a -> CodeRep t a
 extract (I _ x) = x
 
 -- | Tagless final newtype to inline letBe clauses based on a simple
@@ -34,10 +34,10 @@ extract (I _ x) = x
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  data SetRep (CostInliner t) a = CS Int (SetRep t a)
+  data DataRep (CostInliner t) a = CS Int (DataRep t a)
 
 instance HasCode t => HasCode (CostInliner t) where
-  data AlgRep (CostInliner t) a = I Int (AlgRep t a)
+  data CodeRep (CostInliner t) a = I Int (CodeRep t a)
 
 instance HasStack t => HasStack (CostInliner t) where
   data StackRep (CostInliner t) a = SB Int (StackRep t a)

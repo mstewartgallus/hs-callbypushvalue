@@ -36,7 +36,7 @@ iterCallcc = 20
 
 iterCps = 20
 
-program :: F.SystemF t => AlgRep t (F U64 :-> F U64 :-> F U64)
+program :: F.SystemF t => CodeRep t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \x ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -69,7 +69,7 @@ phases term =
 optimizeTerm :: F.Term a -> F.Term a
 optimizeTerm = loop iterTerm
   where
-    step :: F.SystemF t => F.Term a -> AlgRep t a
+    step :: F.SystemF t => F.Term a -> CodeRep t a
     step term =
       let simplified = F.simplify (F.abstract term)
           monoInlined = MonoInliner.extract simplified
@@ -164,13 +164,13 @@ main = do
 
   return ()
 
-viewTerm :: F.Term a -> AlgRep View a
+viewTerm :: F.Term a -> CodeRep View a
 viewTerm c = F.abstract c
 
-view :: Cbpv.Code a -> AlgRep View a
+view :: Cbpv.Code a -> CodeRep View a
 view c = Cbpv.abstractCode c
 
-viewCc :: Callcc.Code a -> AlgRep View a
+viewCc :: Callcc.Code a -> CodeRep View a
 viewCc c = Callcc.abstractCode c
 
 t :: Word64 -> Interpreter.Value (U (F U64))

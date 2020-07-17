@@ -21,16 +21,16 @@ import qualified Pure
 import qualified SystemF
 import Tuple
 
-extract :: AlgRep (AsCallcc t) a -> AlgRep t a
+extract :: CodeRep (AsCallcc t) a -> CodeRep t a
 extract (CodeCallcc _ x) = x
 
 data AsCallcc t
 
 instance HasCode t => HasCode (AsCallcc t) where
-  data AlgRep (AsCallcc t) a = CodeCallcc (SAlgebra a) (AlgRep t a)
+  data CodeRep (AsCallcc t) a = CodeCallcc (SAlgebra a) (CodeRep t a)
 
 instance HasData t => HasData (AsCallcc t) where
-  data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)
+  data DataRep (AsCallcc t) a = DataCallcc (SSet a) (DataRep t a)
 
 instance HasGlobals t => HasGlobals (AsCallcc t) where
   global g@(Global t _) = CodeCallcc t (global g)

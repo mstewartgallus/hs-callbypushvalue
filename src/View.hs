@@ -24,14 +24,14 @@ import qualified Unique
 
 data View
 
-extract :: AlgRep View a -> T.Text
+extract :: CodeRep View a -> T.Text
 extract (V x) = toText (Unique.withStream x)
 
 instance HasData View where
-  newtype SetRep View a = VS (forall s. Unique.Stream s -> Builder)
+  newtype DataRep View a = VS (forall s. Unique.Stream s -> Builder)
 
 instance HasCode View where
-  newtype AlgRep View a = V (forall s. Unique.Stream s -> Builder)
+  newtype CodeRep View a = V (forall s. Unique.Stream s -> Builder)
 
 instance HasGlobals View where
   global g = V $ \_ -> showb g

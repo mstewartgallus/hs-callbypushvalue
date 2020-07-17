@@ -8,6 +8,6 @@ import Constant
 import HasData
 
 class HasData t => HasConstants t where
-  constant :: Constant a -> SetRep t a
+  constant :: Constant a -> DataRep t a
 
-  unit :: SetRep t Unit
+  unit :: DataRep t Unit

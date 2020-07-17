@@ -29,11 +29,11 @@ import VarMap (VarMap)
 import Variable
 
 class (HasStack t, HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
-  catch :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
-  throw :: StackRep t a -> AlgRep t a -> AlgRep t Void
+  catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a
+  throw :: StackRep t a -> CodeRep t a -> CodeRep t Void
 
-  thunk :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
-  force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
+  thunk :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> DataRep t (U a)
+  force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -76,16 +76,16 @@ typeOfData x = case x of
   ThunkData (Label t _) _ -> SU t
   PairData h t -> typeOfData h `SPair` typeOfData t
 
-build :: AlgRep Builder a -> Code a
+build :: CodeRep Builder a -> Code a
 build (CB _ s) = Unique.run s
 
 data Builder
 
 instance HasCode Builder where
-  data AlgRep Builder a = CB (SAlgebra a) (Unique.State (Code a))
+  data CodeRep Builder a = CB (SAlgebra a) (Unique.State (Code a))
 
 instance HasData Builder where
-  data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
+  data DataRep Builder a = DB (SSet a) (Unique.State (Data a))
 
 instance HasGlobals Builder where
   global g@(Global t _) = CB t $ pure (GlobalCode g)
@@ -151,13 +151,13 @@ instance Callcc Builder where
     CB SVoid $
       pure ThrowCode <*> x <*> f
 
-abstractCode :: Callcc t => Code a -> AlgRep t a
+abstractCode :: Callcc t => Code a -> CodeRep t a
 abstractCode = abstractCode' LabelMap.empty VarMap.empty
 
-abstractData :: Callcc t => Data a -> SetRep t a
+abstractData :: Callcc t => Data a -> DataRep t a
 abstractData = abstractData' LabelMap.empty VarMap.empty
 
-abstractCode' :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code a -> AlgRep t a
+abstractCode' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Code a -> CodeRep t a
 abstractCode' lenv env code = case code of
   LetBeCode term binder body -> letBe (abstractData' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
@@ -182,7 +182,7 @@ abstractCode' lenv env code = case code of
   ForceCode thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
     Just stk -> force (abstractData' lenv env thunk) stk
 
-abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Data x -> SetRep t x
+abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Data x -> DataRep t x
 abstractData' lenv env x = case x of
   ThunkData lbl@(Label t _) body -> thunk t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv

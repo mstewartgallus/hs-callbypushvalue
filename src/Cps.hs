@@ -54,26 +54,26 @@ data Stack a where
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
 class (HasConstants t, HasCode t, HasStack t, HasLet t, Tuple t) => Cps t where
-  global :: Global a -> StackRep t a -> AlgRep t Void
+  global :: Global a -> StackRep t a -> CodeRep t Void
 
-  throw :: StackRep t (F a) -> SetRep t a -> AlgRep t Void
-  force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
+  throw :: StackRep t (F a) -> DataRep t a -> CodeRep t Void
+  force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
 
-  thunk :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
-  letTo :: SSet a -> (SetRep t a -> AlgRep t Void) -> StackRep t (F a)
+  thunk :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> DataRep t (U a)
+  letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
 
-  lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> AlgRep t Void) -> AlgRep t Void
-  apply :: SetRep t a -> StackRep t b -> StackRep t (a :=> b)
+  lambda :: StackRep t (a :=> b) -> (DataRep t a -> StackRep t b -> CodeRep t Void) -> CodeRep t Void
+  apply :: DataRep t a -> StackRep t b -> StackRep t (a :=> b)
 
   nil :: StackRep t Void
 
 data Builder
 
 instance HasData Builder where
-  newtype SetRep Builder a = DB (forall s. Unique.Stream s -> (SSet a, Data a))
+  newtype DataRep Builder a = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
 instance HasCode Builder where
-  newtype AlgRep Builder a = CB (forall s. Unique.Stream s -> Code)
+  newtype CodeRep Builder a = CB (forall s. Unique.Stream s -> Code)
 
 instance HasStack Builder where
   newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlgebra a, Stack a))
@@ -158,7 +158,7 @@ instance TextShow Code where
     LambdaCode k binder@(Variable t _) label@(Label a _) body ->
       showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
-build :: SetRep Builder a -> Data a
+build :: DataRep Builder a -> Data a
 build (DB s) = snd (Unique.withStream s)
 
 simplify :: Data a -> Data a
@@ -181,10 +181,10 @@ simpCode code = case code of
   GlobalCode g k -> GlobalCode g (simpStack k)
   LambdaCode k binder label body -> LambdaCode (simpStack k) binder label (simpCode body)
 
-inline :: Cps t => Data a -> SetRep t a
+inline :: Cps t => Data a -> DataRep t a
 inline = inlValue LabelMap.empty VarMap.empty
 
-inlValue :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Data a -> SetRep t a
+inlValue :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Data a -> DataRep t a
 inlValue lenv env x = case x of
   VariableData v ->
     let Just x = VarMap.lookup v env
@@ -193,7 +193,7 @@ inlValue lenv env x = case x of
     inlCode (LabelMap.insert binder k lenv) env body
   ConstantData k -> constant k
 
-inlStack :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Stack a -> StackRep t a
+inlStack :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Stack a -> StackRep t a
 inlStack lenv env stk = case stk of
   LabelStack v ->
     let Just x = LabelMap.lookup v lenv
@@ -203,7 +203,7 @@ inlStack lenv env stk = case stk of
     let env' = VarMap.insert binder value env
      in inlCode lenv env' body
 
-inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code -> AlgRep t Void
+inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Code -> CodeRep t Void
 inlCode lenv env code = case code of
   LambdaCode k binder@(Variable t _) label@(Label a _) body ->
     let k' = inlStack lenv env k
@@ -286,10 +286,10 @@ countLabel v = code
       GlobalCode _ k -> stack k
       LambdaCode k _ _ body -> stack k + code body
 
-abstract :: Cps t => Data a -> SetRep t a
+abstract :: Cps t => Data a -> DataRep t a
 abstract x = abstData x LabelMap.empty VarMap.empty
 
-abstData :: Cps t => Data a -> LabelMap (StackRep t) -> VarMap (SetRep t) -> SetRep t a
+abstData :: Cps t => Data a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> DataRep t a
 abstData x = case x of
   ConstantData k -> \_ _ -> constant k
   VariableData v -> \_ env -> case VarMap.lookup v env of
@@ -301,7 +301,7 @@ abstData x = case x of
           thunk t $ \k ->
             body' (LabelMap.insert label k lenv) env
 
-abstStack :: Cps t => Stack a -> LabelMap (StackRep t) -> VarMap (SetRep t) -> StackRep t a
+abstStack :: Cps t => Stack a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> StackRep t a
 abstStack stk = case stk of
   LabelStack v -> \lenv _ -> case LabelMap.lookup v lenv of
     Just x -> x
@@ -316,7 +316,7 @@ abstStack stk = case stk of
         t' = abstStack t
      in \lenv env -> apply (h' lenv env) (t' lenv env)
 
-abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (SetRep t) -> AlgRep t Void
+abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (DataRep t) -> CodeRep t Void
 abstCode c = case c of
   GlobalCode g k ->
     let k' = abstStack k

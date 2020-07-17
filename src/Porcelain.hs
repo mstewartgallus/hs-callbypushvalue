@@ -47,10 +47,10 @@ pAction = showb
 data X
 
 instance HasData X where
-  newtype SetRep X a = XD (Unique.State Builder)
+  newtype DataRep X a = XD (Unique.State Builder)
 
 instance HasCode X where
-  newtype AlgRep X a = XC (Unique.State Builder)
+  newtype CodeRep X a = XC (Unique.State Builder)
 
 instance HasStack X where
   newtype StackRep X a = XS (Unique.State Builder)

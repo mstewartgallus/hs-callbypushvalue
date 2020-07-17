@@ -28,19 +28,19 @@ import qualified VarMap as VarMap
 import Variable
 
 class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
-  thunk :: AlgRep t a -> SetRep t (U a)
-  force :: SetRep t (U a) -> AlgRep t a
+  thunk :: CodeRep t a -> DataRep t (U a)
+  force :: DataRep t (U a) -> CodeRep t a
 
 data Builder
 
-build :: AlgRep Builder a -> Code a
+build :: CodeRep Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
 
 instance HasCode Builder where
-  newtype AlgRep Builder (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, Code a))
+  newtype CodeRep Builder (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, Code a))
 
 instance HasData Builder where
-  newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
+  newtype DataRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
 instance HasGlobals Builder where
   global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
@@ -141,13 +141,13 @@ simplifyData x = case x of
   ThunkData x -> ThunkData (simplify x)
   x -> x
 
-abstractCode :: Cbpv t => Code a -> AlgRep t a
+abstractCode :: Cbpv t => Code a -> CodeRep t a
 abstractCode = abstractCode' VarMap.empty
 
-abstractData :: Cbpv t => Data a -> SetRep t a
+abstractData :: Cbpv t => Data a -> DataRep t a
 abstractData = abstractData' VarMap.empty
 
-abstractCode' :: Cbpv t => VarMap (SetRep t) -> Code a -> AlgRep t a
+abstractCode' :: Cbpv t => VarMap (DataRep t) -> Code a -> CodeRep t a
 abstractCode' env code = case code of
   LetBeCode term binder body -> letBe (abstractData' env term) $ \x ->
     let env' = VarMap.insert binder x env
@@ -166,7 +166,7 @@ abstractCode' env code = case code of
   ReturnCode val -> Pure.pure (abstractData' env val)
   GlobalCode g -> global g
 
-abstractData' :: Cbpv t => VarMap (SetRep t) -> Data x -> SetRep t x
+abstractData' :: Cbpv t => VarMap (DataRep t) -> Data x -> DataRep t x
 abstractData' env x = case x of
   VariableData v@(Variable t u) -> case VarMap.lookup v env of
     Just x -> x

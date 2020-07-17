@@ -8,4 +8,4 @@ import Global
 import HasCode
 
 class HasCode t => HasGlobals t where
-  global :: Global a -> AlgRep t a
+  global :: Global a -> CodeRep t a

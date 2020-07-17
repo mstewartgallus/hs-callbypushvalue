@@ -9,6 +9,6 @@ import HasCode
 import HasData
 
 class (HasData t, HasCode t) => Explicit t where
-  letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
-  lambda :: SSet a -> (SetRep t a -> AlgRep t b) -> AlgRep t (a :=> b)
-  apply :: AlgRep t (a :=> b) -> SetRep t a -> AlgRep t b
+  letTo :: CodeRep t (F a) -> (DataRep t a -> CodeRep t b) -> CodeRep t b
+  lambda :: SSet a -> (DataRep t a -> CodeRep t b) -> CodeRep t (a :=> b)
+  apply :: CodeRep t (a :=> b) -> DataRep t a -> CodeRep t b

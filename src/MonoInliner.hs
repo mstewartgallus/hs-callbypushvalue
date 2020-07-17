@@ -26,14 +26,14 @@ import Prelude hiding ((<*>))
 
 data MonoInliner t
 
-extract :: AlgRep (MonoInliner t) a -> AlgRep t a
+extract :: CodeRep (MonoInliner t) a -> CodeRep t a
 extract (M _ x) = x
 
 instance HasCode t => HasCode (MonoInliner t) where
-  data AlgRep (MonoInliner t) a = M Int (AlgRep t a)
+  data CodeRep (MonoInliner t) a = M Int (CodeRep t a)
 
 instance HasData t => HasData (MonoInliner t) where
-  data SetRep (MonoInliner t) a = MS Int (SetRep t a)
+  data DataRep (MonoInliner t) a = MS Int (DataRep t a)
 
 instance HasStack t => HasStack (MonoInliner t) where
   data StackRep (MonoInliner t) a = SB Int (StackRep t a)

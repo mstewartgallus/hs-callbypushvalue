@@ -21,17 +21,17 @@ import qualified Pure
 import Tuple
 import qualified Unique
 
-intrinsify :: Cbpv t => Code a -> AlgRep t a
+intrinsify :: Cbpv t => Code a -> CodeRep t a
 intrinsify code = case abstractCode code of
   I x -> abstractCode (build x)
 
 data Intrinsify t
 
 instance HasCode t => HasCode (Intrinsify t) where
-  newtype AlgRep (Intrinsify t) a = I (AlgRep t a)
+  newtype CodeRep (Intrinsify t) a = I (CodeRep t a)
 
 instance HasData t => HasData (Intrinsify t) where
-  newtype SetRep (Intrinsify t) a = IS (SetRep t a)
+  newtype DataRep (Intrinsify t) a = IS (DataRep t a)
 
 instance Cbpv t => HasGlobals (Intrinsify t) where
   global g = I $ case GlobalMap.lookup g intrinsics of
@@ -70,13 +70,13 @@ instance Cbpv t => Cbpv (Intrinsify t) where
   thunk (I x) = IS (thunk x)
   force (IS x) = I (force x)
 
-intrinsics :: Cbpv t => GlobalMap (AlgRep t)
+intrinsics :: Cbpv t => GlobalMap (CodeRep t)
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus plusIntrinsic
     ]
 
-plusIntrinsic :: Cbpv t => AlgRep t (F U64 :-> F U64 :-> F U64)
+plusIntrinsic :: Cbpv t => CodeRep t (F U64 :-> F U64 :-> F U64)
 plusIntrinsic = lambda (SU (SF SU64)) $ \x' ->
   lambda (SU (SF SU64)) $ \y' ->
     letTo (force x') $ \x'' ->
