@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, inline, abstract, abstract) where
+module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, abstract) where
 
 import Common
 import Constant (Constant)
@@ -165,111 +165,6 @@ simpCode code = case code of
   LetBeCode thing binder body -> LetBeCode (simplify thing) binder (simpCode body)
   GlobalCode g k -> GlobalCode g (simpStack k)
   LambdaCode k binder label body -> LambdaCode (simpStack k) binder label (simpCode body)
-
-inline :: Cps t => Data a -> DataRep t a
-inline = inlValue LabelMap.empty VarMap.empty
-
-inlValue :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Data a -> DataRep t a
-inlValue lenv env x = case x of
-  VariableData v ->
-    let Just x = VarMap.lookup v env
-     in x
-  ThunkData binder@(Label t _) body -> thunk t $ \k ->
-    inlCode (LabelMap.insert binder k lenv) env body
-  ConstantData k -> constant k
-
-inlStack :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Stack a -> StackRep t a
-inlStack lenv env stk = case stk of
-  LabelStack v ->
-    let Just x = LabelMap.lookup v lenv
-     in x
-  ApplyStack h t -> Cps.apply (inlValue lenv env h) (inlStack lenv env t)
-  ToStack binder@(Variable t _) body -> Cps.letTo t $ \value ->
-    let env' = VarMap.insert binder value env
-     in inlCode lenv env' body
-
-inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Code -> CodeRep t Void
-inlCode lenv env code = case code of
-  LambdaCode k binder@(Variable t _) label@(Label a _) body ->
-    let k' = inlStack lenv env k
-     in lambda k' $ \h k ->
-          inlCode (LabelMap.insert label k lenv) (VarMap.insert binder h env) body
-  LetLabelCode term binder@(Label t _) body -> result
-    where
-      term' = inlStack lenv env term
-      result
-        | countLabel binder body <= 1 || isSimpleStack term =
-          inlCode (LabelMap.insert binder term' lenv) env body
-        | otherwise =
-          force
-            ( thunk t $ \x ->
-                inlCode (LabelMap.insert binder x lenv) env body
-            )
-            term'
-  LetBeCode term binder@(Variable t _) body -> result
-    where
-      term' = inlValue lenv env term
-      result
-        | count binder body <= 1 || isSimple term =
-          inlCode lenv (VarMap.insert binder term' env) body
-        | otherwise =
-          throw
-            ( letTo t $ \x ->
-                inlCode lenv (VarMap.insert binder x env) body
-            )
-            term'
-  ThrowCode k x -> throw (inlStack lenv env k) (inlValue lenv env x)
-  ForceCode k x -> force (inlValue lenv env k) (inlStack lenv env x)
-  GlobalCode g k -> call g (inlStack lenv env k)
-
-isSimple :: Data a -> Bool
-isSimple (ConstantData _) = True
-isSimple (VariableData _) = True
-isSimple _ = False
-
-isSimpleStack :: Stack a -> Bool
-isSimpleStack (LabelStack _) = True
-isSimpleStack _ = False
-
-count :: Variable a -> Code -> Int
-count v = code
-  where
-    value :: Data b -> Int
-    value (VariableData binder) = if AnyVariable v == AnyVariable binder then 1 else 0
-    value (ThunkData _ body) = code body
-    value _ = 0
-    stack :: Stack b -> Int
-    stack (ApplyStack h t) = value h + stack t
-    stack (ToStack binder body) = code body
-    stack _ = 0
-    code :: Code -> Int
-    code c = case c of
-      LetLabelCode x binder body -> stack x + code body
-      LetBeCode x binder body -> value x + code body
-      ThrowCode k x -> stack k + value x
-      ForceCode t k -> value t + stack k
-      GlobalCode _ k -> stack k
-      LambdaCode k _ _ body -> stack k + code body
-
-countLabel :: Label a -> Code -> Int
-countLabel v = code
-  where
-    value :: Data b -> Int
-    value (ThunkData _ body) = code body
-    value _ = 0
-    stack :: Stack b -> Int
-    stack stk = case stk of
-      LabelStack binder -> if AnyLabel v == AnyLabel binder then 1 else 0
-      ToStack binder body -> code body
-      ApplyStack h t -> value h + stack t
-    code :: Code -> Int
-    code c = case c of
-      LetLabelCode x binder body -> stack x + code body
-      LetBeCode x binder body -> value x + code body
-      ThrowCode k x -> stack k + value x
-      ForceCode t k -> value t + stack k
-      GlobalCode _ k -> stack k
-      LambdaCode k _ _ body -> stack k + code body
 
 abstract :: Cps t => Data a -> DataRep t a
 abstract x = abstData x LabelMap.empty VarMap.empty
