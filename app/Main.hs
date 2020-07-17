@@ -14,6 +14,7 @@ import qualified Callcc
 import Callcc (Callcc)
 import Cbpv (Cbpv)
 import qualified Cbpv
+import qualified CbpvSimplifier
 import Common
 import qualified Constant
 import qualified Core
@@ -105,9 +106,9 @@ optimizeTerm = loop iterTerm
 optimizeCbpv :: Program Cbpv a -> Program Cbpv a
 optimizeCbpv = loop iterCbpv
   where
-    step :: Cbpv t => CodeRep Cbpv.Builder a -> CodeRep t a
+    step :: Cbpv t => CodeRep CbpvSimplifier.Simplifier a -> CodeRep t a
     step term =
-      let simplified = Cbpv.simplifyExtract term
+      let simplified = CbpvSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
