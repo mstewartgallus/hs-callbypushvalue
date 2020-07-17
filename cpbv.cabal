@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 046f5209b98e2836957e8908a134a0a8daef00f74b51e7d62087385cceec9abd
+-- hash: 6c376e491172c313ebf7c8138e5a85a30d93f74b5ff2db99da1dc51fdb6ea151
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       AsCallcc
       AsCbpv
       AsCps
+      AsPorcelain
       AsText
       Callcc
       Cbpv
@@ -55,7 +56,6 @@ library
       LabelMap
       MonoInliner
       Name
-      Porcelain
       Pure
       SystemF
       Tuple

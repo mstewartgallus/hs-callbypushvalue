@@ -1,16 +1,13 @@
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Porcelain (porcelain) where
+module AsPorcelain (Porcelain, extract) where
 
 import Common
 import Constant
 import Core
 import qualified Cps
 import Data.Text
-import GlobalMap (GlobalMap)
-import qualified GlobalMap
 import HasCode
 import HasConstants
 import HasData
@@ -22,9 +19,8 @@ import TextShow
 import Tuple
 import qualified Unique
 
-porcelain :: Cps.Data a -> Text
-porcelain x = case Cps.abstract x of
-  XD val -> toText (Unique.run val)
+extract :: DataRep Porcelain a -> Text
+extract (XD val) = toText (Unique.run val)
 
 ws = fromString " "
 
@@ -46,27 +42,27 @@ pType = showb
 pAction :: SAlgebra a -> Builder
 pAction = showb
 
-data X
+data Porcelain
 
-instance HasData X where
-  newtype DataRep X a = XD (Unique.State Builder)
+instance HasData Porcelain where
+  newtype DataRep Porcelain a = XD (Unique.State Builder)
 
-instance HasCode X where
-  newtype CodeRep X a = XC (Unique.State Builder)
+instance HasCode Porcelain where
+  newtype CodeRep Porcelain a = XC (Unique.State Builder)
 
-instance HasStack X where
-  newtype StackRep X a = XS (Unique.State Builder)
+instance HasStack Porcelain where
+  newtype StackRep Porcelain a = XS (Unique.State Builder)
 
-instance HasConstants X where
+instance HasConstants Porcelain where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x
 
-instance Tuple X
+instance Tuple Porcelain
 
-instance HasLet X
+instance HasLet Porcelain
 
-instance HasLetLabel X
+instance HasLetLabel Porcelain
 
-instance HasThunk X where
+instance HasThunk Porcelain where
   force (XD thunk) (XS k) = XC $ do
     thunk' <- thunk
     k' <- k
@@ -87,7 +83,7 @@ instance HasThunk X where
     k' <- k
     pure $ node $ atom "call" <> ws <> showb g <> ws <> k'
 
-instance Cps.Cps X where
+instance Cps.Cps Porcelain where
   throw (XS k) (XD value) = XC $ do
     k' <- k
     value' <- value

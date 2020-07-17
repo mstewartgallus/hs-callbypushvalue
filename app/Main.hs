@@ -6,6 +6,7 @@ module Main where
 import qualified AsCallcc
 import qualified AsCbpv
 import AsCps
+import qualified AsPorcelain
 import AsText
 import qualified Callcc
 import qualified Cbpv
@@ -25,7 +26,6 @@ import qualified Interpreter
 import qualified Intrinsify
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
-import qualified Porcelain
 import qualified Pure
 import qualified SystemF as F
 import TextShow
@@ -163,7 +163,7 @@ main = do
   T.putStrLn (AsText.extractData (Cps.abstract optCps))
 
   putStrLn "\nPorcelain Output:"
-  T.putStrLn (Porcelain.porcelain optCps)
+  T.putStrLn (AsPorcelain.extract (Cps.abstract optCps))
 
   putStrLn "\nEvaluates to:"
   let cpsData = Interpreter.evaluate optCps
