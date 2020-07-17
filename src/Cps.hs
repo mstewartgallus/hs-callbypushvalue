@@ -55,8 +55,6 @@ data Stack a where
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
 class (HasConstants t, HasCode t, HasStack t, HasLet t, HasThunk t, Tuple t) => Cps t where
-  global :: Global a -> StackRep t a -> CodeRep t Void
-
   throw :: StackRep t (F a) -> DataRep t a -> CodeRep t Void
 
   letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
@@ -115,11 +113,11 @@ instance HasThunk Builder where
         (_, x') = x xs
      in ForceCode k' x'
 
-instance Cps Builder where
-  global g (SB k) = CB $ \s ->
+  call g (SB k) = CB $ \s ->
     let (_, k') = k s
      in GlobalCode g k'
 
+instance Cps Builder where
   letTo t f = SB $ \(Unique.Stream newId xs ys) ->
     let binder = Variable t newId
      in case f (DB $ \_ -> (t, VariableData binder)) of
@@ -236,7 +234,7 @@ inlCode lenv env code = case code of
             term'
   ThrowCode k x -> throw (inlStack lenv env k) (inlValue lenv env x)
   ForceCode k x -> force (inlValue lenv env k) (inlStack lenv env x)
-  GlobalCode g k -> global g (inlStack lenv env k)
+  GlobalCode g k -> call g (inlStack lenv env k)
 
 isSimple :: Data a -> Bool
 isSimple (ConstantData _) = True
@@ -321,7 +319,7 @@ abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (DataRep t) -> Code
 abstCode c = case c of
   GlobalCode g k ->
     let k' = abstStack k
-     in \lenv env -> global g (k' lenv env)
+     in \lenv env -> call g (k' lenv env)
   ThrowCode k x ->
     let value' = abstData x
         k' = abstStack k

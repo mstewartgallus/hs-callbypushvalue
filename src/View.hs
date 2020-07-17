@@ -103,6 +103,8 @@ instance HasThunk.HasThunk View where
      in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   force (VS f) (VStk x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
 
+  call g (VStk k) = V $ \s -> fromString "call " <> showb g <> fromString " " <> k s
+
 instance Callcc.Callcc View where
   catch t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId

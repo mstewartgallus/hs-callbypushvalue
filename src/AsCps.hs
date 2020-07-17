@@ -36,9 +36,6 @@ instance HasData t => HasData (AsCps t) where
 instance (HasStack t) => HasStack (AsCps t) where
   data StackRep (AsCps t) a = SB (SAlgebra a) (StackRep t a)
 
-instance (HasCode t, Cps.Cps t) => HasGlobals (AsCps t) where
-  global g@(Global t _) = CodeCallcc t $ \stack -> Cps.global g stack
-
 instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
@@ -79,6 +76,8 @@ instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
 
   force (DataCallcc _ thunk) (SB _ stack) = CodeCallcc SVoid $ \_ ->
     HasThunk.force thunk stack
+
+  call g (SB _ k) = CodeCallcc SVoid $ \_ -> HasThunk.call g k
 
 instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
   catch t f = CodeCallcc t $ \k ->

@@ -88,6 +88,8 @@ instance HasThunk.HasThunk t => HasThunk.HasThunk (MonoInliner t) where
           M _ y -> y
   force (MS tcost thunk) (SB scost stack) = M (tcost + scost) (HasThunk.force thunk stack)
 
+  call g (SB kcost k) = M kcost (HasThunk.call g k)
+
 instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
   catch t f =
     let M fcost _ = f (SB 0 undefined)

@@ -73,6 +73,10 @@ instance HasThunk X where
     C k -> k
   force (V (Thunk f)) (K x) = C (f x)
 
+  call g (K k) = case GlobalMap.lookup g globals of
+    Just (G x) -> C (x k)
+    Nothing -> error "global not found in environment"
+
 instance Cps X where
   throw (K (Returns k)) (V x) = C (k x)
 
@@ -82,10 +86,6 @@ instance Cps X where
   apply (V h) (K t) = K (Apply h t)
 
   nil = K Nil
-
-  global g (K k) = case GlobalMap.lookup g globals of
-    Just (G x) -> C (x k)
-    Nothing -> error "global not found in environment"
 
 newtype G a = G (Kont a -> R)
 

@@ -5,6 +5,7 @@
 module HasThunk (HasThunk (..)) where
 
 import Common
+import Global
 import HasCode
 import HasData
 import HasStack
@@ -14,3 +15,5 @@ class (HasData t, HasCode t, HasStack t) => HasThunk t where
   force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
 
   lambda :: StackRep t (a :=> b) -> (DataRep t a -> StackRep t b -> CodeRep t c) -> CodeRep t c
+
+  call :: Global a -> StackRep t a -> CodeRep t Void

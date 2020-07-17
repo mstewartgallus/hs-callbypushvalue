@@ -15,7 +15,6 @@ import Global
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
 import HasLet
 import HasStack
 import HasThunk
@@ -29,12 +28,12 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (HasStack t, HasGlobals t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
+class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
   catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a
   throw :: StackRep t a -> CodeRep t a -> CodeRep t Void
 
 data Code a where
-  GlobalCode :: Global a -> Code a
+  GlobalCode :: Global a -> Stack a -> Code Void
   LambdaCode :: Stack (a :=> b) -> Variable a -> Label b -> Code c -> Code c
   ApplyCode :: Code (a :=> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
@@ -64,9 +63,6 @@ instance HasCode Builder where
 
 instance HasData Builder where
   data DataRep Builder a = DB (SSet a) (Unique.State (Data a))
-
-instance HasGlobals Builder where
-  global g@(Global t _) = CB t $ pure (GlobalCode g)
 
 instance HasConstants Builder where
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
@@ -104,6 +100,10 @@ instance HasStack Builder where
   data StackRep Builder a = SB (SAlgebra a) (Unique.State (Stack a))
 
 instance HasThunk Builder where
+  call g (SB _ k) = CB SVoid $ do
+    k' <- k
+    pure (GlobalCode g k')
+
   lambda (SB (t `SFn` result) k) f =
     let CB bt _ = f ((DB t . pure) $ undefined) ((SB result . pure) $ undefined)
      in CB bt $ do
@@ -156,7 +156,7 @@ abstractCode' lenv env code = case code of
           lenv' = LabelMap.insert lbl n lenv
        in abstractCode' lenv' env' body
   ReturnCode val -> Pure.pure (abstractData' lenv env val)
-  GlobalCode g -> global g
+  GlobalCode g k -> call g (abstractStack lenv env k)
   CatchCode lbl@(Label t _) body -> catch t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv
      in abstractCode' lenv' env body
@@ -195,7 +195,7 @@ simpCode code = case code of
   ThrowCode stack act -> ThrowCode stack (simpCode act)
   ForceCode th stk -> ForceCode (simpData th) stk
   ReturnCode x -> ReturnCode (simpData x)
-  g@(GlobalCode _) -> g
+  g@(GlobalCode _ _) -> g
 
 simpData :: Data a -> Data a
 simpData x = case x of

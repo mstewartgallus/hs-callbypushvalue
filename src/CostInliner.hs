@@ -114,6 +114,8 @@ instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
           I _ y -> y
   force (CS tcost thunk) (SB scost stack) = I (tcost + scost + 1) (HasThunk.force thunk stack)
 
+  call g (SB kcost k) = I (kcost + 1) (HasThunk.call g k)
+
 instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
   catch t f =
     let I fcost _ = f (SB 0 undefined)

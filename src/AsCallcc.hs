@@ -33,8 +33,8 @@ instance HasCode t => HasCode (AsCallcc t) where
 instance HasData t => HasData (AsCallcc t) where
   data DataRep (AsCallcc t) a = DataCallcc (SSet a) (DataRep t a)
 
-instance HasGlobals t => HasGlobals (AsCallcc t) where
-  global g@(Global t _) = CodeCallcc t (global g)
+instance Callcc.Callcc t => HasGlobals (AsCallcc t) where
+  global g@(Global t _) = CodeCallcc t (Callcc.catch t (HasThunk.call g))
 
 instance HasConstants t => HasConstants (AsCallcc t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k

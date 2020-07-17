@@ -80,6 +80,9 @@ instance HasThunk X where
     let XC body = f (XD $ pure x) (XS $ pure t)
     body' <- body
     pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> t <> ws <> body'
+  call g (XS k) = XC $ do
+    k' <- k
+    pure $ node $ atom "call" <> ws <> showb g <> ws <> k'
 
 instance Cps.Cps X where
   throw (XS k) (XD value) = XC $ do
@@ -99,7 +102,3 @@ instance Cps.Cps X where
     pure $ node $ atom "apply" <> ws <> h' <> ws <> t'
 
   nil = XS $ pure $ atom "nil"
-
-  global g (XS k) = XC $ do
-    k' <- k
-    pure $ node $ atom "global" <> ws <> showb g <> ws <> k'
