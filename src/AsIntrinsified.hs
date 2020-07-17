@@ -8,7 +8,6 @@ import Cbpv
 import Common
 import Constant
 import Core
-import Explicit
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
@@ -16,9 +15,9 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetTo
 import HasReturn
 import HasTuple
-import qualified Unique
 
 extract :: Cbpv t => CodeRep (Intrinsify t) a -> CodeRep t a
 extract (I x) = x
@@ -54,7 +53,7 @@ instance HasLet t => HasLet (Intrinsify t) where
     let I body = f (IS x')
      in body
 
-instance Cbpv t => Explicit (Intrinsify t) where
+instance Cbpv t => HasLetTo (Intrinsify t) where
   letTo (I x) f = I $ letTo x $ \x' ->
     let I body = f (IS x')
      in body

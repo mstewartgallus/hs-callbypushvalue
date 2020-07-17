@@ -11,12 +11,12 @@ import Common
 import Constant (Constant)
 import qualified Constant
 import Core
-import Explicit
 import Global
 import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasLetTo
 import HasReturn
 import HasStack
 import HasThunk
@@ -81,7 +81,7 @@ instance HasLet Simplifier where
           body' <- body
           pure $ LetBeCode x' v body'
 
-instance Explicit Simplifier where
+instance HasLetTo Simplifier where
   letTo x@(CB (SF t) xs) f =
     let CB bt _ = f (DB t (pure undefined))
      in CB bt $ do

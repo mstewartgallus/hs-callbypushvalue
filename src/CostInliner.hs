@@ -7,7 +7,6 @@ import Cbpv
 import Common
 import qualified Cps
 import qualified Data.Text as T
-import Explicit
 import Global
 import HasCode
 import HasConstants
@@ -15,6 +14,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasLetTo
 import HasReturn
 import HasStack
 import qualified HasThunk
@@ -102,7 +102,7 @@ instance HasLetLabel t => HasLetLabel (CostInliner t) where
         I _ y -> y
       I fcost _ = f (SB 0 x)
 
-instance Explicit t => Explicit (CostInliner t) where
+instance HasLetTo t => HasLetTo (CostInliner t) where
   letTo (I xcost x) f =
     let -- fixme... figure out a better probe...
         I fcost _ = f (CS 0 undefined)

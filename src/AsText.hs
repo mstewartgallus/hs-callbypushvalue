@@ -10,13 +10,13 @@ import qualified Cbpv
 import Common
 import qualified Cps
 import qualified Data.Text as T
-import Explicit
 import HasCode
 import HasConstants
 import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasLetTo
 import HasReturn
 import qualified HasStack
 import qualified HasThunk
@@ -83,7 +83,7 @@ instance HasLetLabel AsText where
         V y = f (VStk $ \_ -> binder)
      in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys
 
-instance Explicit AsText where
+instance HasLetTo AsText where
   letTo (V x) f = V $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
         V y = f (VS $ \_ -> binder)

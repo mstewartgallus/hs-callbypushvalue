@@ -12,7 +12,6 @@ import Common
 import Constant (Constant)
 import qualified Constant
 import Core
-import Explicit
 import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
@@ -21,6 +20,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetTo
 import HasReturn
 import HasTuple
 import Unique
@@ -63,7 +63,7 @@ instance HasLet Simplifier where
             let (result, body) = b fs
              in (result, LetBeCode vx binder body)
 
-instance Explicit Simplifier where
+instance HasLetTo Simplifier where
   letTo (CB x) f = CB $ \(Unique.Stream newId xs fs) ->
     let (SF tx, vx) = x xs
         binder = Variable tx newId

@@ -9,7 +9,6 @@ import Common
 import qualified Constant
 import Core
 import qualified Cps
-import Explicit
 import Global
 import HasCode
 import HasConstants
@@ -17,6 +16,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
+import HasLetTo
 import HasReturn
 import HasStack
 import HasThunk
@@ -50,7 +50,7 @@ instance (HasLet t) => HasLet (AsCps t) where
             case f (DataCallcc t val) of
               CodeCallcc _ f' -> f' k
 
-instance (Cps.Cps t) => Explicit (AsCps t) where
+instance (Cps.Cps t) => HasLetTo (AsCps t) where
   letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc b _ = f (DataCallcc t undefined)
      in CodeCallcc b $ \k ->

@@ -8,13 +8,13 @@ import Cbpv
 import Common
 import qualified Constant
 import Core
-import Explicit
 import Global
 import HasCode
 import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetTo
 import HasReturn
 import HasTuple
 import qualified SystemF as F

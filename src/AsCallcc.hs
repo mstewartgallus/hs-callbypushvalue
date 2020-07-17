@@ -10,13 +10,13 @@ import Common
 import qualified Constant
 import Core
 import qualified Cps
-import Explicit
 import Global
 import HasCode
 import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetTo
 import HasReturn
 import qualified HasThunk
 import HasTuple
@@ -49,7 +49,7 @@ instance HasLet t => HasLet (AsCallcc t) where
           let CodeCallcc _ body = f (DataCallcc t x')
            in body
 
-instance Callcc.Callcc t => Explicit (AsCallcc t) where
+instance Callcc.Callcc t => HasLetTo (AsCallcc t) where
   letTo (CodeCallcc (SF t) x) f =
     let CodeCallcc bt _ = f (DataCallcc t undefined)
      in CodeCallcc bt $ letTo x $ \x' ->
