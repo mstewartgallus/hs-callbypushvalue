@@ -5,13 +5,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, inline, abstract) where
+module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, inline, abstract, abstract) where
 
 import Common
 import Constant (Constant)
 import qualified Constant
 import Core
-import qualified Data.Text as T
 import Global
 import HasCode
 import HasConstants
@@ -23,7 +22,6 @@ import HasThunk
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import TextShow (TextShow, fromString, fromText, showb, toText)
 import Tuple
 import Unique
 import VarMap (VarMap)
@@ -144,28 +142,6 @@ instance Cps Builder where
     let (xt, x') = x xs
         (kt, k') = k ks
      in (xt `SFn` kt, ApplyStack x' k')
-
-instance TextShow (Data a) where
-  showb (ConstantData k) = showb k
-  showb (VariableData v) = showb v
-  showb (ThunkData binder@(Label t _) body) =
-    fromString "thunk " <> showb binder <> fromString ": " <> showb t <> fromString " " <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> showb body)))
-
-instance TextShow (Stack a) where
-  showb (LabelStack v) = showb v
-  showb (ToStack binder@(Variable t _) body) =
-    fromString "to " <> showb binder <> fromString ": " <> showb t <> fromString ".\n" <> showb body
-  showb (ApplyStack x f) = showb x <> fromString " :: " <> showb f
-
-instance TextShow Code where
-  showb c = case c of
-    GlobalCode g k -> fromString "call " <> showb g <> fromString " " <> showb k
-    LetLabelCode value binder body -> showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-    LetBeCode value binder body -> showb value <> fromString " be " <> showb binder <> fromString ".\n" <> showb body
-    ThrowCode k x -> fromString "throw " <> showb k <> fromString " " <> showb x
-    ForceCode thnk stk -> fromString "! " <> showb thnk <> fromString " " <> showb stk
-    LambdaCode k binder@(Variable t _) label@(Label a _) body ->
-      showb k <> fromString " λ " <> showb binder <> fromString ": " <> showb t <> fromString " " <> showb label <> fromString ": " <> showb a <> fromString "\n" <> showb body
 
 build :: DataRep Builder a -> Data a
 build (DB s) = snd (Unique.withStream s)

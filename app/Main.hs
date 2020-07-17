@@ -6,6 +6,7 @@ module Main where
 import qualified AsCallcc
 import qualified AsCbpv
 import AsCps
+import AsText
 import qualified Callcc
 import qualified Cbpv
 import Common
@@ -26,7 +27,6 @@ import qualified Porcelain
 import qualified Pure
 import qualified SystemF as F
 import TextShow
-import AsText
 
 iterTerm = 20
 
@@ -147,10 +147,10 @@ main = do
   T.putStrLn (AsText.extract (Callcc.abstractCode optCatchThrow))
 
   putStrLn "\nCps:"
-  printT cps
+  T.putStrLn (AsText.extractData (Cps.abstract cps))
 
   putStrLn "\nOptimized Cps:"
-  printT optCps
+  T.putStrLn (AsText.extractData (Cps.abstract optCps))
 
   putStrLn "\nPorcelain Output:"
   T.putStrLn (Porcelain.porcelain optCps)
@@ -163,15 +163,6 @@ main = do
   eff
 
   return ()
-
-viewTerm :: F.Term a -> CodeRep AsText a
-viewTerm c = F.abstract c
-
-view :: Cbpv.Code a -> CodeRep AsText a
-view c = Cbpv.abstractCode c
-
-viewCc :: Callcc.Code a -> CodeRep AsText a
-viewCc c = Callcc.abstractCode c
 
 t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

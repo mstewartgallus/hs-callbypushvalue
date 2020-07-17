@@ -3,11 +3,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module AsText (extract, AsText (..)) where
+module AsText (extract, extractData, AsText (..)) where
 
 import qualified Callcc
 import qualified Cbpv
 import Common
+import qualified Cps
 import qualified Data.Text as T
 import Explicit
 import HasCode
@@ -15,6 +16,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetLabel
 import qualified HasStack
 import qualified HasThunk
 import qualified Pure
@@ -27,6 +29,9 @@ data AsText
 
 extract :: CodeRep AsText a -> T.Text
 extract (V x) = toText (Unique.withStream x)
+
+extractData :: DataRep AsText a -> T.Text
+extractData (VS x) = toText (Unique.withStream x)
 
 instance HasData AsText where
   newtype DataRep AsText a = VS (forall s. Unique.Stream s -> Builder)
@@ -111,3 +116,17 @@ instance Callcc.Callcc AsText where
         V body = f (VStk $ \_ -> binder)
      in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   throw (VStk f) (V x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
+
+instance HasLetLabel AsText
+
+instance Cps.Cps AsText where
+  letTo t f = VStk $ \(Unique.Stream newId _ s) ->
+    let binder = fromString "v" <> showb newId
+        V body = f (VS $ \_ -> binder)
+     in fromString "to " <> binder <> fromString ": " <> showb t <> fromString ".\n" <> body s
+
+  throw (VStk k) (VS x) = V $ \(Unique.Stream _ ks xs) ->
+    fromString "throw " <> k ks <> fromString " " <> x xs
+
+  apply (VS x) (VStk k) = VStk $ \(Unique.Stream _ ks xs) ->
+    k ks <> fromString "  :: " <> x xs
