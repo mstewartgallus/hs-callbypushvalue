@@ -14,6 +14,8 @@ import Core
 import qualified Cps
 import Explicit
 import Global
+import HasCode
+import HasData
 import qualified Pure
 import qualified SystemF
 import Tuple
@@ -23,12 +25,16 @@ extract (CodeCallcc _ x) = x
 
 data AsCallcc t
 
-instance Basic t => Basic (AsCallcc t) where
+instance HasCode t => HasCode (AsCallcc t) where
   data AlgRep (AsCallcc t) a = CodeCallcc (SAlg a) (AlgRep t a)
+
+instance HasData t => HasData (AsCallcc t) where
+  data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)
+
+instance Basic t => Basic (AsCallcc t) where
   global g@(Global t _) = CodeCallcc t (global g)
 
 instance Const t => Const (AsCallcc t) where
-  data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
 instance Pure.Pure t => Pure.Pure (AsCallcc t) where

@@ -14,6 +14,8 @@ import Core
 import Explicit
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import HasCode
+import HasData
 import qualified Pure
 import Tuple
 import qualified Unique
@@ -24,21 +26,26 @@ intrinsify code = case abstractCode code of
 
 data Intrinsify t
 
-instance Cbpv t => Basic (Intrinsify t) where
+instance HasCode t => HasCode (Intrinsify t) where
   newtype AlgRep (Intrinsify t) a = I (AlgRep t a)
+
+instance HasData t => HasData (Intrinsify t) where
+  newtype SetRep (Intrinsify t) a = IS (SetRep t a)
+
+instance Cbpv t => Basic (Intrinsify t) where
   global g = I $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
     Just intrinsic -> intrinsic
 
 instance Const t => Const (Intrinsify t) where
-  newtype SetRep (Intrinsify t) a = IS (SetRep t a)
   constant k = IS (constant k)
   unit = IS unit
 
-instance Tuple t => Tuple (Intrinsify t) where
+instance Cbpv t => Tuple (Intrinsify t) where
   pair (IS x) (IS y) = IS (pair x y)
-  first (IS tuple) = IS (first tuple)
-  second (IS tuple) = IS (second tuple)
+  unpair (IS tuple) f = I $ unpair tuple $ \x y ->
+    let I result = f (IS x) (IS y)
+     in result
 
 instance Cbpv t => Pure.Pure (Intrinsify t) where
   pure (IS x) = I (Pure.pure x)

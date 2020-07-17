@@ -5,11 +5,9 @@
 module Tuple (Tuple (..)) where
 
 import Common
-import Const
+import HasCode
+import HasData
 
-class Const t => Tuple t where
+class (HasData t, HasCode t) => Tuple t where
   pair :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
-
-  -- fixme.. indirect style?
-  first :: SetRep t (a :*: b) -> SetRep t a
-  second :: SetRep t (a :*: b) -> SetRep t b
+  unpair :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> AlgRep t c) -> AlgRep t c

@@ -12,6 +12,8 @@ import Common
 import Const
 import qualified Data.Text as T
 import Explicit
+import HasCode
+import HasData
 import qualified Pure
 import qualified SystemF
 import TextShow
@@ -23,12 +25,16 @@ data View
 extract :: AlgRep View a -> T.Text
 extract (V x) = toText (Unique.withStream x)
 
-instance Basic View where
+instance HasData View where
+  newtype SetRep View a = VS (forall s. Unique.Stream s -> Builder)
+
+instance HasCode View where
   newtype AlgRep View a = V (forall s. Unique.Stream s -> Builder)
+
+instance Basic View where
   global g = V $ \_ -> showb g
 
 instance Const View where
-  newtype SetRep View a = VS (forall s. Unique.Stream s -> Builder)
   constant k = VS $ \_ -> showb k
   unit = VS $ \_ -> fromString "."
 

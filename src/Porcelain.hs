@@ -12,6 +12,8 @@ import qualified Cps
 import Data.Text
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import HasCode
+import HasData
 import TextShow
 import qualified Unique
 
@@ -41,12 +43,16 @@ pAction = showb
 
 data X
 
-instance Const X where
+instance HasData X where
   newtype SetRep X a = XD (Unique.State Builder)
+
+instance HasCode X where
+  newtype AlgRep X a = XC (Unique.State Builder)
+
+instance Const X where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x
 
 instance Cps.Cps X where
-  newtype CodeRep X = XC (Unique.State Builder)
   newtype StackRep X a = XS (Unique.State Builder)
 
   throw (XS k) (XD value) = XC $ do

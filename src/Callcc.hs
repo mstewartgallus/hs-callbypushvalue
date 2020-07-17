@@ -14,6 +14,8 @@ import qualified Constant
 import Core
 import Explicit
 import Global
+import HasCode
+import HasData
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -53,7 +55,6 @@ data Data a where
   VariableData :: Variable a -> Data a
   ThunkData :: Label a -> Code Void -> Data (U a)
   PairData :: Data a -> Data b -> Data (a :*: b)
-  FirstData :: Data (a :*: b) -> Data a
 
 typeOf :: Code a -> SAlg a
 typeOf x = case x of
@@ -73,9 +74,6 @@ typeOfData x = case x of
   VariableData (Variable t _) -> t
   ConstantData k -> Constant.typeOf k
   ThunkData (Label t _) _ -> SU t
-  FirstData tuple ->
-    let t `SPair` _ = typeOfData tuple
-     in t
   PairData h t -> typeOfData h `SPair` typeOfData t
 
 build :: AlgRep Builder a -> Code a
@@ -83,12 +81,16 @@ build (CB _ s) = Unique.run s
 
 data Builder
 
-instance Basic Builder where
+instance HasCode Builder where
   data AlgRep Builder a = CB (SAlg a) (Unique.State (Code a))
+
+instance HasData Builder where
+  data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
+
+instance Basic Builder where
   global g@(Global t _) = CB t $ pure (GlobalCode g)
 
 instance Const Builder where
-  data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
   unit = DB SUnit $ pure UnitData
 
@@ -188,7 +190,6 @@ abstractData' lenv env x = case x of
       Nothing -> error ("could not find var " ++ show u ++ " of type")
   ConstantData k -> constant k
   UnitData -> unit
-  FirstData tuple -> first (abstractData' lenv env tuple)
   PairData h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
 
 simplify :: Code a -> Code a
@@ -211,7 +212,6 @@ simpCode code = case code of
 simpData :: Data a -> Data a
 simpData x = case x of
   UnitData -> UnitData
-  FirstData tuple -> FirstData (simpData tuple)
   PairData x y -> PairData (simpData x) (simpData y)
   ThunkData label body -> ThunkData label (simpCode body)
   g@(ConstantData _) -> g

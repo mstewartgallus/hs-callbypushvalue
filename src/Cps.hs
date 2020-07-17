@@ -14,6 +14,8 @@ import qualified Constant
 import Core
 import qualified Data.Text as T
 import Global
+import HasCode
+import HasData
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -47,24 +49,23 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class Const t => Cps t where
-  data CodeRep t :: *
+class (Const t, HasCode t) => Cps t where
   data StackRep t :: Alg -> *
 
-  global :: Global a -> StackRep t a -> CodeRep t
+  global :: Global a -> StackRep t a -> AlgRep t Void
 
-  throw :: StackRep t (F a) -> SetRep t a -> CodeRep t
-  force :: SetRep t (U a) -> StackRep t a -> CodeRep t
+  throw :: StackRep t (F a) -> SetRep t a -> AlgRep t Void
+  force :: SetRep t (U a) -> StackRep t a -> AlgRep t Void
 
-  thunk :: SAlg a -> (StackRep t a -> CodeRep t) -> SetRep t (U a)
-  letTo :: SSet a -> (SetRep t a -> CodeRep t) -> StackRep t (F a)
+  thunk :: SAlg a -> (StackRep t a -> AlgRep t Void) -> SetRep t (U a)
+  letTo :: SSet a -> (SetRep t a -> AlgRep t Void) -> StackRep t (F a)
 
-  lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> CodeRep t) -> CodeRep t
+  lambda :: StackRep t (a :=> b) -> (SetRep t a -> StackRep t b -> AlgRep t Void) -> AlgRep t Void
 
   head :: SetRep t (a :*: b) -> SetRep t a
   tail :: SetRep t (a :*: b) -> SetRep t b
 
-  pop :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> CodeRep t) -> CodeRep t
+  pop :: SetRep t (a :*: b) -> (SetRep t a -> SetRep t b -> AlgRep t Void) -> AlgRep t Void
 
   apply :: SetRep t a -> StackRep t b -> StackRep t (a :=> b)
   push :: SetRep t a -> SetRep t b -> SetRep t (a :*: b)
@@ -73,13 +74,16 @@ class Const t => Cps t where
 
 data Builder
 
-instance Const Builder where
+instance HasData Builder where
   newtype SetRep Builder a = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
+instance HasCode Builder where
+  newtype AlgRep Builder a = CB (forall s. Unique.Stream s -> Code)
+
+instance Const Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
 instance Cps Builder where
-  newtype CodeRep Builder = CB (forall s. Unique.Stream s -> Code)
   newtype StackRep Builder a = SB (forall s. Unique.Stream s -> (SAlg a, Stack a))
 
   global g (SB k) = CB $ \s ->
@@ -188,7 +192,7 @@ inlStack lenv env stk = case stk of
     let env' = VarMap.insert binder value env
      in inlCode lenv env' body
 
-inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code -> CodeRep t
+inlCode :: Cps t => LabelMap (StackRep t) -> VarMap (SetRep t) -> Code -> AlgRep t Void
 inlCode lenv env code = case code of
   LambdaCode k binder@(Variable t _) label@(Label a _) body ->
     let k' = inlStack lenv env k
@@ -301,7 +305,7 @@ abstStack stk = case stk of
         t' = abstStack t
      in \lenv env -> apply (h' lenv env) (t' lenv env)
 
-abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (SetRep t) -> CodeRep t
+abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (SetRep t) -> AlgRep t Void
 abstCode c = case c of
   GlobalCode g k ->
     let k' = abstStack k

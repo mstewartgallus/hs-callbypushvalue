@@ -5,10 +5,9 @@ module Const (Const (..)) where
 
 import Common
 import Constant
+import HasData
 
-class Const t where
-  data SetRep t :: Set -> *
-
+class HasData t => Const t where
   constant :: Constant a -> SetRep t a
 
   unit :: SetRep t Unit

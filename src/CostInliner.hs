@@ -10,6 +10,8 @@ import Const
 import qualified Data.Text as T
 import Explicit
 import Global
+import HasCode
+import HasData
 import Name
 import qualified Pure
 import qualified SystemF as F
@@ -29,8 +31,13 @@ extract (I _ x) = x
 -- FIXME: use an alternative to the probe function
 data CostInliner t
 
-instance Basic t => Basic (CostInliner t) where
+instance HasData t => HasData (CostInliner t) where
+  data SetRep (CostInliner t) a = CS Int (SetRep t a)
+
+instance HasCode t => HasCode (CostInliner t) where
   data AlgRep (CostInliner t) a = I Int (AlgRep t a)
+
+instance Basic t => Basic (CostInliner t) where
   global g = I 0 (global g)
 
 instance Pure.Pure t => Pure.Pure (CostInliner t) where
@@ -56,14 +63,11 @@ instance F.SystemF t => F.SystemF (CostInliner t) where
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f F.<*> x)
 
 instance Const t => Const (CostInliner t) where
-  data SetRep (CostInliner t) a = CS Int (SetRep t a)
   constant k = CS 0 (constant k)
   unit = CS 0 unit
 
 instance Tuple t => Tuple (CostInliner t) where
   pair (CS xcost x) (CS ycost y) = CS (xcost + ycost + 1) (pair x y)
-  first (CS cost tuple) = CS (cost + 1) (first tuple)
-  second (CS cost tuple) = CS (cost + 1) (second tuple)
 
 instance Explicit t => Explicit (CostInliner t) where
   letBe (CS xcost x) f = result

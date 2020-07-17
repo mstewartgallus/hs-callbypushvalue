@@ -12,6 +12,8 @@ import qualified Constant
 import Core
 import Explicit
 import Global
+import HasCode
+import HasData
 import qualified Pure
 import qualified SystemF as F
 import Tuple
@@ -21,23 +23,24 @@ extract (AsCbpv x) = x
 
 data AsCbpv t
 
-instance Basic t => Basic (AsCbpv t) where
+instance HasCode t => HasCode (AsCbpv t) where
   newtype AlgRep (AsCbpv t) a = AsCbpv (AlgRep t a)
+
+instance HasData t => HasData (AsCbpv t) where
+  newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
+
+instance Basic t => Basic (AsCbpv t) where
   global g = AsCbpv (global g)
 
 instance Const t => Const (AsCbpv t) where
-  newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
   unit = SetRep unit
   constant k = SetRep (constant k)
 
-instance Explicit t => Pure.Pure (AsCbpv t) where
+instance Pure.Pure t => Pure.Pure (AsCbpv t) where
   pure (SetRep k) = AsCbpv (Pure.pure k)
 
 instance Cbpv t => F.SystemF (AsCbpv t) where
   pair (AsCbpv x) (AsCbpv y) = AsCbpv $ Pure.pure (pair (thunk x) (thunk y))
-
-  -- first (AsCbpv tuple) = AsCbpv x
-  -- second (AsCbpv tuple) = AsCbpv y
 
   letBe (AsCbpv x) f = AsCbpv $ letBe (Cbpv.thunk x) $ \x' ->
     let AsCbpv body = f (AsCbpv (Cbpv.force x'))

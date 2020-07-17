@@ -3,9 +3,9 @@
 
 module Pure (Pure (..)) where
 
-import Basic
 import Common
-import Const
+import HasCode
+import HasData
 
-class (Const t, Basic t) => Pure t where
+class (HasData t, HasCode t) => Pure t where
   pure :: SetRep t a -> AlgRep t (F a)

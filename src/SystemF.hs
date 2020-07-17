@@ -14,6 +14,8 @@ import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
 import Global
+import HasCode
+import HasData
 import Name
 import qualified Pure
 import qualified Unique
@@ -56,12 +58,16 @@ data MaybeFn t a where
   Fn :: (AlgRep t a -> AlgRep t b) -> MaybeFn t (a :-> b)
   NotFn :: MaybeFn t a
 
-instance Basic t => Basic (Simplifier t) where
+instance HasCode t => HasCode (Simplifier t) where
   data AlgRep (Simplifier t) a = S (MaybeFn t a) (AlgRep t a)
+
+instance HasData t => HasData (Simplifier t) where
+  newtype SetRep (Simplifier t) a = SS (SetRep t a)
+
+instance Basic t => Basic (Simplifier t) where
   global g = S NotFn (global g)
 
 instance Const t => Const (Simplifier t) where
-  newtype SetRep (Simplifier t) a = SS (SetRep t a)
   constant k = SS (constant k)
   unit = SS unit
 

@@ -18,6 +18,7 @@ import qualified Cps
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
+import HasCode
 import qualified Interpreter
 import qualified Intrinsify
 import qualified MonoInliner

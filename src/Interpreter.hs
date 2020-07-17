@@ -14,6 +14,8 @@ import Cps
 import Data.Word
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import HasCode
+import HasData
 
 evaluate :: Data a -> Value a
 evaluate x = case abstract x of
@@ -41,13 +43,17 @@ data instance Kont (a :=> b) = Apply (Value a) (Kont b)
 
 data X
 
-instance Const X where
+instance HasData X where
   newtype SetRep X a = V (Value a)
+
+instance HasCode X where
+  newtype AlgRep X a = C R
+
+instance Const X where
   constant (U64Constant x) = V (I x)
   unit = V Coin
 
 instance Cps X where
-  newtype CodeRep X = C R
   newtype StackRep X a = K (Kont a)
 
   throw (K (Returns k)) (V x) = C (k x)

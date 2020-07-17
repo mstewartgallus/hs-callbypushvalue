@@ -12,6 +12,8 @@ import Const
 import qualified Data.Text as T
 import Explicit
 import Global
+import HasCode
+import HasData
 import Name
 import qualified Pure
 import qualified SystemF
@@ -25,19 +27,21 @@ data MonoInliner t
 extract :: AlgRep (MonoInliner t) a -> AlgRep t a
 extract (M _ x) = x
 
-instance Basic t => Basic (MonoInliner t) where
+instance HasCode t => HasCode (MonoInliner t) where
   data AlgRep (MonoInliner t) a = M Int (AlgRep t a)
+
+instance HasData t => HasData (MonoInliner t) where
+  data SetRep (MonoInliner t) a = MS Int (SetRep t a)
+
+instance Basic t => Basic (MonoInliner t) where
   global g = M 0 (global g)
 
 instance Const t => Const (MonoInliner t) where
-  data SetRep (MonoInliner t) a = MS Int (SetRep t a)
   constant k = MS 0 (constant k)
   unit = MS 0 unit
 
 instance Tuple t => Tuple (MonoInliner t) where
   pair (MS xcost x) (MS ycost y) = MS (xcost + ycost) (pair x y)
-  first (MS cost tuple) = MS cost (first tuple)
-  second (MS cost tuple) = MS cost (second tuple)
 
 instance Explicit t => Explicit (MonoInliner t) where
   letBe (MS xcost x) f = result

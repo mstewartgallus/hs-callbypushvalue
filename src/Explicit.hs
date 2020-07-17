@@ -4,14 +4,13 @@
 
 module Explicit (Explicit (..)) where
 
-import Basic
 import Common
-import Const
-import qualified Pure
+import HasCode
+import HasData
 
-class (Basic t, Const t, Pure.Pure t) => Explicit t where
-  letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
+class (HasData t, HasCode t) => Explicit t where
   letBe :: SetRep t a -> (SetRep t a -> AlgRep t b) -> AlgRep t b
+  letTo :: AlgRep t (F a) -> (SetRep t a -> AlgRep t b) -> AlgRep t b
 
   lambda :: SSet a -> (SetRep t a -> AlgRep t b) -> AlgRep t (a :=> b)
   apply :: AlgRep t (a :=> b) -> SetRep t a -> AlgRep t b

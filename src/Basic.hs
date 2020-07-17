@@ -5,8 +5,7 @@ module Basic (Basic (..)) where
 
 import Common
 import Global
+import HasCode
 
-class Basic t where
-  data AlgRep t :: Alg -> *
-
+class HasCode t => Basic t where
   global :: Global a -> AlgRep t a

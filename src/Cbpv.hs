@@ -17,6 +17,8 @@ import Explicit
 import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
+import HasCode
+import HasData
 import qualified Pure
 import Tuple
 import Unique
@@ -33,12 +35,16 @@ data Builder
 build :: AlgRep Builder a -> Code a
 build (CB s) = snd (Unique.withStream s)
 
-instance Basic Builder where
+instance HasCode Builder where
   newtype AlgRep Builder (a :: Alg) = CB (forall s. Unique.Stream s -> (SAlg a, Code a))
+
+instance HasData Builder where
+  newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
+
+instance Basic Builder where
   global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
 
 instance Const Builder where
-  newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
   unit = DB $ \_ -> (SUnit, UnitData)
 
@@ -74,7 +80,11 @@ instance Explicit Builder where
         (_, vx) = x xs
      in (b, ApplyCode vf vx)
 
-instance Tuple Builder
+instance Tuple Builder where
+  pair (DB x) (DB y) = DB $ \(Unique.Stream _ xs ys) ->
+    let (xt, xv) = x xs
+        (yt, yv) = y ys
+     in (SPair xt yt, PairData xv yv)
 
 instance Cbpv Builder where
   force (DB thunk) = CB $ \s ->
@@ -91,6 +101,7 @@ data Code a where
   ReturnCode :: Data a -> Code (F a)
   LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
+  UnpairCode :: Data (a :*: b) -> Variable a -> Variable b -> Code c -> Code c
   GlobalCode :: Global a -> Code a
 
 data Data a where
@@ -99,8 +110,6 @@ data Data a where
   UnitData :: Data Unit
   ThunkData :: Code a -> Data (U a)
   PairData :: Data a -> Data b -> Data (a :*: b)
-  HeadData :: Data (a :*: b) -> Data b
-  FirstData :: Data (a :*: b) -> Data a
 
 {-
 Simplify Call By Pair Data Inverses
@@ -162,5 +171,4 @@ abstractData' env x = case x of
   ThunkData c -> thunk (abstractCode' env c)
   ConstantData k -> constant k
   UnitData -> unit
-  FirstData tuple -> first (abstractData' env tuple)
   PairData h t -> pair (abstractData' env h) (abstractData' env t)
