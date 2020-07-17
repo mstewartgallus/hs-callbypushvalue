@@ -20,10 +20,10 @@ import HasLet
 import HasLetLabel
 import HasStack
 import HasThunk
+import HasTuple
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import Tuple
 import Unique
 import VarMap (VarMap)
 import qualified VarMap
@@ -83,7 +83,7 @@ instance HasLetLabel Simplifier where
 instance HasConstants Simplifier where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
-instance Tuple Simplifier where
+instance HasTuple Simplifier where
   pair (DB x) (DB y) = DB $ \(Unique.Stream _ ks xs) ->
     let (xt, x') = x xs
         (yt, y') = y xs

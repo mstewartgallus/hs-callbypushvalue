@@ -18,9 +18,9 @@ import HasLetLabel
 import HasReturn
 import HasStack
 import qualified HasThunk
+import HasTuple
 import Name
 import qualified SystemF as F
-import Tuple
 import qualified Unique
 import Prelude hiding ((<*>))
 
@@ -77,7 +77,7 @@ instance HasConstants t => HasConstants (CostInliner t) where
   constant k = CS 0 (constant k)
   unit = CS 0 unit
 
-instance Tuple t => Tuple (CostInliner t) where
+instance HasTuple t => HasTuple (CostInliner t) where
   pair (CS xcost x) (CS ycost y) = CS (xcost + ycost + 1) (pair x y)
 
 instance HasLet t => HasLet (CostInliner t) where

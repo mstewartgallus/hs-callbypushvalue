@@ -16,8 +16,8 @@ import HasData
 import HasGlobals
 import HasLet
 import HasReturn
+import HasTuple
 import qualified SystemF as F
-import Tuple
 
 extract :: CodeRep (AsCbpv t) a -> CodeRep t a
 extract (AsCbpv x) = x

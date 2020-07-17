@@ -20,9 +20,9 @@ import HasLetLabel
 import HasReturn
 import qualified HasStack
 import qualified HasThunk
+import HasTuple
 import qualified SystemF
 import TextShow
-import Tuple
 import qualified Unique
 
 data AsText
@@ -46,7 +46,7 @@ instance HasConstants AsText where
   constant k = VS $ \_ -> showb k
   unit = VS $ \_ -> fromString "."
 
-instance Tuple AsText
+instance HasTuple AsText
 
 instance HasReturn AsText where
   returns (VS k) = V $ \s ->

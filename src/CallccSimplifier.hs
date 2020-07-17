@@ -20,10 +20,10 @@ import HasLet
 import HasReturn
 import HasStack
 import HasThunk
+import HasTuple
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
-import Tuple
 import qualified Unique
 import qualified VarMap
 import VarMap (VarMap)
@@ -94,7 +94,7 @@ instance Explicit Simplifier where
     CB b $
       pure ApplyCode <*> f <*> x
 
-instance Tuple Simplifier
+instance HasTuple Simplifier
 
 instance HasStack Simplifier where
   data StackRep Simplifier a = SB (SAlgebra a) (Unique.State (Stack a))

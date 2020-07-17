@@ -17,7 +17,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasReturn
-import Tuple
+import HasTuple
 import qualified Unique
 
 extract :: Cbpv t => CodeRep (Intrinsify t) a -> CodeRep t a
@@ -40,7 +40,7 @@ instance HasConstants t => HasConstants (Intrinsify t) where
   constant k = IS (constant k)
   unit = IS unit
 
-instance Cbpv t => Tuple (Intrinsify t) where
+instance Cbpv t => HasTuple (Intrinsify t) where
   pair (IS x) (IS y) = IS (pair x y)
   unpair (IS tuple) f = I $ unpair tuple $ \x y ->
     let I result = f (IS x) (IS y)

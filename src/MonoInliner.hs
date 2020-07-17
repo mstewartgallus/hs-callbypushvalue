@@ -20,10 +20,10 @@ import HasLetLabel
 import HasReturn
 import HasStack
 import qualified HasThunk
+import HasTuple
 import Name
 import qualified SystemF
 import TextShow
-import Tuple
 import qualified Unique
 import Prelude hiding ((<*>))
 
@@ -51,7 +51,7 @@ instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = MS 0 (constant k)
   unit = MS 0 unit
 
-instance Tuple t => Tuple (MonoInliner t) where
+instance HasTuple t => HasTuple (MonoInliner t) where
   pair (MS xcost x) (MS ycost y) = MS (xcost + ycost) (pair x y)
 
 instance HasLet t => HasLet (MonoInliner t) where

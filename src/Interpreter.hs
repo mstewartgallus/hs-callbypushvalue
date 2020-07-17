@@ -20,7 +20,7 @@ import HasLet
 import HasLetLabel
 import HasStack
 import HasThunk
-import Tuple
+import HasTuple
 
 evaluate :: DataRep X a -> Value a
 evaluate (V value) = value
@@ -60,7 +60,7 @@ instance HasConstants X where
   constant (U64Constant x) = V (I x)
   unit = V Coin
 
-instance Tuple X where
+instance HasTuple X where
   pair (V x) (V y) = V (x ::: y)
   unpair (V (x ::: y)) f = f (V x) (V y)
 

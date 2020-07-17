@@ -15,8 +15,8 @@ import HasLet
 import HasLetLabel
 import HasStack
 import HasThunk
+import HasTuple
 import TextShow
-import Tuple
 import qualified Unique
 
 extract :: DataRep Porcelain a -> Text
@@ -56,7 +56,7 @@ instance HasStack Porcelain where
 instance HasConstants Porcelain where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x
 
-instance Tuple Porcelain
+instance HasTuple Porcelain
 
 instance HasLet Porcelain
 

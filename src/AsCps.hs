@@ -20,7 +20,7 @@ import HasLetLabel
 import HasReturn
 import HasStack
 import HasThunk
-import Tuple
+import HasTuple
 
 toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => CodeRep (AsCps t) a -> DataRep t (U a)
 toContinuationPassingStyle (CodeCallcc t x) = HasThunk.thunk t x
@@ -61,7 +61,7 @@ instance (Cps.Cps t) => Explicit (AsCps t) where
             )
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ \k -> f (Cps.apply x k)
 
-instance (HasCode t, Cps.Cps t) => Tuple (AsCps t)
+instance (HasCode t, Cps.Cps t) => HasTuple (AsCps t)
 
 instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
   lambda s@(SB (xt `SFn` r) lam) f =

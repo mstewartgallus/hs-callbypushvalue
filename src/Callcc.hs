@@ -15,8 +15,8 @@ import HasLet
 import HasReturn
 import HasStack
 import HasThunk
-import Tuple
+import HasTuple
 
-class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, HasReturn t) => Callcc t where
+class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, HasTuple t, HasReturn t) => Callcc t where
   catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a
   throw :: StackRep t a -> CodeRep t a -> CodeRep t Void

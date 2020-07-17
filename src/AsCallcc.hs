@@ -19,8 +19,8 @@ import HasGlobals
 import HasLet
 import HasReturn
 import qualified HasThunk
+import HasTuple
 import qualified SystemF
-import Tuple
 
 extract :: CodeRep (AsCallcc t) a -> CodeRep t a
 extract (CodeCallcc _ x) = x
@@ -57,7 +57,7 @@ instance Callcc.Callcc t => Explicit (AsCallcc t) where
            in body
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
 
-instance Tuple t => Tuple (AsCallcc t)
+instance HasTuple t => HasTuple (AsCallcc t)
 
 instance Callcc.Callcc t => Cbpv.Cbpv (AsCallcc t) where
   lambda t f =

@@ -22,7 +22,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasReturn
-import Tuple
+import HasTuple
 import Unique
 import VarMap (VarMap)
 import qualified VarMap as VarMap
@@ -77,7 +77,7 @@ instance Explicit Simplifier where
         (_, vx) = x xs
      in (b, ApplyCode vf vx)
 
-instance Tuple Simplifier where
+instance HasTuple Simplifier where
   pair (DB x) (DB y) = DB $ \(Unique.Stream _ xs ys) ->
     let (xt, xv) = x xs
         (yt, yv) = y ys

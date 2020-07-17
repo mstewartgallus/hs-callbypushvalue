@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 412b536d216e038dff5c07c5ca5199263b553ce15f17ce58f014568e85898901
+-- hash: a8753e539aaf4ebd3e4f3fb6ed5c2f1bf7c904374d9fa5585182c6affca8043c
 
 name:           cpbv
 version:        0.1.0.0
@@ -55,6 +55,7 @@ library
       HasReturn
       HasStack
       HasThunk
+      HasTuple
       Interpreter
       Label
       LabelMap
@@ -63,7 +64,6 @@ library
       Program
       SystemF
       SystemFSimplifier
-      Tuple
       Unique
       Value
       Variable
