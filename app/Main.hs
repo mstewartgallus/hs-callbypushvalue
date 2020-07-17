@@ -12,6 +12,7 @@ import qualified AsPorcelain
 import AsText
 import qualified Callcc
 import Callcc (Callcc)
+import qualified CallccSimplifier
 import Cbpv (Cbpv)
 import qualified Cbpv
 import qualified CbpvSimplifier
@@ -120,9 +121,9 @@ optimizeCbpv = loop iterCbpv
 optimizeCallcc :: Program Callcc a -> Program Callcc a
 optimizeCallcc = loop iterCallcc
   where
-    step :: Callcc t => CodeRep Callcc.Builder a -> CodeRep t a
+    step :: Callcc t => CodeRep CallccSimplifier.Simplifier a -> CodeRep t a
     step term =
-      let simplified = Callcc.simplifyExtract term
+      let simplified = CallccSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
