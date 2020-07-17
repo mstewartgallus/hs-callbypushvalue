@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bb60dc967e6304fc3950f1270e65af264dcfec95fa8e0c03b1ab6ad4d037083b
+-- hash: 046f5209b98e2836957e8908a134a0a8daef00f74b51e7d62087385cceec9abd
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       AsCallcc
       AsCbpv
       AsCps
+      AsText
       Callcc
       Cbpv
       Common
@@ -61,7 +62,6 @@ library
       Unique
       Variable
       VarMap
-      View
   other-modules:
       Paths_cpbv
   hs-source-dirs:

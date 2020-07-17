@@ -26,7 +26,7 @@ import qualified Porcelain
 import qualified Pure
 import qualified SystemF as F
 import TextShow
-import View
+import AsText
 
 iterTerm = 20
 
@@ -124,27 +124,27 @@ optimizeCps = loop iterCps
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
-  T.putStrLn (View.extract program)
+  T.putStrLn (AsText.extract program)
 
   let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (F.build program)
 
   putStrLn "\nOptimized Term:"
-  T.putStrLn (View.extract (F.abstract optTerm))
+  T.putStrLn (AsText.extract (F.abstract optTerm))
 
   putStrLn "\nCall By Push Value:"
-  T.putStrLn (View.extract (Cbpv.abstractCode cbpv))
+  T.putStrLn (AsText.extract (Cbpv.abstractCode cbpv))
 
   putStrLn "\nIntrinsified:"
-  T.putStrLn (View.extract (Cbpv.abstractCode intrinsified))
+  T.putStrLn (AsText.extract (Cbpv.abstractCode intrinsified))
 
   putStrLn "\nOptimized Intrinsified:"
-  T.putStrLn (View.extract (Cbpv.abstractCode optIntrinsified))
+  T.putStrLn (AsText.extract (Cbpv.abstractCode optIntrinsified))
 
   putStrLn "\nCatch/Throw:"
-  T.putStrLn (View.extract (Callcc.abstractCode catchThrow))
+  T.putStrLn (AsText.extract (Callcc.abstractCode catchThrow))
 
   putStrLn "\nOptimized Catch/Throw:"
-  T.putStrLn (View.extract (Callcc.abstractCode optCatchThrow))
+  T.putStrLn (AsText.extract (Callcc.abstractCode optCatchThrow))
 
   putStrLn "\nCps:"
   printT cps
@@ -164,13 +164,13 @@ main = do
 
   return ()
 
-viewTerm :: F.Term a -> CodeRep View a
+viewTerm :: F.Term a -> CodeRep AsText a
 viewTerm c = F.abstract c
 
-view :: Cbpv.Code a -> CodeRep View a
+view :: Cbpv.Code a -> CodeRep AsText a
 view c = Cbpv.abstractCode c
 
-viewCc :: Callcc.Code a -> CodeRep View a
+viewCc :: Callcc.Code a -> CodeRep AsText a
 viewCc c = Callcc.abstractCode c
 
 t :: Word64 -> Interpreter.Value (U (F U64))
