@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Cbpv (abstractCode, build, Builder, Cbpv (..), simplifyExtract) where
+module Cbpv (build, Builder, Cbpv (..), simplifyExtract) where
 
 import Common
 import Constant (Constant)

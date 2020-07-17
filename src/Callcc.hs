@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Callcc (build, Builder (..), Callcc (..), Stack, Code, Data, simplify, abstractCode, abstractData) where
+module Callcc (Builder, Callcc (..), simplifyExtract) where
 
 import Common
 import Constant (Constant)
@@ -27,6 +27,9 @@ import qualified Unique
 import qualified VarMap
 import VarMap (VarMap)
 import Variable
+
+simplifyExtract :: Callcc t => CodeRep Builder a -> CodeRep t a
+simplifyExtract term = abstractCode (simplify (build term))
 
 class (HasStack t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, HasReturn t) => Callcc t where
   catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a

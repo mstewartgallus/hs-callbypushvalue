@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsCps (toContinuationPassingStyle) where
+module AsCps (toContinuationPassingStyle, AsCps) where
 
 import qualified Callcc
 import Common
@@ -22,9 +22,8 @@ import HasStack
 import HasThunk
 import Tuple
 
-toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Callcc.Code a -> DataRep t (U a)
-toContinuationPassingStyle code = case Callcc.abstractCode code of
-  CodeCallcc t x -> HasThunk.thunk t x
+toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => CodeRep (AsCps t) a -> DataRep t (U a)
+toContinuationPassingStyle (CodeCallcc t x) = HasThunk.thunk t x
 
 data AsCps t
 

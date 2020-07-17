@@ -11,6 +11,7 @@ import qualified AsIntrinsified
 import qualified AsPorcelain
 import AsText
 import qualified Callcc
+import Callcc (Callcc)
 import Cbpv (Cbpv)
 import qualified Cbpv
 import Common
@@ -57,8 +58,8 @@ phases ::
     Program Cbpv a,
     Program Cbpv a,
     Program Cbpv a,
-    Callcc.Code a,
-    Callcc.Code a,
+    Program Callcc a,
+    Program Callcc a,
     Cps.Data (U a),
     Cps.Data (U a)
   )
@@ -67,14 +68,17 @@ phases term =
       cbpv = cbpvProgram (AsCbpv.extract (Program.interpret optTerm))
       intrinsified = cbpvProgram (AsIntrinsified.extract (Program.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
-      catchThrow = Callcc.build (AsCallcc.extract (Program.interpret optIntrinsified))
+      catchThrow = callccProgram (AsCallcc.extract (Program.interpret optIntrinsified))
       optCatchThrow = optimizeCallcc catchThrow
-      cps = Cps.build (toContinuationPassingStyle optCatchThrow)
+      cps = Cps.build (toContinuationPassingStyle (Program.interpret optCatchThrow))
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
 cbpvProgram :: (forall t. Cbpv t => CodeRep t a) -> Program Cbpv a
 cbpvProgram = Program
+
+callccProgram :: (forall t. Callcc t => CodeRep t a) -> Program Callcc a
+callccProgram = Program
 
 type OptF t = F.Simplifier (MonoInliner (CostInliner t))
 
@@ -104,21 +108,18 @@ optimizeCbpv = loop iterCbpv
     loop 0 term = term
     loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
-optimizeCallcc :: Callcc.Code a -> Callcc.Code a
+optimizeCallcc :: Program Callcc a -> Program Callcc a
 optimizeCallcc = loop iterCallcc
   where
-    loop :: Int -> Callcc.Code a -> Callcc.Code a
+    step :: Callcc t => CodeRep Callcc.Builder a -> CodeRep t a
+    step term =
+      let simplified = Callcc.simplifyExtract term
+          monoInlined = MonoInliner.extract simplified
+          inlined = CostInliner.extract monoInlined
+       in inlined
+    loop :: Int -> Program Callcc a -> Program Callcc a
     loop 0 term = term
-    loop n term =
-      loop (n - 1) ((costInline . monoInline . Callcc.simplify) term)
-    monoInline :: Callcc.Code a -> Callcc.Code a
-    monoInline term =
-      let x = MonoInliner.extract (Callcc.abstractCode term)
-       in Callcc.build x
-    costInline :: Callcc.Code a -> Callcc.Code a
-    costInline term =
-      let x = CostInliner.extract (Callcc.abstractCode term)
-       in Callcc.build x
+    loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
 optimizeCps :: Cps.Data a -> Cps.Data a
 optimizeCps = loop iterCps
@@ -156,10 +157,10 @@ main = do
   T.putStrLn (AsText.extract (Program.interpret optIntrinsified))
 
   putStrLn "\nCatch/Throw:"
-  T.putStrLn (AsText.extract (Callcc.abstractCode catchThrow))
+  T.putStrLn (AsText.extract (Program.interpret catchThrow))
 
   putStrLn "\nOptimized Catch/Throw:"
-  T.putStrLn (AsText.extract (Callcc.abstractCode optCatchThrow))
+  T.putStrLn (AsText.extract (Program.interpret optCatchThrow))
 
   putStrLn "\nCps:"
   T.putStrLn (AsText.extractData (Cps.abstract cps))
