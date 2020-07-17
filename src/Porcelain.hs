@@ -15,6 +15,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasLetLabel
 import HasStack
 import HasThunk
 import TextShow
@@ -62,6 +63,8 @@ instance HasConstants X where
 instance Tuple X
 
 instance HasLet X
+
+instance HasLetLabel X
 
 instance HasThunk X where
   force (XD thunk) (XS k) = XC $ do

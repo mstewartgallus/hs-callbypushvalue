@@ -17,6 +17,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasLetLabel
 import HasStack
 import HasThunk
 import Label
@@ -54,7 +55,7 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCode t, HasStack t, HasLet t, HasThunk t, Tuple t) => Cps t where
+class (HasConstants t, HasCode t, HasStack t, HasLetLabel t, HasLet t, HasThunk t, Tuple t) => Cps t where
   throw :: StackRep t (F a) -> DataRep t a -> CodeRep t Void
 
   letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
@@ -82,6 +83,15 @@ instance HasLet Builder where
           CB y ->
             let y' = y ys
              in LetBeCode x' binder y'
+
+instance HasLetLabel Builder where
+  letLabel (SB x) f = CB $ \(Unique.Stream newId xs ys) ->
+    let (xt, x') = x xs
+        binder = Label xt newId
+     in case f (SB $ \_ -> (xt, LabelStack binder)) of
+          CB y ->
+            let y' = y ys
+             in LetLabelCode x' binder y'
 
 instance HasConstants Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)

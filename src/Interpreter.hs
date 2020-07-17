@@ -17,6 +17,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasLetLabel
 import HasStack
 import HasThunk
 import Tuple
@@ -66,6 +67,9 @@ instance Tuple X where
 
 instance HasLet X where
   letBe x f = f x
+
+instance HasLetLabel X where
+  letLabel x f = f x
 
 instance HasThunk X where
   lambda (K (Apply h t)) f = f (V h) (K t)

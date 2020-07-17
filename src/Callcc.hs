@@ -72,10 +72,10 @@ instance Pure.Pure Builder where
   pure (DB t value) = CB (SF t) $ pure ReturnCode <*> value
 
 instance HasLet Builder where
-  letBe x@(DB t xs) f =
-    let CB bt _ = f (DB t (pure undefined))
+  letBe x@(DB t vx) f =
+    let CB bt _ = f x
      in CB bt $ do
-          x' <- xs
+          x' <- vx
           v <- pure (Variable t) <*> Unique.uniqueId
           let CB _ body = f ((DB t . pure) $ VariableData v)
           body' <- body
