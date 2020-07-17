@@ -1,10 +1,11 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module CostInliner (extract, CostInliner (..)) where
+module CostInliner (extract, extractData, CostInliner (..)) where
 
 import qualified Callcc
 import Cbpv
 import Common
+import qualified Cps
 import qualified Data.Text as T
 import Explicit
 import Global
@@ -13,6 +14,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetLabel
 import HasStack
 import qualified HasThunk
 import Name
@@ -24,6 +26,9 @@ import Prelude hiding ((<*>))
 
 extract :: CodeRep (CostInliner t) a -> CodeRep t a
 extract (I _ x) = x
+
+extractData :: DataRep (CostInliner t) a -> DataRep t a
+extractData (CS _ x) = x
 
 -- | Tagless final newtype to inline letBe clauses based on a simple
 -- cost model
@@ -86,6 +91,17 @@ instance HasLet t => HasLet (CostInliner t) where
         I _ y -> y
       I fcost _ = f (CS 0 x)
 
+instance HasLetLabel t => HasLetLabel (CostInliner t) where
+  letLabel (SB xcost x) f = result
+    where
+      result
+        | inlineCost <= 1 = inlined
+        | otherwise = notinlined
+      inlined@(I inlineCost _) = f (SB 1 x)
+      notinlined = I (xcost + fcost + 1) $ letLabel x $ \x' -> case f (SB 0 x') of
+        I _ y -> y
+      I fcost _ = f (SB 0 x)
+
 instance Explicit t => Explicit (CostInliner t) where
   letTo (I xcost x) f =
     let -- fixme... figure out a better probe...
@@ -122,6 +138,16 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
      in I (fcost + 1) $ Callcc.catch t $ \x' -> case f (SB 0 x') of
           I _ y -> y
   throw (SB scost stack) (I xcost x) = I (scost + xcost + 1) (Callcc.throw stack x)
+
+instance (Cps.Cps t) => Cps.Cps (CostInliner t) where
+  letTo t f =
+    let I fcost _ = f (CS 0 undefined)
+     in SB fcost $ Cps.letTo t $ \x' -> case f (CS 0 x') of
+          I _ y -> y
+
+  throw (SB tcost stk) (CS scost c) = I (tcost + scost) (Cps.throw stk c)
+
+  apply (CS xcost x) (SB kcost k) = SB (xcost + kcost) $ Cps.apply x k
 
 probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

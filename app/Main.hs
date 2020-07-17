@@ -117,9 +117,15 @@ optimizeCps = loop iterCps
     loop :: Int -> Cps.Data a -> Cps.Data a
     loop 0 term = term
     loop n term =
-      let simplified = Cps.simplify term
-          inlined = Cps.build (Cps.inline simplified)
-       in loop (n - 1) inlined
+      loop (n - 1) ((costInline . monoInline . Cps.simplify) term)
+    monoInline :: Cps.Data a -> Cps.Data a
+    monoInline term =
+      let x = MonoInliner.extractData (Cps.abstract term)
+       in Cps.build x
+    costInline :: Cps.Data a -> Cps.Data a
+    costInline term =
+      let x = CostInliner.extractData (Cps.abstract term)
+       in Cps.build x
 
 main :: IO ()
 main = do

@@ -2,11 +2,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module MonoInliner (extract, MonoInliner (..)) where
+module MonoInliner (extract, extractData, MonoInliner (..)) where
 
 import qualified Callcc
 import Cbpv
 import Common
+import qualified Cps
 import qualified Data.Text as T
 import Explicit
 import Global
@@ -15,6 +16,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetLabel
 import HasStack
 import qualified HasThunk
 import Name
@@ -29,6 +31,9 @@ data MonoInliner t
 
 extract :: CodeRep (MonoInliner t) a -> CodeRep t a
 extract (M _ x) = x
+
+extractData :: DataRep (MonoInliner t) a -> DataRep t a
+extractData (MS _ x) = x
 
 instance HasCode t => HasCode (MonoInliner t) where
   data CodeRep (MonoInliner t) a = M Int (CodeRep t a)
@@ -59,6 +64,17 @@ instance HasLet t => HasLet (MonoInliner t) where
       notinlined = M (xcost + fcost) $ letBe x $ \x' -> case f (MS 0 x') of
         M _ y -> y
       M fcost _ = f (MS 0 x)
+
+instance HasLetLabel t => HasLetLabel (MonoInliner t) where
+  letLabel (SB xcost x) f = result
+    where
+      result
+        | inlineCost <= 1 = inlined
+        | otherwise = notinlined
+      inlined@(M inlineCost _) = f (SB 1 x)
+      notinlined = M (xcost + fcost) $ letLabel x $ \x' -> case f (SB 0 x') of
+        M _ y -> y
+      M fcost _ = f (SB 0 x)
 
 instance Explicit t => Explicit (MonoInliner t) where
   letTo (M xcost x) f =
@@ -96,6 +112,16 @@ instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
      in M fcost $ Callcc.catch t $ \x' -> case f (SB 0 x') of
           M _ y -> y
   throw (SB scost stack) (M xcost x) = M (scost + xcost) (Callcc.throw stack x)
+
+instance (Cps.Cps t) => Cps.Cps (MonoInliner t) where
+  letTo t f =
+    let M fcost _ = f (MS 0 undefined)
+     in SB fcost $ Cps.letTo t $ \x' -> case f (MS 0 x') of
+          M _ y -> y
+
+  throw (SB tcost stk) (MS scost c) = M (tcost + scost) (Cps.throw stk c)
+
+  apply (MS xcost x) (SB kcost k) = SB (xcost + kcost) $ Cps.apply x k
 
 instance Pure.Pure t => Pure.Pure (MonoInliner t) where
   pure (MS cost k) = M cost (Pure.pure k)
