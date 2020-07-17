@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6d0a62a46ef971848df27f6bf3f769e2c30328e4839b8858debf02ab13662ae7
+-- hash: 7c92c83e2d53663024198b4104f724398d3a8edb946c0abea0bb91fb1b4874c3
 
 name:           cpbv
 version:        0.1.0.0
@@ -60,6 +60,7 @@ library
       Name
       Program
       SystemF
+      SystemFSimplifier
       Tuple
       Unique
       Value

@@ -37,6 +37,7 @@ import Program (Program (..))
 import qualified Program
 import SystemF (SystemF)
 import qualified SystemF as F
+import qualified SystemFSimplifier
 import TextShow
 import Value (Value (..))
 import qualified Value
@@ -88,14 +89,14 @@ callccProgram = Program
 cpsValue :: (forall t. Cps t => DataRep t a) -> Value Cps a
 cpsValue = Value
 
-type OptF t = F.Simplifier (MonoInliner (CostInliner t))
+type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
 
 optimizeTerm :: Program SystemF a -> Program SystemF a
 optimizeTerm = loop iterTerm
   where
     step :: SystemF t => CodeRep (OptF t) a -> CodeRep t a
     step term =
-      let simplified = F.simplify term
+      let simplified = SystemFSimplifier.simplify term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined

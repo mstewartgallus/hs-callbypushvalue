@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, Simplifier, SystemF (..)) where
+module SystemF (lam, SystemF (..)) where
 
 import Common
 import Constant (Constant)
@@ -37,48 +37,8 @@ class (HasGlobals t, HasConstants t, HasReturn t) => SystemF t where
     (CodeRep t a -> CodeRep t b -> CodeRep t c) ->
     CodeRep t c
 
+-- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
 lam :: (SystemF t, KnownAlgebra a) => (CodeRep t a -> CodeRep t b) -> CodeRep t (a :-> b)
 lam = lambda inferAlgebra
 
 infixl 4 <*>
-
--- fixme... factor out ?
-
-simplify :: SystemF t => CodeRep (Simplifier t) a -> CodeRep t a
-simplify (S _ x) = x
-
-data Simplifier t
-
-data MaybeFn t a where
-  Fn :: (CodeRep t a -> CodeRep t b) -> MaybeFn t (a :-> b)
-  NotFn :: MaybeFn t a
-
-instance HasCode t => HasCode (Simplifier t) where
-  data CodeRep (Simplifier t) a = S (MaybeFn t a) (CodeRep t a)
-
-instance HasData t => HasData (Simplifier t) where
-  newtype DataRep (Simplifier t) a = SS (DataRep t a)
-
-instance HasGlobals t => HasGlobals (Simplifier t) where
-  global g = S NotFn (global g)
-
-instance HasConstants t => HasConstants (Simplifier t) where
-  constant k = SS (constant k)
-  unit = SS unit
-
-instance HasReturn t => HasReturn (Simplifier t) where
-  returns (SS k) = S NotFn (returns k)
-
-instance SystemF t => SystemF (Simplifier t) where
-  pair (S _ x) (S _ y) = S NotFn (pair x y)
-
-  letBe (S _ x) f = S NotFn $ letBe x $ \x' -> case f (S NotFn x') of
-    S _ y -> y
-
-  lambda t f =
-    let f' x' = case f (S NotFn x') of
-          S _ y -> y
-     in S (Fn f') $ lambda t f'
-
-  S NotFn f <*> S _ x = S NotFn (f <*> x)
-  S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
