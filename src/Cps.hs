@@ -18,6 +18,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasThunk
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -53,13 +54,11 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCode t, HasStack t, HasLet t, Tuple t) => Cps t where
+class (HasConstants t, HasCode t, HasStack t, HasLet t, HasThunk t, Tuple t) => Cps t where
   global :: Global a -> StackRep t a -> CodeRep t Void
 
   throw :: StackRep t (F a) -> DataRep t a -> CodeRep t Void
-  force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
 
-  thunk :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> DataRep t (U a)
   letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
 
   lambda :: StackRep t (a :=> b) -> (DataRep t a -> StackRep t b -> CodeRep t Void) -> CodeRep t Void
@@ -96,6 +95,18 @@ instance Tuple Builder where
         (yt, y') = y xs
      in (SPair xt yt, PairData x' y')
 
+instance HasThunk Builder where
+  thunk t f = DB $ \(Unique.Stream newId xs ys) ->
+    let binder = Label t newId
+     in case f (SB $ \_ -> (t, LabelStack binder)) of
+          CB y ->
+            let y' = y ys
+             in (SU t, ThunkData binder y')
+  force (DB k) (SB x) = CB $ \(Unique.Stream _ ks xs) ->
+    let (_, k') = k ks
+        (_, x') = x xs
+     in ForceCode k' x'
+
 instance Cps Builder where
   global g (SB k) = CB $ \s ->
     let (_, k') = k s
@@ -107,21 +118,11 @@ instance Cps Builder where
           CB y ->
             let y' = y ys
              in (SF t, ToStack binder y')
-  thunk t f = DB $ \(Unique.Stream newId xs ys) ->
-    let binder = Label t newId
-     in case f (SB $ \_ -> (t, LabelStack binder)) of
-          CB y ->
-            let y' = y ys
-             in (SU t, ThunkData binder y')
 
   throw (SB k) (DB x) = CB $ \(Unique.Stream _ ks xs) ->
     let (_, k') = k ks
         (_, x') = x xs
      in ThrowCode k' x'
-  force (DB k) (SB x) = CB $ \(Unique.Stream _ ks xs) ->
-    let (_, k') = k ks
-        (_, x') = x xs
-     in ForceCode k' x'
 
   lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
     let (a `SFn` b, k') = k ks

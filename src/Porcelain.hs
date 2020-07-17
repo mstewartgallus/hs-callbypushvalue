@@ -16,6 +16,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasThunk
 import TextShow
 import Tuple
 import qualified Unique
@@ -62,21 +63,23 @@ instance Tuple X
 
 instance HasLet X
 
-instance Cps.Cps X where
-  throw (XS k) (XD value) = XC $ do
-    k' <- k
-    value' <- value
-    pure $ node $ atom "throw" <> ws <> k' <> ws <> value'
+instance HasThunk X where
   force (XD thunk) (XS k) = XC $ do
     thunk' <- thunk
     k' <- k
     pure $ node $ atom "force" <> ws <> thunk' <> ws <> k'
-
   thunk t f = XD $ do
     v <- fresh
     let XC body = f (XS $ pure v)
     body' <- body
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
+
+instance Cps.Cps X where
+  throw (XS k) (XD value) = XC $ do
+    k' <- k
+    value' <- value
+    pure $ node $ atom "throw" <> ws <> k' <> ws <> value'
+
   letTo t f = XS $ do
     v <- fresh
     let XC body = f (XD $ pure v)

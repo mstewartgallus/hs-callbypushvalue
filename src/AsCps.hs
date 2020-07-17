@@ -17,12 +17,13 @@ import HasData
 import HasGlobals
 import HasLet
 import HasStack
+import HasThunk
 import qualified Pure
 import Tuple
 
 toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Callcc.Code a -> DataRep t (U a)
 toContinuationPassingStyle code = case Callcc.abstractCode code of
-  CodeCallcc t x -> Cps.thunk t x
+  CodeCallcc t x -> HasThunk.thunk t x
 
 data AsCps t
 
@@ -71,17 +72,18 @@ instance (Cps.Cps t) => Explicit (AsCps t) where
 
 instance (HasCode t, Cps.Cps t) => Tuple (AsCps t)
 
-instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
-  thunk t f = DataCallcc (SU t) $ Cps.thunk t $ \k ->
+instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
+  thunk t f = DataCallcc (SU t) $ HasThunk.thunk t $ \k ->
     case f (SB t k) of
       CodeCallcc _ y -> y Cps.nil
 
   force (DataCallcc _ thunk) (SB _ stack) = CodeCallcc SVoid $ \_ ->
-    Cps.force thunk stack
+    HasThunk.force thunk stack
 
+instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
   catch t f = CodeCallcc t $ \k ->
-    Cps.force
-      ( Cps.thunk t $ \k' ->
+    HasThunk.force
+      ( HasThunk.thunk t $ \k' ->
           case f (SB t k') of
             CodeCallcc _ y -> y Cps.nil
       )

@@ -18,6 +18,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasThunk
 import Tuple
 
 evaluate :: Data a -> Value a
@@ -66,12 +67,14 @@ instance Tuple X where
 instance HasLet X where
   letBe x f = f x
 
-instance Cps X where
-  throw (K (Returns k)) (V x) = C (k x)
-  force (V (Thunk f)) (K x) = C (f x)
-
+instance HasThunk X where
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
+  force (V (Thunk f)) (K x) = C (f x)
+
+instance Cps X where
+  throw (K (Returns k)) (V x) = C (k x)
+
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
 

@@ -18,6 +18,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasStack
+import HasThunk
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -28,12 +29,9 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (HasStack t, HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
+class (HasStack t, HasGlobals t, HasConstants t, HasLet t, HasThunk t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
   catch :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> CodeRep t a
   throw :: StackRep t a -> CodeRep t a -> CodeRep t Void
-
-  thunk :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> DataRep t (U a)
-  force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
 
 data Code a where
   GlobalCode :: Global a -> Code a
@@ -132,7 +130,7 @@ instance Tuple Builder
 instance HasStack Builder where
   data StackRep Builder a = SB (SAlgebra a) (Unique.State (Stack a))
 
-instance Callcc Builder where
+instance HasThunk Builder where
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
     let CB _ body = f ((SB t . pure) $ LabelStack v)
@@ -142,6 +140,7 @@ instance Callcc Builder where
     CB SVoid $
       pure ForceCode <*> thunk <*> stack
 
+instance Callcc Builder where
   catch t f = CB t $ do
     v <- pure (Label t) <*> Unique.uniqueId
     let CB _ body = f ((SB t . pure) $ LabelStack v)

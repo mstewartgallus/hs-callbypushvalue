@@ -14,6 +14,7 @@ import HasData
 import HasGlobals
 import HasLet
 import HasStack
+import qualified HasThunk
 import Name
 import qualified Pure
 import qualified SystemF as F
@@ -103,13 +104,14 @@ instance Cbpv t => Cbpv (CostInliner t) where
   force (CS cost thunk) = I (cost + 1) (force thunk)
   thunk (I cost code) = CS (cost + 1) (thunk code)
 
-instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
+instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
   thunk t f =
     let I fcost _ = f (SB 0 undefined)
-     in CS (fcost + 1) $ Callcc.thunk t $ \x' -> case f (SB 0 x') of
+     in CS (fcost + 1) $ HasThunk.thunk t $ \x' -> case f (SB 0 x') of
           I _ y -> y
-  force (CS tcost thunk) (SB scost stack) = I (tcost + scost + 1) (Callcc.force thunk stack)
+  force (CS tcost thunk) (SB scost stack) = I (tcost + scost + 1) (HasThunk.force thunk stack)
 
+instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
   catch t f =
     let I fcost _ = f (SB 0 undefined)
      in I (fcost + 1) $ Callcc.catch t $ \x' -> case f (SB 0 x') of

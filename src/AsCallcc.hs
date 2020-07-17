@@ -17,6 +17,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import qualified HasThunk
 import qualified Pure
 import qualified SystemF
 import Tuple
@@ -64,6 +65,6 @@ instance Explicit t => Explicit (AsCallcc t) where
 instance Tuple t => Tuple (AsCallcc t)
 
 instance Callcc.Callcc t => Cbpv.Cbpv (AsCallcc t) where
-  force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (Callcc.force thunk)
-  thunk (CodeCallcc t code) = DataCallcc (SU t) $ Callcc.thunk t $ \x ->
+  force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (HasThunk.force thunk)
+  thunk (CodeCallcc t code) = DataCallcc (SU t) $ HasThunk.thunk t $ \x ->
     Callcc.throw x code
