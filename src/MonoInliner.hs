@@ -67,18 +67,21 @@ instance Explicit t => Explicit (MonoInliner t) where
      in M (xcost + fcost) $ letTo x $ \x' -> case f (MS 0 x') of
           M _ y -> y
 
+  apply (M fcost f) (MS xcost x) = M (fcost + xcost) (apply f x)
+
+instance Cbpv t => Cbpv (MonoInliner t) where
   lambda t f =
     let M fcost _ = f (MS 0 undefined)
      in M fcost $ lambda t $ \x' -> case f (MS 0 x') of
           M _ y -> y
-
-  apply (M fcost f) (MS xcost x) = M (fcost + xcost) (apply f x)
-
-instance Cbpv t => Cbpv (MonoInliner t) where
   force (MS cost thunk) = M cost (force thunk)
   thunk (M cost code) = MS cost (thunk code)
 
 instance HasThunk.HasThunk t => HasThunk.HasThunk (MonoInliner t) where
+  lambda (SB kcost k) f =
+    let M fcost _ = f (MS 0 undefined) (SB 0 undefined)
+     in M (kcost + fcost) $ HasThunk.lambda k $ \x n -> case f (MS 0 x) (SB 0 n) of
+          M _ y -> y
   thunk t f =
     let M fcost _ = f (SB 0 undefined)
      in MS fcost $ HasThunk.thunk t $ \x' -> case f (SB 0 x') of

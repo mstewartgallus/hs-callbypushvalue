@@ -35,7 +35,7 @@ class (HasStack t, HasGlobals t, HasConstants t, HasLet t, HasThunk t, Explicit 
 
 data Code a where
   GlobalCode :: Global a -> Code a
-  LambdaCode :: Variable a -> Code b -> Code (a :=> b)
+  LambdaCode :: Stack (a :=> b) -> Variable a -> Label b -> Code c -> Code c
   ApplyCode :: Code (a :=> b) -> Data a -> Code b
   ReturnCode :: Data a -> Code (F a)
   LetBeCode :: Data a -> Variable a -> Code b -> Code b
@@ -94,13 +94,6 @@ instance Explicit Builder where
           let CB _ body = f ((DB t . pure) $ VariableData v)
           body' <- body
           pure $ LetToCode x' v body'
-  lambda t f =
-    let CB result _ = f (DB t (pure undefined))
-     in CB (t `SFn` result) $ do
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableData v)
-          body' <- body
-          pure $ LambdaCode v body'
   apply (CB (_ `SFn` b) f) (DB _ x) =
     CB b $
       pure ApplyCode <*> f <*> x
@@ -111,6 +104,15 @@ instance HasStack Builder where
   data StackRep Builder a = SB (SAlgebra a) (Unique.State (Stack a))
 
 instance HasThunk Builder where
+  lambda (SB (t `SFn` result) k) f =
+    let CB bt _ = f ((DB t . pure) $ undefined) ((SB result . pure) $ undefined)
+     in CB bt $ do
+          v <- pure (Variable t) <*> Unique.uniqueId
+          l <- pure (Label result) <*> Unique.uniqueId
+          let CB _ body = f ((DB t . pure) $ VariableData v) ((SB result . pure) $ LabelStack l)
+          body' <- body
+          k' <- k
+          pure $ LambdaCode k' v l body'
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
     let CB _ body = f ((SB t . pure) $ LabelStack v)
@@ -148,18 +150,23 @@ abstractCode' lenv env code = case code of
     let f' = abstractCode' lenv env f
         x' = abstractData' lenv env x
      in apply f' x'
-  LambdaCode binder@(Variable t _) body -> lambda t $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' lenv env' body
+  LambdaCode k binder@(Variable t _) lbl@(Label n _) body ->
+    lambda (abstractStack lenv env k) $ \x n ->
+      let env' = VarMap.insert binder x env
+          lenv' = LabelMap.insert lbl n lenv
+       in abstractCode' lenv' env' body
   ReturnCode val -> Pure.pure (abstractData' lenv env val)
   GlobalCode g -> global g
   CatchCode lbl@(Label t _) body -> catch t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv
      in abstractCode' lenv' env body
-  ThrowCode (LabelStack lbl) value -> case LabelMap.lookup lbl lenv of
-    Just stk -> throw stk (abstractCode' lenv env value)
+  ThrowCode k value -> throw (abstractStack lenv env k) (abstractCode' lenv env value)
   ForceCode thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
     Just stk -> force (abstractData' lenv env thunk) stk
+
+abstractStack :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Stack x -> StackRep t x
+abstractStack lenv _ (LabelStack lbl) = case LabelMap.lookup lbl lenv of
+  Just stk -> stk
 
 abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Data x -> DataRep t x
 abstractData' lenv env x = case x of
@@ -180,8 +187,7 @@ simplify = simpCode
 simpCode :: Code a -> Code a
 simpCode code = case code of
   LetToCode (ReturnCode value) binder body -> simpCode (LetBeCode value binder body)
-  ApplyCode (LambdaCode binder body) value -> simpCode (LetBeCode value binder body)
-  LambdaCode binder body -> LambdaCode binder (simpCode body)
+  LambdaCode k binder lbl body -> LambdaCode k binder lbl (simpCode body)
   ApplyCode f x -> ApplyCode (simpCode f) (simpData x)
   LetBeCode thing binder body -> LetBeCode (simpData thing) binder (simpCode body)
   LetToCode act binder body -> LetToCode (simpCode act) binder (simpCode body)

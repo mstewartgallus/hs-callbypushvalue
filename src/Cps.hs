@@ -61,7 +61,6 @@ class (HasConstants t, HasCode t, HasStack t, HasLet t, HasThunk t, Tuple t) => 
 
   letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
 
-  lambda :: StackRep t (a :=> b) -> (DataRep t a -> StackRep t b -> CodeRep t Void) -> CodeRep t Void
   apply :: DataRep t a -> StackRep t b -> StackRep t (a :=> b)
 
   nil :: StackRep t Void
@@ -96,6 +95,15 @@ instance Tuple Builder where
      in (SPair xt yt, PairData x' y')
 
 instance HasThunk Builder where
+  lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
+    let (a `SFn` b, k') = k ks
+        binder = Variable a aId
+        label = Label b bId
+     in case f (DB $ \_ -> (a, VariableData binder)) (SB $ \_ -> (b, LabelStack label)) of
+          CB y ->
+            let y' = y ys
+             in LambdaCode k' binder label y'
+
   thunk t f = DB $ \(Unique.Stream newId xs ys) ->
     let binder = Label t newId
      in case f (SB $ \_ -> (t, LabelStack binder)) of
@@ -124,14 +132,6 @@ instance Cps Builder where
         (_, x') = x xs
      in ThrowCode k' x'
 
-  lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
-    let (a `SFn` b, k') = k ks
-        binder = Variable a aId
-        label = Label b bId
-     in case f (DB $ \_ -> (a, VariableData binder)) (SB $ \_ -> (b, LabelStack label)) of
-          CB y ->
-            let y' = y ys
-             in LambdaCode k' binder label y'
   apply (DB x) (SB k) = SB $ \(Unique.Stream _ ks xs) ->
     let (xt, x') = x xs
         (kt, k') = k ks

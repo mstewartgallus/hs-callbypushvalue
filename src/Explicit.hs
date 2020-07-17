@@ -10,5 +10,4 @@ import HasData
 
 class (HasData t, HasCode t) => Explicit t where
   letTo :: CodeRep t (F a) -> (DataRep t a -> CodeRep t b) -> CodeRep t b
-  lambda :: SSet a -> (DataRep t a -> CodeRep t b) -> CodeRep t (a :=> b)
   apply :: CodeRep t (a :=> b) -> DataRep t a -> CodeRep t b

@@ -73,6 +73,13 @@ instance HasThunk X where
     let XC body = f (XS $ pure v)
     body' <- body
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
+  lambda (XS k) f = XC $ do
+    k' <- k
+    x <- fresh
+    t <- fresh
+    let XC body = f (XD $ pure x) (XS $ pure t)
+    body' <- body
+    pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> t <> ws <> body'
 
 instance Cps.Cps X where
   throw (XS k) (XD value) = XC $ do
@@ -86,13 +93,6 @@ instance Cps.Cps X where
     body' <- body
     pure $ node $ atom "to" <> ws <> v <> ws <> pType t <> ws <> body'
 
-  lambda (XS k) f = XC $ do
-    k' <- k
-    x <- fresh
-    t <- fresh
-    let XC body = f (XD $ pure x) (XS $ pure t)
-    body' <- body
-    pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> t <> ws <> body'
   apply (XD h) (XS t) = XS $ do
     h' <- h
     t' <- t

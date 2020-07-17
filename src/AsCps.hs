@@ -62,17 +62,17 @@ instance (Cps.Cps t) => Explicit (AsCps t) where
                 case f (DataCallcc t val) of
                   CodeCallcc _ f' -> f' k
             )
-
-  lambda t f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc (t `SFn` bt) $ \k -> Cps.lambda k $ \x k ->
-          let CodeCallcc _ body = f (DataCallcc t x)
-           in body k
   apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ \k -> f (Cps.apply x k)
 
 instance (HasCode t, Cps.Cps t) => Tuple (AsCps t)
 
 instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
+  lambda s@(SB (xt `SFn` r) lam) f =
+    let CodeCallcc ct _ = f (DataCallcc xt undefined) (SB r undefined)
+     in CodeCallcc ct $ \k -> HasThunk.lambda lam $ \x t ->
+          let CodeCallcc _ y = f (DataCallcc xt x) (SB r t)
+           in y k
+
   thunk t f = DataCallcc (SU t) $ HasThunk.thunk t $ \k ->
     case f (SB t k) of
       CodeCallcc _ y -> y Cps.nil

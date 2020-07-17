@@ -68,6 +68,7 @@ instance HasLet X where
   letBe x f = f x
 
 instance HasThunk X where
+  lambda (K (Apply h t)) f = f (V h) (K t)
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
   force (V (Thunk f)) (K x) = C (f x)
@@ -78,7 +79,6 @@ instance Cps X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
 
-  lambda (K (Apply h t)) f = f (V h) (K t)
   apply (V h) (K t) = K (Apply h t)
 
   nil = K Nil

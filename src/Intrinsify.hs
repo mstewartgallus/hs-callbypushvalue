@@ -60,13 +60,12 @@ instance Cbpv t => Explicit (Intrinsify t) where
   letTo (I x) f = I $ letTo x $ \x' ->
     let I body = f (IS x')
      in body
-
-  lambda t f = I $ lambda t $ \x ->
-    let I body = f (IS x)
-     in body
   apply (I f) (IS x) = I (apply f x)
 
 instance Cbpv t => Cbpv (Intrinsify t) where
+  lambda t f = I $ lambda t $ \x ->
+    let I body = f (IS x)
+     in body
   thunk (I x) = IS (thunk x)
   force (IS x) = I (force x)
 

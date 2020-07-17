@@ -78,13 +78,13 @@ instance Explicit View where
         V y = f (VS $ \_ -> binder)
      in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
 
+  apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+
+instance Cbpv.Cbpv View where
   lambda t f = V $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         V body = f (VS $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-  apply (V f) (VS x) = V $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
-
-instance Cbpv.Cbpv View where
   thunk (V code) = VS $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
 
@@ -92,6 +92,11 @@ instance HasStack.HasStack View where
   data StackRep View a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
 
 instance HasThunk.HasThunk View where
+  lambda (VStk k) f = V $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->
+    let binder = fromString "v" <> showb h
+        lbl = fromString "l" <> showb t
+        V body = f (VS $ \_ -> binder) (VStk $ \_ -> lbl)
+     in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
   thunk t f = VS $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
         V body = f (VStk $ \_ -> binder)

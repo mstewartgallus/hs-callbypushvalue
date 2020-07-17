@@ -28,6 +28,7 @@ import qualified VarMap as VarMap
 import Variable
 
 class (HasGlobals t, HasConstants t, HasLet t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
+  lambda :: SSet a -> (DataRep t a -> CodeRep t b) -> CodeRep t (a :=> b)
   thunk :: CodeRep t a -> DataRep t (U a)
   force :: DataRep t (U a) -> CodeRep t a
 
@@ -72,12 +73,6 @@ instance Explicit Builder where
             let (result, body) = b fs
              in (result, LetToCode vx binder body)
 
-  lambda t f = CB $ \(Unique.Stream newId xs fs) ->
-    let binder = Variable t newId
-     in case f (DB $ \_ -> (t, VariableData binder)) of
-          CB b ->
-            let (result, body) = b fs
-             in (t `SFn` result, LambdaCode binder body)
   apply (CB f) (DB x) = CB $ \(Unique.Stream _ fs xs) ->
     let (_ `SFn` b, vf) = f fs
         (_, vx) = x xs
@@ -90,6 +85,12 @@ instance Tuple Builder where
      in (SPair xt yt, PairData xv yv)
 
 instance Cbpv Builder where
+  lambda t f = CB $ \(Unique.Stream newId xs fs) ->
+    let binder = Variable t newId
+     in case f (DB $ \_ -> (t, VariableData binder)) of
+          CB b ->
+            let (result, body) = b fs
+             in (t `SFn` result, LambdaCode binder body)
   force (DB thunk) = CB $ \s ->
     let (SU t, thunk') = thunk s
      in (t, ForceCode thunk')
