@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d39930bf366e70ecf80c790593ecce20b40bb5d36944d0ae8aecc0d24817217a
+-- hash: caea7df5355d1dd3c9ee3ac038e497efc9d5fd1d473aed02abdfb49169132c6b
 
 name:           cpbv
 version:        0.1.0.0
@@ -57,6 +57,7 @@ library
       LabelMap
       MonoInliner
       Name
+      Program
       SystemF
       Tuple
       Unique

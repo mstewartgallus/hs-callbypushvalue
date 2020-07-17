@@ -1,10 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, simplify, Simplifier, box, SystemF (..), interpret, Term) where
+module SystemF (lam, simplify, Simplifier, SystemF (..)) where
 
 import Common
 import Constant (Constant)
@@ -43,10 +42,7 @@ lam = lambda inferAlgebra
 
 infixl 4 <*>
 
-newtype Term a = Term (forall t. SystemF t => CodeRep t a)
-
-interpret :: SystemF t => Term a -> CodeRep t a
-interpret (Term x) = x
+-- fixme... factor out ?
 
 simplify :: SystemF t => CodeRep (Simplifier t) a -> CodeRep t a
 simplify (S _ x) = x
@@ -86,6 +82,3 @@ instance SystemF t => SystemF (Simplifier t) where
 
   S NotFn f <*> S _ x = S NotFn (f <*> x)
   S (Fn f) _ <*> S _ x = S NotFn (letBe x f)
-
-box :: (forall t. SystemF t => CodeRep t a) -> Term a
-box = Term

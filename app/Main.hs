@@ -27,6 +27,9 @@ import qualified Interpreter
 import qualified Intrinsify
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
+import Program (Program (..))
+import qualified Program
+import SystemF (SystemF)
 import qualified SystemF as F
 import TextShow
 
@@ -38,7 +41,7 @@ iterCallcc = 20
 
 iterCps = 20
 
-program :: F.SystemF t => CodeRep t (F U64 :-> F U64 :-> F U64)
+program :: SystemF t => CodeRep t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \x ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -47,8 +50,8 @@ program = F.lam $ \x ->
       F.<*> (global Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
-  F.Term a ->
-  ( F.Term a,
+  Program SystemF a ->
+  ( Program SystemF a,
     Cbpv.Code a,
     Cbpv.Code a,
     Cbpv.Code a,
@@ -59,7 +62,7 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = Cbpv.build (AsCbpv.extract (F.interpret optTerm))
+      cbpv = Cbpv.build (AsCbpv.extract (Program.interpret optTerm))
       intrinsified = Cbpv.build (Intrinsify.intrinsify cbpv)
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = Callcc.build (AsCallcc.extract (Cbpv.abstractCode optIntrinsified))
@@ -70,18 +73,18 @@ phases term =
 
 type OptF t = F.Simplifier (MonoInliner (CostInliner t))
 
-optimizeTerm :: F.Term a -> F.Term a
+optimizeTerm :: Program SystemF a -> Program SystemF a
 optimizeTerm = loop iterTerm
   where
-    step :: F.SystemF t => CodeRep (OptF t) a -> CodeRep t a
+    step :: SystemF t => CodeRep (OptF t) a -> CodeRep t a
     step term =
       let simplified = F.simplify term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
-    loop :: Int -> F.Term a -> F.Term a
+    loop :: Int -> Program SystemF a -> Program SystemF a
     loop 0 term = term
-    loop n term = loop (n - 1) (F.box (step (F.interpret term)))
+    loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
 optimizeCbpv :: Cbpv.Code a -> Cbpv.Code a
 optimizeCbpv = loop iterCbpv
@@ -136,10 +139,10 @@ main = do
   putStrLn "Lambda Calculus:"
   T.putStrLn (AsText.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (F.box program)
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (Program program)
 
   putStrLn "\nOptimized Term:"
-  T.putStrLn (AsText.extract (F.interpret optTerm))
+  T.putStrLn (AsText.extract (Program.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract (Cbpv.abstractCode cbpv))
