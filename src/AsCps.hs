@@ -16,6 +16,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasLet
+import HasLetLabel
 import HasStack
 import HasThunk
 import qualified Pure
@@ -79,12 +80,9 @@ instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
 
   call g (SB _ k) = CodeCallcc SVoid $ \_ -> HasThunk.call g k
 
-instance (HasCode t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
-  catch t f = CodeCallcc t $ \k ->
-    HasThunk.force
-      ( HasThunk.thunk t $ \k' ->
-          case f (SB t k') of
-            CodeCallcc _ y -> y Cps.nil
-      )
-      k
+instance (HasLetLabel t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
+  catch t f = CodeCallcc t $ \k -> letLabel k $ \k' ->
+    case f (SB t k') of
+      CodeCallcc _ y -> y Cps.nil
+
   throw (SB _ x) (CodeCallcc _ f) = CodeCallcc SVoid $ \_ -> f x
