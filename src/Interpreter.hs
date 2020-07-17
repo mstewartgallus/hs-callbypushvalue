@@ -7,7 +7,6 @@
 module Interpreter (evaluate, Value (..), Kont (..), R (..)) where
 
 import Common
-import Const
 import Constant
 import Core
 import Cps
@@ -15,6 +14,7 @@ import Data.Word
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
+import HasConstants
 import HasData
 import Tuple
 
@@ -50,7 +50,7 @@ instance HasData X where
 instance HasCode X where
   newtype AlgRep X a = C R
 
-instance Const X where
+instance HasConstants X where
   constant (U64Constant x) = V (I x)
   unit = V Coin
 

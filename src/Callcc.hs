@@ -6,16 +6,16 @@
 
 module Callcc (build, Builder (..), Callcc (..), Stack, Code, Data, typeOf, simplify, abstractCode, abstractData) where
 
-import Basic
 import Common
-import Const
 import Constant (Constant)
 import qualified Constant
 import Core
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
@@ -26,7 +26,7 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-class (Basic t, Const t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
+class (HasGlobals t, HasConstants t, Explicit t, Tuple t, Pure.Pure t) => Callcc t where
   data StackRep t :: Algebra -> *
 
   catch :: SAlgebra a -> (StackRep t a -> AlgRep t Void) -> AlgRep t a
@@ -87,10 +87,10 @@ instance HasCode Builder where
 instance HasData Builder where
   data SetRep Builder a = DB (SSet a) (Unique.State (Data a))
 
-instance Basic Builder where
+instance HasGlobals Builder where
   global g@(Global t _) = CB t $ pure (GlobalCode g)
 
-instance Const Builder where
+instance HasConstants Builder where
   constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
   unit = DB SUnit $ pure UnitData
 

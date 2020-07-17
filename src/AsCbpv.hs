@@ -4,16 +4,16 @@
 
 module AsCbpv (extract, AsCbpv (..)) where
 
-import Basic
 import Cbpv
 import Common
-import Const
 import qualified Constant
 import Core
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import qualified SystemF as F
 import Tuple
@@ -29,10 +29,10 @@ instance HasCode t => HasCode (AsCbpv t) where
 instance HasData t => HasData (AsCbpv t) where
   newtype SetRep (AsCbpv t) a = SetRep (SetRep t a)
 
-instance Basic t => Basic (AsCbpv t) where
+instance HasGlobals t => HasGlobals (AsCbpv t) where
   global g = AsCbpv (global g)
 
-instance Const t => Const (AsCbpv t) where
+instance HasConstants t => HasConstants (AsCbpv t) where
   unit = SetRep unit
   constant k = SetRep (constant k)
 

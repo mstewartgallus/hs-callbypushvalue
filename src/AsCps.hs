@@ -4,17 +4,17 @@
 
 module AsCps (toContinuationPassingStyle) where
 
-import Basic
 import qualified Callcc
 import Common
-import Const
 import qualified Constant
 import Core
 import qualified Cps
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import Tuple
 
@@ -30,10 +30,10 @@ instance HasCode t => HasCode (AsCps t) where
 instance HasData t => HasData (AsCps t) where
   data SetRep (AsCps t) a = DataCallcc (SSet a) (SetRep t a)
 
-instance (HasCode t, Cps.Cps t) => Basic (AsCps t) where
+instance (HasCode t, Cps.Cps t) => HasGlobals (AsCps t) where
   global g@(Global t _) = CodeCallcc t $ \stack -> Cps.global g stack
 
-instance (HasData t, Const t) => Const (AsCps t) where
+instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
 instance (HasCode t, Cps.Cps t) => Pure.Pure (AsCps t) where

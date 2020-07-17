@@ -5,7 +5,6 @@
 module Porcelain (porcelain) where
 
 import Common
-import Const
 import Constant
 import Core
 import qualified Cps
@@ -13,6 +12,7 @@ import Data.Text
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
+import HasConstants
 import HasData
 import TextShow
 import Tuple
@@ -50,7 +50,7 @@ instance HasData X where
 instance HasCode X where
   newtype AlgRep X a = XC (Unique.State Builder)
 
-instance Const X where
+instance HasConstants X where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x
 
 instance Tuple X

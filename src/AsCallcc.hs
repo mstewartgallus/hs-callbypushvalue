@@ -4,18 +4,18 @@
 
 module AsCallcc (extract, AsCallcc (..)) where
 
-import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
-import Const
 import qualified Constant
 import Core
 import qualified Cps
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import qualified SystemF
 import Tuple
@@ -31,10 +31,10 @@ instance HasCode t => HasCode (AsCallcc t) where
 instance HasData t => HasData (AsCallcc t) where
   data SetRep (AsCallcc t) a = DataCallcc (SSet a) (SetRep t a)
 
-instance Basic t => Basic (AsCallcc t) where
+instance HasGlobals t => HasGlobals (AsCallcc t) where
   global g@(Global t _) = CodeCallcc t (global g)
 
-instance Const t => Const (AsCallcc t) where
+instance HasConstants t => HasConstants (AsCallcc t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k
 
 instance Pure.Pure t => Pure.Pure (AsCallcc t) where

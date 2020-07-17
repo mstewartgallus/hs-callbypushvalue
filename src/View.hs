@@ -5,15 +5,15 @@
 
 module View (extract, View (..)) where
 
-import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
-import Const
 import qualified Data.Text as T
 import Explicit
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import qualified SystemF
 import TextShow
@@ -31,10 +31,10 @@ instance HasData View where
 instance HasCode View where
   newtype AlgRep View a = V (forall s. Unique.Stream s -> Builder)
 
-instance Basic View where
+instance HasGlobals View where
   global g = V $ \_ -> showb g
 
-instance Const View where
+instance HasConstants View where
   constant k = VS $ \_ -> showb k
   unit = VS $ \_ -> fromString "."
 

@@ -4,16 +4,16 @@
 
 module MonoInliner (extract, MonoInliner (..)) where
 
-import Basic
 import qualified Callcc
 import Cbpv
 import Common
-import Const
 import qualified Data.Text as T
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import Name
 import qualified Pure
 import qualified SystemF
@@ -33,10 +33,10 @@ instance HasCode t => HasCode (MonoInliner t) where
 instance HasData t => HasData (MonoInliner t) where
   data SetRep (MonoInliner t) a = MS Int (SetRep t a)
 
-instance Basic t => Basic (MonoInliner t) where
+instance HasGlobals t => HasGlobals (MonoInliner t) where
   global g = M 0 (global g)
 
-instance Const t => Const (MonoInliner t) where
+instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = MS 0 (constant k)
   unit = MS 0 unit
 

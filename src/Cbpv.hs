@@ -7,9 +7,7 @@
 
 module Cbpv (abstractCode, build, Builder, Cbpv (..), Code, Data, simplify) where
 
-import Basic
 import Common
-import Const
 import Constant (Constant)
 import qualified Constant
 import Core
@@ -18,7 +16,9 @@ import Global
 import GlobalMap (GlobalMap)
 import qualified GlobalMap as GlobalMap
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import Tuple
 import Unique
@@ -26,7 +26,7 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-class (Basic t, Const t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
+class (HasGlobals t, HasConstants t, Explicit t, Tuple t, Pure.Pure t) => Cbpv t where
   thunk :: AlgRep t a -> SetRep t (U a)
   force :: SetRep t (U a) -> AlgRep t a
 
@@ -41,10 +41,10 @@ instance HasCode Builder where
 instance HasData Builder where
   newtype SetRep Builder (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, Data a))
 
-instance Basic Builder where
+instance HasGlobals Builder where
   global g@(Global t _) = CB $ \_ -> (t, GlobalCode g)
 
-instance Const Builder where
+instance HasConstants Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
   unit = DB $ \_ -> (SUnit, UnitData)
 

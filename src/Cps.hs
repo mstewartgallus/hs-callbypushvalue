@@ -8,13 +8,13 @@
 module Cps (build, Cps (..), Stack, Code, Data, Builder, simplify, inline, abstract) where
 
 import Common
-import Const
 import Constant (Constant)
 import qualified Constant
 import Core
 import qualified Data.Text as T
 import Global
 import HasCode
+import HasConstants
 import HasData
 import Label
 import LabelMap (LabelMap)
@@ -51,7 +51,7 @@ data Stack a where
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (Const t, HasCode t, Tuple t) => Cps t where
+class (HasConstants t, HasCode t, Tuple t) => Cps t where
   data StackRep t :: Algebra -> *
 
   global :: Global a -> StackRep t a -> AlgRep t Void
@@ -75,7 +75,7 @@ instance HasData Builder where
 instance HasCode Builder where
   newtype AlgRep Builder a = CB (forall s. Unique.Stream s -> Code)
 
-instance Const Builder where
+instance HasConstants Builder where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
 
 instance Tuple Builder where

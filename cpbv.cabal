@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6d4d8a512431bf081715b2164ee56f631b01f58670183c989323119a78079ec8
+-- hash: f208aa4611ed00a75522c136a2318b83f83ec7f34558e9ec7306300f8f1c518c
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,11 +30,9 @@ library
       AsCallcc
       AsCbpv
       AsCps
-      Basic
       Callcc
       Cbpv
       Common
-      Const
       Constant
       Core
       CostInliner
@@ -43,7 +41,9 @@ library
       Global
       GlobalMap
       HasCode
+      HasConstants
       HasData
+      HasGlobals
       Interpreter
       Intrinsify
       Label

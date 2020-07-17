@@ -5,17 +5,17 @@
 
 module Intrinsify (intrinsify) where
 
-import Basic
 import Cbpv
 import Common
-import Const
 import Constant
 import Core
 import Explicit
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import qualified Pure
 import Tuple
 import qualified Unique
@@ -32,12 +32,12 @@ instance HasCode t => HasCode (Intrinsify t) where
 instance HasData t => HasData (Intrinsify t) where
   newtype SetRep (Intrinsify t) a = IS (SetRep t a)
 
-instance Cbpv t => Basic (Intrinsify t) where
+instance Cbpv t => HasGlobals (Intrinsify t) where
   global g = I $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
     Just intrinsic -> intrinsic
 
-instance Const t => Const (Intrinsify t) where
+instance HasConstants t => HasConstants (Intrinsify t) where
   constant k = IS (constant k)
   unit = IS unit
 

@@ -6,16 +6,16 @@
 
 module SystemF (lam, simplify, Simplifier, build, SystemF (..), abstract, Term (..)) where
 
-import Basic
 import Common
-import Const
 import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import Name
 import qualified Pure
 import qualified Unique
@@ -25,7 +25,7 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class (Basic t, Const t, Pure.Pure t) => SystemF t where
+class (HasGlobals t, HasConstants t, Pure.Pure t) => SystemF t where
   -- | function application
   (<*>) :: AlgRep t (a :-> b) -> AlgRep t a -> AlgRep t b
 
@@ -64,10 +64,10 @@ instance HasCode t => HasCode (Simplifier t) where
 instance HasData t => HasData (Simplifier t) where
   newtype SetRep (Simplifier t) a = SS (SetRep t a)
 
-instance Basic t => Basic (Simplifier t) where
+instance HasGlobals t => HasGlobals (Simplifier t) where
   global g = S NotFn (global g)
 
-instance Const t => Const (Simplifier t) where
+instance HasConstants t => HasConstants (Simplifier t) where
   constant k = SS (constant k)
   unit = SS unit
 

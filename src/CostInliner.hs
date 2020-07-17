@@ -2,16 +2,16 @@
 
 module CostInliner (extract, CostInliner (..)) where
 
-import Basic
 import qualified Callcc
 import Cbpv
 import Common
-import Const
 import qualified Data.Text as T
 import Explicit
 import Global
 import HasCode
+import HasConstants
 import HasData
+import HasGlobals
 import Name
 import qualified Pure
 import qualified SystemF as F
@@ -37,7 +37,7 @@ instance HasData t => HasData (CostInliner t) where
 instance HasCode t => HasCode (CostInliner t) where
   data AlgRep (CostInliner t) a = I Int (AlgRep t a)
 
-instance Basic t => Basic (CostInliner t) where
+instance HasGlobals t => HasGlobals (CostInliner t) where
   global g = I 0 (global g)
 
 instance Pure.Pure t => Pure.Pure (CostInliner t) where
@@ -62,7 +62,7 @@ instance F.SystemF t => F.SystemF (CostInliner t) where
         I _ y -> y
   I fcost f <*> I xcost x = I (fcost + xcost + 1) (f F.<*> x)
 
-instance Const t => Const (CostInliner t) where
+instance HasConstants t => HasConstants (CostInliner t) where
   constant k = CS 0 (constant k)
   unit = CS 0 unit
 

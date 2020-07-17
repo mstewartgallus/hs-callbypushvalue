@@ -6,11 +6,9 @@ module Main where
 import qualified AsCallcc
 import qualified AsCbpv
 import AsCps
-import Basic
 import qualified Callcc
 import qualified Cbpv
 import Common
-import Const
 import qualified Constant
 import qualified Core
 import qualified CostInliner
@@ -19,6 +17,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCode
+import HasConstants
+import HasGlobals
 import qualified Interpreter
 import qualified Intrinsify
 import qualified MonoInliner
