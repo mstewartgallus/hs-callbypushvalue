@@ -61,7 +61,7 @@ instance Callcc t => HasLetTo (Simplifier t) where
 instance Callcc t => HasTuple (Simplifier t)
 
 instance Callcc t => HasThunk (Simplifier t) where
-  -- thunk :: SAlgebra a -> (Stack t a -> Code t Void) -> Data t (U a)
+  thunk t f = D $ thunk t $ \x -> abstract (f (S x))
   force x k = C $ force (abstractD x) (abstractS k)
 
   -- lambda :: Stack t (a :=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c

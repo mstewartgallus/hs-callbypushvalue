@@ -136,10 +136,12 @@ optimizeCallcc = loop iterCallcc
     loop 0 term = term
     loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
+type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
+
 optimizeCps :: Value Cps a -> Value Cps a
 optimizeCps = loop iterCps
   where
-    step :: Cps t => Data CpsSimplifier.Simplifier a -> Data t a
+    step :: Cps t => Data (OptCps t) a -> Data t a
     step term =
       let simplified = CpsSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extractData simplified

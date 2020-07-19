@@ -79,7 +79,7 @@ instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
 
   call g (SB _ k) = CodeCallcc SVoid $ \_ -> HasThunk.call g k
 
-instance (HasLetLabel t, Cps.Cps t) => Callcc.Callcc (AsCps t) where
+instance Cps.Cps t => Callcc.Callcc (AsCps t) where
   catch t f = CodeCallcc t $ \k -> letLabel k $ \k' ->
     case f (SB t k') of
       CodeCallcc _ y -> y Cps.nil
