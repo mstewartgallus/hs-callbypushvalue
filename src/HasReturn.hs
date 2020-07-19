@@ -8,4 +8,4 @@ import HasCode
 import HasData
 
 class (HasData t, HasCode t) => HasReturn t where
-  returns :: DataRep t a -> CodeRep t (F a)
+  returns :: Data t a -> Code t (F a)

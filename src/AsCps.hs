@@ -22,19 +22,19 @@ import HasStack
 import HasThunk
 import HasTuple
 
-toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => CodeRep (AsCps t) a -> DataRep t (U a)
+toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Code (AsCps t) a -> Data t (U a)
 toContinuationPassingStyle (CodeCallcc t x) = HasThunk.thunk t x
 
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data CodeRep (AsCps t) a = CodeCallcc (SAlgebra a) (StackRep t a -> CodeRep t Void)
+  data Code (AsCps t) a = CodeCallcc (SAlgebra a) (Stack t a -> Code t Void)
 
 instance HasData t => HasData (AsCps t) where
-  data DataRep (AsCps t) a = DataCallcc (SSet a) (DataRep t a)
+  data Data (AsCps t) a = DataCallcc (SSet a) (Data t a)
 
 instance (HasStack t) => HasStack (AsCps t) where
-  data StackRep (AsCps t) a = SB (SAlgebra a) (StackRep t a)
+  data Stack (AsCps t) a = SB (SAlgebra a) (Stack t a)
 
 instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
   constant k = DataCallcc (Constant.typeOf k) $ constant k

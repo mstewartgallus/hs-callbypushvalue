@@ -6,4 +6,4 @@ module HasCode (HasCode (..)) where
 import Common
 
 class HasCode t where
-  data CodeRep t :: Algebra -> *
+  data Code t :: Algebra -> *

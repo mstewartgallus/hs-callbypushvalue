@@ -19,7 +19,7 @@ import HasTuple
 import TextShow
 import qualified Unique
 
-extract :: DataRep Porcelain a -> Text
+extract :: Data Porcelain a -> Text
 extract (XD val) = toText (Unique.run val)
 
 ws = fromString " "
@@ -45,13 +45,13 @@ pAction = showb
 data Porcelain
 
 instance HasData Porcelain where
-  newtype DataRep Porcelain a = XD (Unique.State Builder)
+  newtype Data Porcelain a = XD (Unique.State Builder)
 
 instance HasCode Porcelain where
-  newtype CodeRep Porcelain a = XC (Unique.State Builder)
+  newtype Code Porcelain a = XC (Unique.State Builder)
 
 instance HasStack Porcelain where
-  newtype StackRep Porcelain a = XS (Unique.State Builder)
+  newtype Stack Porcelain a = XS (Unique.State Builder)
 
 instance HasConstants Porcelain where
   constant (U64Constant x) = XD $ pure $ node $ atom "u64" <> ws <> showb x

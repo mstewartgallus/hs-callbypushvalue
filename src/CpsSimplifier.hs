@@ -48,19 +48,19 @@ data S a where
   ToS :: Variable a -> C -> S (F a)
   ApplyS :: D a -> S b -> S (a :=> b)
 
-simplifyExtract :: Cps t => DataRep Simplifier a -> DataRep t a
+simplifyExtract :: Cps t => Data Simplifier a -> Data t a
 simplifyExtract term = abstract (simplify (build term))
 
 data Simplifier
 
 instance HasData Simplifier where
-  newtype DataRep Simplifier a = DB (forall s. Unique.Stream s -> (SSet a, D a))
+  newtype Data Simplifier a = DB (forall s. Unique.Stream s -> (SSet a, D a))
 
 instance HasCode Simplifier where
-  newtype CodeRep Simplifier a = CB (forall s. Unique.Stream s -> C)
+  newtype Code Simplifier a = CB (forall s. Unique.Stream s -> C)
 
 instance HasStack Simplifier where
-  newtype StackRep Simplifier a = SB (forall s. Unique.Stream s -> (SAlgebra a, S a))
+  newtype Stack Simplifier a = SB (forall s. Unique.Stream s -> (SAlgebra a, S a))
 
 instance HasLet Simplifier where
   letBe (DB x) f = CB $ \(Unique.Stream newId xs ys) ->
@@ -132,7 +132,7 @@ instance Cps Simplifier where
         (kt, k') = k ks
      in (xt `SFn` kt, ApplyS x' k')
 
-build :: DataRep Simplifier a -> D a
+build :: Data Simplifier a -> D a
 build (DB s) = snd (Unique.withStream s)
 
 simplify :: D a -> D a
@@ -155,10 +155,10 @@ simpC code = case code of
   GlobalC g k -> GlobalC g (simpS k)
   LambdaC k binder label body -> LambdaC (simpS k) binder label (simpC body)
 
-abstract :: Cps t => D a -> DataRep t a
+abstract :: Cps t => D a -> Data t a
 abstract x = abstD x LabelMap.empty VarMap.empty
 
-abstD :: Cps t => D a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> DataRep t a
+abstD :: Cps t => D a -> LabelMap (Stack t) -> VarMap (Data t) -> Data t a
 abstD x = case x of
   ConstantD k -> \_ _ -> constant k
   VariableD v -> \_ env -> case VarMap.lookup v env of
@@ -170,7 +170,7 @@ abstD x = case x of
           thunk t $ \k ->
             body' (LabelMap.insert label k lenv) env
 
-abstS :: Cps t => S a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> StackRep t a
+abstS :: Cps t => S a -> LabelMap (Stack t) -> VarMap (Data t) -> Stack t a
 abstS stk = case stk of
   LabelS v -> \lenv _ -> case LabelMap.lookup v lenv of
     Just x -> x
@@ -185,7 +185,7 @@ abstS stk = case stk of
         t' = abstS t
      in \lenv env -> apply (h' lenv env) (t' lenv env)
 
-abstC :: Cps t => C -> LabelMap (StackRep t) -> VarMap (DataRep t) -> CodeRep t Void
+abstC :: Cps t => C -> LabelMap (Stack t) -> VarMap (Data t) -> Code t Void
 abstC c = case c of
   GlobalC g k ->
     let k' = abstS k

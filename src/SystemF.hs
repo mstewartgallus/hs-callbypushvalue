@@ -24,20 +24,20 @@ import Prelude hiding ((<*>))
 -- FIXME: forall and applyType are still experimental
 class (HasGlobals t, HasConstants t, HasReturn t) => SystemF t where
   -- | function application
-  (<*>) :: CodeRep t (a :-> b) -> CodeRep t a -> CodeRep t b
+  (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
 
-  lambda :: SAlgebra a -> (CodeRep t a -> CodeRep t b) -> CodeRep t (a :-> b)
+  lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a :-> b)
 
-  letBe :: CodeRep t a -> (CodeRep t a -> CodeRep t b) -> CodeRep t b
+  letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
 
-  pair :: CodeRep t a -> CodeRep t b -> CodeRep t (Pair a b)
+  pair :: Code t a -> Code t b -> Code t (Pair a b)
   unpair ::
-    CodeRep t (Pair a b) ->
-    (CodeRep t a -> CodeRep t b -> CodeRep t c) ->
-    CodeRep t c
+    Code t (Pair a b) ->
+    (Code t a -> Code t b -> Code t c) ->
+    Code t c
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
-lam :: (SystemF t, KnownAlgebra a) => (CodeRep t a -> CodeRep t b) -> CodeRep t (a :-> b)
+lam :: (SystemF t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a :-> b)
 lam = lambda inferAlgebra
 
 infixl 4 <*>

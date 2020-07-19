@@ -15,6 +15,6 @@ import HasReturn
 import HasTuple
 
 class (HasGlobals t, HasConstants t, HasLet t, HasLetTo t, HasTuple t, HasReturn t) => Cbpv t where
-  lambda :: SSet a -> (DataRep t a -> CodeRep t b) -> CodeRep t (a :=> b)
-  thunk :: CodeRep t a -> DataRep t (U a)
-  force :: DataRep t (U a) -> CodeRep t a
+  lambda :: SSet a -> (Data t a -> Code t b) -> Code t (a :=> b)
+  thunk :: Code t a -> Data t (U a)
+  force :: Data t (U a) -> Code t a

@@ -27,10 +27,10 @@ import HasTuple
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
 class (HasConstants t, HasCode t, HasStack t, HasLetLabel t, HasLet t, HasThunk t, HasTuple t) => Cps t where
-  throw :: StackRep t (F a) -> DataRep t a -> CodeRep t Void
+  throw :: Stack t (F a) -> Data t a -> Code t Void
 
-  letTo :: SSet a -> (DataRep t a -> CodeRep t Void) -> StackRep t (F a)
+  letTo :: SSet a -> (Data t a -> Code t Void) -> Stack t (F a)
 
-  apply :: DataRep t a -> StackRep t b -> StackRep t (a :=> b)
+  apply :: Data t a -> Stack t b -> Stack t (a :=> b)
 
-  nil :: StackRep t Void
+  nil :: Stack t Void

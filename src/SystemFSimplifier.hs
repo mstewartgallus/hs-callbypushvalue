@@ -22,20 +22,20 @@ import Prelude hiding ((<*>))
 
 -- fixme... factor out ?
 
-simplify :: SystemF t => CodeRep (Simplifier t) a -> CodeRep t a
+simplify :: SystemF t => Code (Simplifier t) a -> Code t a
 simplify (S _ x) = x
 
 data Simplifier t
 
 data MaybeFn t a where
-  Fn :: (CodeRep t a -> CodeRep t b) -> MaybeFn t (a :-> b)
+  Fn :: (Code t a -> Code t b) -> MaybeFn t (a :-> b)
   NotFn :: MaybeFn t a
 
 instance HasCode t => HasCode (Simplifier t) where
-  data CodeRep (Simplifier t) a = S (MaybeFn t a) (CodeRep t a)
+  data Code (Simplifier t) a = S (MaybeFn t a) (Code t a)
 
 instance HasData t => HasData (Simplifier t) where
-  newtype DataRep (Simplifier t) a = SS (DataRep t a)
+  newtype Data (Simplifier t) a = SS (Data t a)
 
 instance HasGlobals t => HasGlobals (Simplifier t) where
   global g = S NotFn (global g)

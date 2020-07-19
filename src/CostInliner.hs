@@ -24,10 +24,10 @@ import qualified SystemF as F
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: CodeRep (CostInliner t) a -> CodeRep t a
+extract :: Code (CostInliner t) a -> Code t a
 extract (I _ x) = x
 
-extractData :: DataRep (CostInliner t) a -> DataRep t a
+extractData :: Data (CostInliner t) a -> Data t a
 extractData (CS _ x) = x
 
 -- | Tagless final newtype to inline letBe clauses based on a simple
@@ -40,13 +40,13 @@ extractData (CS _ x) = x
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  data DataRep (CostInliner t) a = CS Int (DataRep t a)
+  data Data (CostInliner t) a = CS Int (Data t a)
 
 instance HasCode t => HasCode (CostInliner t) where
-  data CodeRep (CostInliner t) a = I Int (CodeRep t a)
+  data Code (CostInliner t) a = I Int (Code t a)
 
 instance HasStack t => HasStack (CostInliner t) where
-  data StackRep (CostInliner t) a = SB Int (StackRep t a)
+  data Stack (CostInliner t) a = SB Int (Stack t a)
 
 instance HasGlobals t => HasGlobals (CostInliner t) where
   global g = I 0 (global g)

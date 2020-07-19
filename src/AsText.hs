@@ -27,17 +27,17 @@ import qualified Unique
 
 data AsText
 
-extract :: CodeRep AsText a -> T.Text
+extract :: Code AsText a -> T.Text
 extract (V x) = toText (Unique.withStream x)
 
-extractData :: DataRep AsText a -> T.Text
+extractData :: Data AsText a -> T.Text
 extractData (VS x) = toText (Unique.withStream x)
 
 instance HasData AsText where
-  newtype DataRep AsText a = VS (forall s. Unique.Stream s -> Builder)
+  newtype Data AsText a = VS (forall s. Unique.Stream s -> Builder)
 
 instance HasCode AsText where
-  newtype CodeRep AsText a = V (forall s. Unique.Stream s -> Builder)
+  newtype Code AsText a = V (forall s. Unique.Stream s -> Builder)
 
 instance HasGlobals AsText where
   global g = V $ \_ -> showb g
@@ -100,7 +100,7 @@ instance Cbpv.Cbpv AsText where
   force (VS thunk) = V $ \s -> fromString "! " <> thunk s
 
 instance HasStack.HasStack AsText where
-  data StackRep AsText a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
+  data Stack AsText a = VStk (forall s. Unique.Stream s -> TextShow.Builder)
 
 instance HasThunk.HasThunk AsText where
   lambda (VStk k) f = V $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->

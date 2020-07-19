@@ -11,9 +11,9 @@ import HasData
 import HasStack
 
 class (HasData t, HasCode t, HasStack t) => HasThunk t where
-  thunk :: SAlgebra a -> (StackRep t a -> CodeRep t Void) -> DataRep t (U a)
-  force :: DataRep t (U a) -> StackRep t a -> CodeRep t Void
+  thunk :: SAlgebra a -> (Stack t a -> Code t Void) -> Data t (U a)
+  force :: Data t (U a) -> Stack t a -> Code t Void
 
-  lambda :: StackRep t (a :=> b) -> (DataRep t a -> StackRep t b -> CodeRep t c) -> CodeRep t c
+  lambda :: Stack t (a :=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
 
-  call :: Global a -> StackRep t a -> CodeRep t Void
+  call :: Global a -> Stack t a -> Code t Void

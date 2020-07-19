@@ -19,16 +19,16 @@ import HasLetTo
 import HasReturn
 import HasTuple
 
-extract :: Cbpv t => CodeRep (Intrinsify t) a -> CodeRep t a
+extract :: Cbpv t => Code (Intrinsify t) a -> Code t a
 extract (I x) = x
 
 data Intrinsify t
 
 instance HasCode t => HasCode (Intrinsify t) where
-  newtype CodeRep (Intrinsify t) a = I (CodeRep t a)
+  newtype Code (Intrinsify t) a = I (Code t a)
 
 instance HasData t => HasData (Intrinsify t) where
-  newtype DataRep (Intrinsify t) a = IS (DataRep t a)
+  newtype Data (Intrinsify t) a = IS (Data t a)
 
 instance Cbpv t => HasGlobals (Intrinsify t) where
   global g = I $ case GlobalMap.lookup g intrinsics of
@@ -66,13 +66,13 @@ instance Cbpv t => Cbpv (Intrinsify t) where
   thunk (I x) = IS (thunk x)
   force (IS x) = I (force x)
 
-intrinsics :: Cbpv t => GlobalMap (CodeRep t)
+intrinsics :: Cbpv t => GlobalMap (Code t)
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus plusIntrinsic
     ]
 
-plusIntrinsic :: Cbpv t => CodeRep t (F U64 :-> F U64 :-> F U64)
+plusIntrinsic :: Cbpv t => Code t (F U64 :-> F U64 :-> F U64)
 plusIntrinsic = lambda (SU (SF SU64)) $ \x' ->
   lambda (SU (SF SU64)) $ \y' ->
     letTo (force x') $ \x'' ->

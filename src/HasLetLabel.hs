@@ -9,4 +9,4 @@ import HasCode
 import HasStack
 
 class (HasStack t, HasCode t) => HasLetLabel t where
-  letLabel :: StackRep t a -> (StackRep t a -> CodeRep t b) -> CodeRep t b
+  letLabel :: Stack t a -> (Stack t a -> Code t b) -> Code t b

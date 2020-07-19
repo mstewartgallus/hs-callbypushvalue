@@ -29,20 +29,20 @@ import Prelude hiding ((<*>))
 
 data MonoInliner t
 
-extract :: CodeRep (MonoInliner t) a -> CodeRep t a
+extract :: Code (MonoInliner t) a -> Code t a
 extract (M _ x) = x
 
-extractData :: DataRep (MonoInliner t) a -> DataRep t a
+extractData :: Data (MonoInliner t) a -> Data t a
 extractData (MS _ x) = x
 
 instance HasCode t => HasCode (MonoInliner t) where
-  data CodeRep (MonoInliner t) a = M Int (CodeRep t a)
+  data Code (MonoInliner t) a = M Int (Code t a)
 
 instance HasData t => HasData (MonoInliner t) where
-  data DataRep (MonoInliner t) a = MS Int (DataRep t a)
+  data Data (MonoInliner t) a = MS Int (Data t a)
 
 instance HasStack t => HasStack (MonoInliner t) where
-  data StackRep (MonoInliner t) a = SB Int (StackRep t a)
+  data Stack (MonoInliner t) a = SB Int (Stack t a)
 
 instance HasGlobals t => HasGlobals (MonoInliner t) where
   global g = M 0 (global g)

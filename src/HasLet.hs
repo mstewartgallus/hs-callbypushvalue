@@ -9,4 +9,4 @@ import HasCode
 import HasData
 
 class (HasData t, HasCode t) => HasLet t where
-  letBe :: DataRep t a -> (DataRep t a -> CodeRep t b) -> CodeRep t b
+  letBe :: Data t a -> (Data t a -> Code t b) -> Code t b

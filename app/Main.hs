@@ -52,7 +52,7 @@ iterCallcc = 20
 
 iterCps = 20
 
-program :: SystemF t => CodeRep t (F U64 :-> F U64 :-> F U64)
+program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \x ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -82,13 +82,13 @@ phases term =
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
-cbpvProgram :: (forall t. Cbpv t => CodeRep t a) -> Program Cbpv a
+cbpvProgram :: (forall t. Cbpv t => Code t a) -> Program Cbpv a
 cbpvProgram = Program
 
-callccProgram :: (forall t. Callcc t => CodeRep t a) -> Program Callcc a
+callccProgram :: (forall t. Callcc t => Code t a) -> Program Callcc a
 callccProgram = Program
 
-cpsValue :: (forall t. Cps t => DataRep t a) -> Value Cps a
+cpsValue :: (forall t. Cps t => Data t a) -> Value Cps a
 cpsValue = Value
 
 type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
@@ -96,7 +96,7 @@ type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
 optimizeTerm :: Program SystemF a -> Program SystemF a
 optimizeTerm = loop iterTerm
   where
-    step :: SystemF t => CodeRep (OptF t) a -> CodeRep t a
+    step :: SystemF t => Code (OptF t) a -> Code t a
     step term =
       let simplified = SystemFSimplifier.simplify term
           monoInlined = MonoInliner.extract simplified
@@ -109,7 +109,7 @@ optimizeTerm = loop iterTerm
 optimizeCbpv :: Program Cbpv a -> Program Cbpv a
 optimizeCbpv = loop iterCbpv
   where
-    step :: Cbpv t => CodeRep CbpvSimplifier.Simplifier a -> CodeRep t a
+    step :: Cbpv t => Code CbpvSimplifier.Simplifier a -> Code t a
     step term =
       let simplified = CbpvSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extract simplified
@@ -122,7 +122,7 @@ optimizeCbpv = loop iterCbpv
 optimizeCallcc :: Program Callcc a -> Program Callcc a
 optimizeCallcc = loop iterCallcc
   where
-    step :: Callcc t => CodeRep CallccSimplifier.Simplifier a -> CodeRep t a
+    step :: Callcc t => Code CallccSimplifier.Simplifier a -> Code t a
     step term =
       let simplified = CallccSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extract simplified
@@ -135,7 +135,7 @@ optimizeCallcc = loop iterCallcc
 optimizeCps :: Value Cps a -> Value Cps a
 optimizeCps = loop iterCps
   where
-    step :: Cps t => DataRep CpsSimplifier.Simplifier a -> DataRep t a
+    step :: Cps t => Data CpsSimplifier.Simplifier a -> Data t a
     step term =
       let simplified = CpsSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extractData simplified

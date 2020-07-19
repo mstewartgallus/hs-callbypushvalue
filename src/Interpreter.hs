@@ -22,7 +22,7 @@ import HasStack
 import HasThunk
 import HasTuple
 
-evaluate :: DataRep X a -> Value a
+evaluate :: Data X a -> Value a
 evaluate (V value) = value
 
 data family Value (a :: Set) :: *
@@ -48,13 +48,13 @@ data instance Kont (a :=> b) = Apply (Value a) (Kont b)
 data X
 
 instance HasData X where
-  newtype DataRep X a = V (Value a)
+  newtype Data X a = V (Value a)
 
 instance HasCode X where
-  newtype CodeRep X a = C R
+  newtype Code X a = C R
 
 instance HasStack X where
-  newtype StackRep X a = K (Kont a)
+  newtype Stack X a = K (Kont a)
 
 instance HasConstants X where
   constant (U64Constant x) = V (I x)

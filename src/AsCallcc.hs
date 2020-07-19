@@ -22,16 +22,16 @@ import qualified HasThunk
 import HasTuple
 import qualified SystemF
 
-extract :: CodeRep (AsCallcc t) a -> CodeRep t a
+extract :: Code (AsCallcc t) a -> Code t a
 extract (CodeCallcc _ x) = x
 
 data AsCallcc t
 
 instance HasCode t => HasCode (AsCallcc t) where
-  data CodeRep (AsCallcc t) a = CodeCallcc (SAlgebra a) (CodeRep t a)
+  data Code (AsCallcc t) a = CodeCallcc (SAlgebra a) (Code t a)
 
 instance HasData t => HasData (AsCallcc t) where
-  data DataRep (AsCallcc t) a = DataCallcc (SSet a) (DataRep t a)
+  data Data (AsCallcc t) a = DataCallcc (SSet a) (Data t a)
 
 instance Callcc.Callcc t => HasGlobals (AsCallcc t) where
   global g@(Global t _) = CodeCallcc t (Callcc.catch t (HasThunk.call g))

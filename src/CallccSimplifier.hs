@@ -29,22 +29,22 @@ import qualified VarMap
 import VarMap (VarMap)
 import Variable
 
-simplifyExtract :: Callcc t => CodeRep Simplifier a -> CodeRep t a
+simplifyExtract :: Callcc t => Code Simplifier a -> Code t a
 simplifyExtract term = abstractC (simplify (build term))
 
 data C a where
-  GlobalC :: Global a -> Stack a -> C Void
-  LambdaC :: Stack (a :=> b) -> Variable a -> Label b -> C c -> C c
+  GlobalC :: Global a -> S a -> C Void
+  LambdaC :: S (a :=> b) -> Variable a -> Label b -> C c -> C c
   ApplyC :: C (a :=> b) -> D a -> C b
   ReturnC :: D a -> C (F a)
   LetBeC :: D a -> Variable a -> C b -> C b
   LetToC :: C (F a) -> Variable a -> C b -> C b
   CatchC :: Label a -> C Void -> C a
-  ThrowC :: Stack a -> C a -> C Void
-  ForceC :: D (U a) -> Stack a -> C Void
+  ThrowC :: S a -> C a -> C Void
+  ForceC :: D (U a) -> S a -> C Void
 
-data Stack a where
-  LabelStack :: Label a -> Stack a
+data S a where
+  LabelStack :: Label a -> S a
 
 data D a where
   UnitD :: D Unit
@@ -53,16 +53,16 @@ data D a where
   ThunkD :: Label a -> C Void -> D (U a)
   PairD :: D a -> D b -> D (a :*: b)
 
-build :: CodeRep Simplifier a -> C a
+build :: Code Simplifier a -> C a
 build (CB _ s) = Unique.run s
 
 data Simplifier
 
 instance HasCode Simplifier where
-  data CodeRep Simplifier a = CB (SAlgebra a) (Unique.State (C a))
+  data Code Simplifier a = CB (SAlgebra a) (Unique.State (C a))
 
 instance HasData Simplifier where
-  data DataRep Simplifier a = DB (SSet a) (Unique.State (D a))
+  data Data Simplifier a = DB (SSet a) (Unique.State (D a))
 
 instance HasConstants Simplifier where
   constant k = DB (Constant.typeOf k) $ pure (ConstantD k)
@@ -97,7 +97,7 @@ instance HasLetTo Simplifier where
 instance HasTuple Simplifier
 
 instance HasStack Simplifier where
-  data StackRep Simplifier a = SB (SAlgebra a) (Unique.State (Stack a))
+  data Stack Simplifier a = SB (SAlgebra a) (Unique.State (S a))
 
 instance HasThunk Simplifier where
   call g (SB _ k) = CB SVoid $ do
@@ -132,13 +132,13 @@ instance Callcc Simplifier where
     CB SVoid $
       pure ThrowC <*> x <*> f
 
-abstractC :: Callcc t => C a -> CodeRep t a
+abstractC :: Callcc t => C a -> Code t a
 abstractC = abstractCode' LabelMap.empty VarMap.empty
 
-abstractD :: Callcc t => D a -> DataRep t a
+abstractD :: Callcc t => D a -> Data t a
 abstractD = abstractData' LabelMap.empty VarMap.empty
 
-abstractCode' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> C a -> CodeRep t a
+abstractCode' :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> C a -> Code t a
 abstractCode' lenv env code = case code of
   LetBeC term binder body -> letBe (abstractData' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
@@ -164,11 +164,11 @@ abstractCode' lenv env code = case code of
   ForceC thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
     Just stk -> force (abstractData' lenv env thunk) stk
 
-abstractStack :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Stack x -> StackRep t x
+abstractStack :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> S x -> Stack t x
 abstractStack lenv _ (LabelStack lbl) = case LabelMap.lookup lbl lenv of
   Just stk -> stk
 
-abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> D x -> DataRep t x
+abstractData' :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> D x -> Data t x
 abstractData' lenv env x = case x of
   ThunkD lbl@(Label t _) body -> thunk t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv

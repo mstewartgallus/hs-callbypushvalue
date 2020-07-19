@@ -9,5 +9,5 @@ import HasCode
 import HasData
 
 class (HasData t, HasCode t) => HasLetTo t where
-  letTo :: CodeRep t (F a) -> (DataRep t a -> CodeRep t b) -> CodeRep t b
-  apply :: CodeRep t (a :=> b) -> DataRep t a -> CodeRep t b
+  letTo :: Code t (F a) -> (Data t a -> Code t b) -> Code t b
+  apply :: Code t (a :=> b) -> Data t a -> Code t b

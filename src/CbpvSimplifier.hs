@@ -28,19 +28,19 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-simplifyExtract :: Cbpv t => CodeRep Simplifier a -> CodeRep t a
+simplifyExtract :: Cbpv t => Code Simplifier a -> Code t a
 simplifyExtract term = abstractC (simplify (build term))
 
-build :: CodeRep Simplifier a -> C a
+build :: Code Simplifier a -> C a
 build (CB s) = snd (Unique.withStream s)
 
 data Simplifier
 
 instance HasCode Simplifier where
-  newtype CodeRep Simplifier (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, C a))
+  newtype Code Simplifier (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, C a))
 
 instance HasData Simplifier where
-  newtype DataRep Simplifier (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, D a))
+  newtype Data Simplifier (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, D a))
 
 instance HasGlobals Simplifier where
   global g@(Global t _) = CB $ \_ -> (t, GlobalC g)
@@ -141,13 +141,13 @@ simplifyD x = case x of
   ThunkD x -> ThunkD (simplify x)
   x -> x
 
-abstractC :: Cbpv t => C a -> CodeRep t a
+abstractC :: Cbpv t => C a -> Code t a
 abstractC = abstractCode' VarMap.empty
 
-abstractD :: Cbpv t => D a -> DataRep t a
+abstractD :: Cbpv t => D a -> Data t a
 abstractD = abstractData' VarMap.empty
 
-abstractCode' :: Cbpv t => VarMap (DataRep t) -> C a -> CodeRep t a
+abstractCode' :: Cbpv t => VarMap (Data t) -> C a -> Code t a
 abstractCode' env code = case code of
   LetBeC term binder body -> letBe (abstractData' env term) $ \x ->
     let env' = VarMap.insert binder x env
@@ -166,7 +166,7 @@ abstractCode' env code = case code of
   ReturnC val -> returns (abstractData' env val)
   GlobalC g -> global g
 
-abstractData' :: Cbpv t => VarMap (DataRep t) -> D x -> DataRep t x
+abstractData' :: Cbpv t => VarMap (Data t) -> D x -> Data t x
 abstractData' env x = case x of
   VariableD v@(Variable t u) -> case VarMap.lookup v env of
     Just x -> x

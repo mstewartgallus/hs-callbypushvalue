@@ -6,4 +6,4 @@ module HasData (HasData (..)) where
 import Common
 
 class HasData t where
-  data DataRep t :: Set -> *
+  data Data t :: Set -> *

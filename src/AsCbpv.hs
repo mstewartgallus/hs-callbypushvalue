@@ -19,16 +19,16 @@ import HasReturn
 import HasTuple
 import qualified SystemF as F
 
-extract :: CodeRep (AsCbpv t) a -> CodeRep t a
+extract :: Code (AsCbpv t) a -> Code t a
 extract (AsCbpv x) = x
 
 data AsCbpv t
 
 instance HasCode t => HasCode (AsCbpv t) where
-  newtype CodeRep (AsCbpv t) a = AsCbpv (CodeRep t a)
+  newtype Code (AsCbpv t) a = AsCbpv (Code t a)
 
 instance HasData t => HasData (AsCbpv t) where
-  newtype DataRep (AsCbpv t) a = DataRep (DataRep t a)
+  newtype Data (AsCbpv t) a = DataRep (Data t a)
 
 instance HasGlobals t => HasGlobals (AsCbpv t) where
   global g = AsCbpv (global g)
