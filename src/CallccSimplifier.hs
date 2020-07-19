@@ -20,21 +20,17 @@ import HasThunk
 import HasTuple
 
 simplifyExtract :: Callcc t => Code (Simplifier t) a -> Code t a
-simplifyExtract term = abstract term
+simplifyExtract = abstract
 
 data Simplifier t
 
 instance HasCode (Simplifier t) where
   data Code (Simplifier t) a where
-    LambdaC :: SSet a -> (Data t a -> Code t b) -> Code (Simplifier t) (a :=> b)
-    ForceC :: Data t (U a) -> Code (Simplifier t) a
     ReturnC :: Data t a -> Code (Simplifier t) (F a)
     C :: Code t a -> Code (Simplifier t) a
 
 instance HasData (Simplifier t) where
-  data Data (Simplifier t) a where
-    ThunkD :: Code t a -> Data (Simplifier t) (U a)
-    D :: Data t a -> Data (Simplifier t) a
+  newtype Data (Simplifier t) a = D (Data t a)
 
 instance HasStack (Simplifier t) where
   newtype Stack (Simplifier t) a = S (Stack t a)
@@ -55,7 +51,6 @@ instance Callcc t => HasLetTo (Simplifier t) where
     let
      in C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
 
-  apply (LambdaC _ f) x = C $ letBe (abstractD x) f
   apply f x = C $ apply (abstract f) (abstractD x)
 
 instance Callcc t => HasTuple (Simplifier t)
@@ -64,7 +59,6 @@ instance Callcc t => HasThunk (Simplifier t) where
   thunk t f = D $ thunk t $ \x -> abstract (f (S x))
   force x k = C $ force (abstractD x) (abstractS k)
 
-  -- lambda :: Stack t (a :=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
   lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
 
   call g k = C $ call g (abstractS k)
@@ -79,8 +73,7 @@ abstract code = case code of
   C c -> c
 
 abstractD :: Callcc t => Data (Simplifier t) a -> Data t a
-abstractD x = case x of
-  D d -> d
+abstractD (D x) = x
 
 abstractS :: Callcc t => Stack (Simplifier t) a -> Stack t a
 abstractS (S x) = x

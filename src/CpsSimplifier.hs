@@ -20,7 +20,7 @@ import HasThunk
 import HasTuple
 
 simplifyExtract :: Cps t => Data (Simplifier t) a -> Data t a
-simplifyExtract term = abstractD term
+simplifyExtract = abstractD
 
 data Simplifier t
 
@@ -67,9 +67,7 @@ instance Cps t => Cps (Simplifier t) where
 
   apply x f = S $ apply (abstractD x) (abstractS f)
 
--- nil :: Stack t Void
--- ThrowC (ToS binder body) value -> simpC (LetBeC value binder body)
--- ForceC (ThunkD label body) k -> simpC (LetLabelC k label body)
+  nil = S nil
 
 abstract :: Cps t => Code (Simplifier t) a -> Code t a
 abstract code = case code of
