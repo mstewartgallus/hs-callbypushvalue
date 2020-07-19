@@ -29,7 +29,7 @@ import qualified VarMap as VarMap
 import Variable
 
 simplifyExtract :: Cbpv t => Code Simplifier a -> Code t a
-simplifyExtract term = abstractC (simplify (build term))
+simplifyExtract term = simplify VarMap.empty (build term)
 
 build :: Code Simplifier a -> C a
 build (CB s) = snd (Unique.withStream s)
@@ -115,63 +115,32 @@ data D a where
   PairD :: D a -> D b -> D (a :*: b)
 
 {-
-Simplify Call By Pair D Inverses
-
-So far we handle:
-
-- force (thunk X) reduces to X
-- thunk (force X) reduces to X
+Algebraicly Simplify Call By Push Value
 -}
-simplify :: C a -> C a
-simplify code = case code of
-  LetToC (ReturnC value) binder body -> simplify (LetBeC value binder body)
-  ApplyC (LambdaC binder body) value -> simplify (LetBeC value binder body)
-  ForceC (ThunkD x) -> simplify x
-  ForceC x -> ForceC (simplifyD x)
-  LambdaC binder body -> LambdaC binder (simplify body)
-  ApplyC f x -> ApplyC (simplify f) (simplifyD x)
-  ReturnC value -> ReturnC (simplifyD value)
-  LetBeC value binder body -> LetBeC (simplifyD value) binder (simplify body)
-  LetToC action binder body -> LetToC (simplify action) binder (simplify body)
-  x -> x
-
-simplifyD :: D a -> D a
-simplifyD x = case x of
-  ThunkD (ForceC x) -> simplifyD x
-  ThunkD x -> ThunkD (simplify x)
-  x -> x
-
-abstractC :: Cbpv t => C a -> Code t a
-abstractC = abstractCode' VarMap.empty
-
-abstractD :: Cbpv t => D a -> Data t a
-abstractD = abstractData' VarMap.empty
-
-abstractCode' :: Cbpv t => VarMap (Data t) -> C a -> Code t a
-abstractCode' env code = case code of
-  LetBeC term binder body -> letBe (abstractData' env term) $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' env' body
-  LetToC term binder body -> letTo (abstractCode' env term) $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' env' body
-  ApplyC f x ->
-    let f' = abstractCode' env f
-        x' = abstractData' env x
-     in apply f' x'
+simplify :: Cbpv t => VarMap (Data t) -> C a -> Code t a
+simplify env code = case code of
+  LetToC (ReturnC value) binder body -> letBe (simplifyD env value) $ \x ->
+    simplify (VarMap.insert binder x env) body
+  ApplyC (LambdaC binder body) value -> letBe (simplifyD env value) $ \x ->
+    simplify (VarMap.insert binder x env) body
+  ForceC (ThunkD x) -> simplify env x
+  ForceC x -> force (simplifyD env x)
   LambdaC binder@(Variable t _) body -> lambda t $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' env' body
-  ForceC th -> force (abstractData' env th)
-  ReturnC val -> returns (abstractData' env val)
+    simplify (VarMap.insert binder x env) body
+  ApplyC f x -> apply (simplify env f) (simplifyD env x)
+  ReturnC value -> returns (simplifyD env value)
+  LetBeC value binder body -> letBe (simplifyD env value) $ \x ->
+    simplify (VarMap.insert binder x env) body
+  LetToC action binder body -> letTo (simplify env action) $ \x ->
+    simplify (VarMap.insert binder x env) body
   GlobalC g -> global g
 
-abstractData' :: Cbpv t => VarMap (Data t) -> D x -> Data t x
-abstractData' env x = case x of
-  VariableD v@(Variable t u) -> case VarMap.lookup v env of
-    Just x -> x
-    Nothing -> error ("could not find var " ++ show u)
-  ThunkD c -> thunk (abstractCode' env c)
+simplifyD :: Cbpv t => VarMap (Data t) -> D a -> Data t a
+simplifyD env x = case x of
+  ThunkD (ForceC x) -> simplifyD env x
+  ThunkD x -> thunk (simplify env x)
+  VariableD x -> case VarMap.lookup x env of
+    Just y -> y
   ConstantD k -> constant k
   UnitD -> unit
-  PairD h t -> pair (abstractData' env h) (abstractData' env t)
+  PairD x y -> pair (simplifyD env x) (simplifyD env y)
