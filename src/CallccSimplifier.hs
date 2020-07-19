@@ -30,46 +30,46 @@ import VarMap (VarMap)
 import Variable
 
 simplifyExtract :: Callcc t => CodeRep Simplifier a -> CodeRep t a
-simplifyExtract term = abstractCode (simplify (build term))
+simplifyExtract term = abstractC (simplify (build term))
 
-data Code a where
-  GlobalCode :: Global a -> Stack a -> Code Void
-  LambdaCode :: Stack (a :=> b) -> Variable a -> Label b -> Code c -> Code c
-  ApplyCode :: Code (a :=> b) -> Data a -> Code b
-  ReturnCode :: Data a -> Code (F a)
-  LetBeCode :: Data a -> Variable a -> Code b -> Code b
-  LetToCode :: Code (F a) -> Variable a -> Code b -> Code b
-  CatchCode :: Label a -> Code Void -> Code a
-  ThrowCode :: Stack a -> Code a -> Code Void
-  ForceCode :: Data (U a) -> Stack a -> Code Void
+data C a where
+  GlobalC :: Global a -> Stack a -> C Void
+  LambdaC :: Stack (a :=> b) -> Variable a -> Label b -> C c -> C c
+  ApplyC :: C (a :=> b) -> D a -> C b
+  ReturnC :: D a -> C (F a)
+  LetBeC :: D a -> Variable a -> C b -> C b
+  LetToC :: C (F a) -> Variable a -> C b -> C b
+  CatchC :: Label a -> C Void -> C a
+  ThrowC :: Stack a -> C a -> C Void
+  ForceC :: D (U a) -> Stack a -> C Void
 
 data Stack a where
   LabelStack :: Label a -> Stack a
 
-data Data a where
-  UnitData :: Data Unit
-  ConstantData :: Constant a -> Data a
-  VariableData :: Variable a -> Data a
-  ThunkData :: Label a -> Code Void -> Data (U a)
-  PairData :: Data a -> Data b -> Data (a :*: b)
+data D a where
+  UnitD :: D Unit
+  ConstantD :: Constant a -> D a
+  VariableD :: Variable a -> D a
+  ThunkD :: Label a -> C Void -> D (U a)
+  PairD :: D a -> D b -> D (a :*: b)
 
-build :: CodeRep Simplifier a -> Code a
+build :: CodeRep Simplifier a -> C a
 build (CB _ s) = Unique.run s
 
 data Simplifier
 
 instance HasCode Simplifier where
-  data CodeRep Simplifier a = CB (SAlgebra a) (Unique.State (Code a))
+  data CodeRep Simplifier a = CB (SAlgebra a) (Unique.State (C a))
 
 instance HasData Simplifier where
-  data DataRep Simplifier a = DB (SSet a) (Unique.State (Data a))
+  data DataRep Simplifier a = DB (SSet a) (Unique.State (D a))
 
 instance HasConstants Simplifier where
-  constant k = DB (Constant.typeOf k) $ pure (ConstantData k)
-  unit = DB SUnit $ pure UnitData
+  constant k = DB (Constant.typeOf k) $ pure (ConstantD k)
+  unit = DB SUnit $ pure UnitD
 
 instance HasReturn Simplifier where
-  returns (DB t value) = CB (SF t) $ pure ReturnCode <*> value
+  returns (DB t value) = CB (SF t) $ pure ReturnC <*> value
 
 instance HasLet Simplifier where
   letBe x@(DB t vx) f =
@@ -77,9 +77,9 @@ instance HasLet Simplifier where
      in CB bt $ do
           x' <- vx
           v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableData v)
+          let CB _ body = f ((DB t . pure) $ VariableD v)
           body' <- body
-          pure $ LetBeCode x' v body'
+          pure $ LetBeC x' v body'
 
 instance HasLetTo Simplifier where
   letTo x@(CB (SF t) xs) f =
@@ -87,12 +87,12 @@ instance HasLetTo Simplifier where
      in CB bt $ do
           x' <- xs
           v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableData v)
+          let CB _ body = f ((DB t . pure) $ VariableD v)
           body' <- body
-          pure $ LetToCode x' v body'
+          pure $ LetToC x' v body'
   apply (CB (_ `SFn` b) f) (DB _ x) =
     CB b $
-      pure ApplyCode <*> f <*> x
+      pure ApplyC <*> f <*> x
 
 instance HasTuple Simplifier
 
@@ -102,105 +102,105 @@ instance HasStack Simplifier where
 instance HasThunk Simplifier where
   call g (SB _ k) = CB SVoid $ do
     k' <- k
-    pure (GlobalCode g k')
+    pure (GlobalC g k')
 
   lambda (SB (t `SFn` result) k) f =
     let CB bt _ = f ((DB t . pure) $ undefined) ((SB result . pure) $ undefined)
      in CB bt $ do
           v <- pure (Variable t) <*> Unique.uniqueId
           l <- pure (Label result) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableData v) ((SB result . pure) $ LabelStack l)
+          let CB _ body = f ((DB t . pure) $ VariableD v) ((SB result . pure) $ LabelStack l)
           body' <- body
           k' <- k
-          pure $ LambdaCode k' v l body'
+          pure $ LambdaC k' v l body'
   thunk t f = DB (SU t) $ do
     v <- pure (Label t) <*> Unique.uniqueId
     let CB _ body = f ((SB t . pure) $ LabelStack v)
     body' <- body
-    pure $ ThunkData v body'
+    pure $ ThunkD v body'
   force (DB _ thunk) (SB _ stack) =
     CB SVoid $
-      pure ForceCode <*> thunk <*> stack
+      pure ForceC <*> thunk <*> stack
 
 instance Callcc Simplifier where
   catch t f = CB t $ do
     v <- pure (Label t) <*> Unique.uniqueId
     let CB _ body = f ((SB t . pure) $ LabelStack v)
     body' <- body
-    pure $ CatchCode v body'
+    pure $ CatchC v body'
   throw (SB _ x) (CB _ f) =
     CB SVoid $
-      pure ThrowCode <*> x <*> f
+      pure ThrowC <*> x <*> f
 
-abstractCode :: Callcc t => Code a -> CodeRep t a
-abstractCode = abstractCode' LabelMap.empty VarMap.empty
+abstractC :: Callcc t => C a -> CodeRep t a
+abstractC = abstractCode' LabelMap.empty VarMap.empty
 
-abstractData :: Callcc t => Data a -> DataRep t a
-abstractData = abstractData' LabelMap.empty VarMap.empty
+abstractD :: Callcc t => D a -> DataRep t a
+abstractD = abstractData' LabelMap.empty VarMap.empty
 
-abstractCode' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Code a -> CodeRep t a
+abstractCode' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> C a -> CodeRep t a
 abstractCode' lenv env code = case code of
-  LetBeCode term binder body -> letBe (abstractData' lenv env term) $ \x ->
+  LetBeC term binder body -> letBe (abstractData' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
      in abstractCode' lenv env' body
-  LetToCode term binder body -> letTo (abstractCode' lenv env term) $ \x ->
+  LetToC term binder body -> letTo (abstractCode' lenv env term) $ \x ->
     let env' = VarMap.insert binder x env
      in abstractCode' lenv env' body
-  ApplyCode f x ->
+  ApplyC f x ->
     let f' = abstractCode' lenv env f
         x' = abstractData' lenv env x
      in apply f' x'
-  LambdaCode k binder@(Variable t _) lbl@(Label n _) body ->
+  LambdaC k binder@(Variable t _) lbl@(Label n _) body ->
     lambda (abstractStack lenv env k) $ \x n ->
       let env' = VarMap.insert binder x env
           lenv' = LabelMap.insert lbl n lenv
        in abstractCode' lenv' env' body
-  ReturnCode val -> returns (abstractData' lenv env val)
-  GlobalCode g k -> call g (abstractStack lenv env k)
-  CatchCode lbl@(Label t _) body -> catch t $ \stk ->
+  ReturnC val -> returns (abstractData' lenv env val)
+  GlobalC g k -> call g (abstractStack lenv env k)
+  CatchC lbl@(Label t _) body -> catch t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv
      in abstractCode' lenv' env body
-  ThrowCode k value -> throw (abstractStack lenv env k) (abstractCode' lenv env value)
-  ForceCode thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
+  ThrowC k value -> throw (abstractStack lenv env k) (abstractCode' lenv env value)
+  ForceC thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
     Just stk -> force (abstractData' lenv env thunk) stk
 
 abstractStack :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Stack x -> StackRep t x
 abstractStack lenv _ (LabelStack lbl) = case LabelMap.lookup lbl lenv of
   Just stk -> stk
 
-abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> Data x -> DataRep t x
+abstractData' :: Callcc t => LabelMap (StackRep t) -> VarMap (DataRep t) -> D x -> DataRep t x
 abstractData' lenv env x = case x of
-  ThunkData lbl@(Label t _) body -> thunk t $ \stk ->
+  ThunkD lbl@(Label t _) body -> thunk t $ \stk ->
     let lenv' = LabelMap.insert lbl stk lenv
      in abstractCode' lenv' env body
-  VariableData v@(Variable t u) ->
+  VariableD v@(Variable t u) ->
     case VarMap.lookup v env of
       Just x -> x
       Nothing -> error ("could not find var " ++ show u ++ " of type")
-  ConstantData k -> constant k
-  UnitData -> unit
-  PairData h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
+  ConstantD k -> constant k
+  UnitD -> unit
+  PairD h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
 
-simplify :: Code a -> Code a
-simplify = simpCode
+simplify :: C a -> C a
+simplify = simpC
 
-simpCode :: Code a -> Code a
-simpCode code = case code of
-  LetToCode (ReturnCode value) binder body -> simpCode (LetBeCode value binder body)
-  LambdaCode k binder lbl body -> LambdaCode k binder lbl (simpCode body)
-  ApplyCode f x -> ApplyCode (simpCode f) (simpData x)
-  LetBeCode thing binder body -> LetBeCode (simpData thing) binder (simpCode body)
-  LetToCode act binder body -> LetToCode (simpCode act) binder (simpCode body)
-  CatchCode binder body -> CatchCode binder (simpCode body)
-  ThrowCode stack act -> ThrowCode stack (simpCode act)
-  ForceCode th stk -> ForceCode (simpData th) stk
-  ReturnCode x -> ReturnCode (simpData x)
-  g@(GlobalCode _ _) -> g
+simpC :: C a -> C a
+simpC code = case code of
+  LetToC (ReturnC value) binder body -> simpC (LetBeC value binder body)
+  LambdaC k binder lbl body -> LambdaC k binder lbl (simpC body)
+  ApplyC f x -> ApplyC (simpC f) (simpD x)
+  LetBeC thing binder body -> LetBeC (simpD thing) binder (simpC body)
+  LetToC act binder body -> LetToC (simpC act) binder (simpC body)
+  CatchC binder body -> CatchC binder (simpC body)
+  ThrowC stack act -> ThrowC stack (simpC act)
+  ForceC th stk -> ForceC (simpD th) stk
+  ReturnC x -> ReturnC (simpD x)
+  g@(GlobalC _ _) -> g
 
-simpData :: Data a -> Data a
-simpData x = case x of
-  UnitData -> UnitData
-  PairData x y -> PairData (simpData x) (simpData y)
-  ThunkData label body -> ThunkData label (simpCode body)
-  g@(ConstantData _) -> g
-  g@(VariableData _) -> g
+simpD :: D a -> D a
+simpD x = case x of
+  UnitD -> UnitD
+  PairD x y -> PairD (simpD x) (simpD y)
+  ThunkD label body -> ThunkD label (simpC body)
+  g@(ConstantD _) -> g
+  g@(VariableD _) -> g

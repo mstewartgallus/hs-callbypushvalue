@@ -29,24 +29,24 @@ import VarMap (VarMap)
 import qualified VarMap
 import Variable
 
-data Data a where
-  ConstantData :: Constant a -> Data a
-  VariableData :: Variable a -> Data a
-  ThunkData :: Label a -> Code -> Data (U a)
-  PairData :: Data a -> Data b -> Data (a :*: b)
+data D a where
+  ConstantD :: Constant a -> D a
+  VariableD :: Variable a -> D a
+  ThunkD :: Label a -> C -> D (U a)
+  PairD :: D a -> D b -> D (a :*: b)
 
-data Code where
-  GlobalCode :: Global a -> Stack a -> Code
-  LetLabelCode :: Stack a -> Label a -> Code -> Code
-  LetBeCode :: Data a -> Variable a -> Code -> Code
-  ForceCode :: Data (U a) -> Stack a -> Code
-  ThrowCode :: Stack (F a) -> Data a -> Code
-  LambdaCode :: Stack (a :=> b) -> Variable a -> Label b -> Code -> Code
+data C where
+  GlobalC :: Global a -> S a -> C
+  LetLabelC :: S a -> Label a -> C -> C
+  LetBeC :: D a -> Variable a -> C -> C
+  ForceC :: D (U a) -> S a -> C
+  ThrowC :: S (F a) -> D a -> C
+  LambdaC :: S (a :=> b) -> Variable a -> Label b -> C -> C
 
-data Stack a where
-  LabelStack :: Label a -> Stack a
-  ToStack :: Variable a -> Code -> Stack (F a)
-  ApplyStack :: Data a -> Stack b -> Stack (a :=> b)
+data S a where
+  LabelS :: Label a -> S a
+  ToS :: Variable a -> C -> S (F a)
+  ApplyS :: D a -> S b -> S (a :=> b)
 
 simplifyExtract :: Cps t => DataRep Simplifier a -> DataRep t a
 simplifyExtract term = abstract (simplify (build term))
@@ -54,161 +54,161 @@ simplifyExtract term = abstract (simplify (build term))
 data Simplifier
 
 instance HasData Simplifier where
-  newtype DataRep Simplifier a = DB (forall s. Unique.Stream s -> (SSet a, Data a))
+  newtype DataRep Simplifier a = DB (forall s. Unique.Stream s -> (SSet a, D a))
 
 instance HasCode Simplifier where
-  newtype CodeRep Simplifier a = CB (forall s. Unique.Stream s -> Code)
+  newtype CodeRep Simplifier a = CB (forall s. Unique.Stream s -> C)
 
 instance HasStack Simplifier where
-  newtype StackRep Simplifier a = SB (forall s. Unique.Stream s -> (SAlgebra a, Stack a))
+  newtype StackRep Simplifier a = SB (forall s. Unique.Stream s -> (SAlgebra a, S a))
 
 instance HasLet Simplifier where
   letBe (DB x) f = CB $ \(Unique.Stream newId xs ys) ->
     let (xt, x') = x xs
         binder = Variable xt newId
-     in case f (DB $ \_ -> (xt, VariableData binder)) of
+     in case f (DB $ \_ -> (xt, VariableD binder)) of
           CB y ->
             let y' = y ys
-             in LetBeCode x' binder y'
+             in LetBeC x' binder y'
 
 instance HasLetLabel Simplifier where
   letLabel (SB x) f = CB $ \(Unique.Stream newId xs ys) ->
     let (xt, x') = x xs
         binder = Label xt newId
-     in case f (SB $ \_ -> (xt, LabelStack binder)) of
+     in case f (SB $ \_ -> (xt, LabelS binder)) of
           CB y ->
             let y' = y ys
-             in LetLabelCode x' binder y'
+             in LetLabelC x' binder y'
 
 instance HasConstants Simplifier where
-  constant k = DB $ \_ -> (Constant.typeOf k, ConstantData k)
+  constant k = DB $ \_ -> (Constant.typeOf k, ConstantD k)
 
 instance HasTuple Simplifier where
   pair (DB x) (DB y) = DB $ \(Unique.Stream _ ks xs) ->
     let (xt, x') = x xs
         (yt, y') = y xs
-     in (SPair xt yt, PairData x' y')
+     in (SPair xt yt, PairD x' y')
 
 instance HasThunk Simplifier where
   lambda (SB k) f = CB $ \(Unique.Stream aId (Unique.Stream bId _ ks) ys) ->
     let (a `SFn` b, k') = k ks
         binder = Variable a aId
         label = Label b bId
-     in case f (DB $ \_ -> (a, VariableData binder)) (SB $ \_ -> (b, LabelStack label)) of
+     in case f (DB $ \_ -> (a, VariableD binder)) (SB $ \_ -> (b, LabelS label)) of
           CB y ->
             let y' = y ys
-             in LambdaCode k' binder label y'
+             in LambdaC k' binder label y'
 
   thunk t f = DB $ \(Unique.Stream newId xs ys) ->
     let binder = Label t newId
-     in case f (SB $ \_ -> (t, LabelStack binder)) of
+     in case f (SB $ \_ -> (t, LabelS binder)) of
           CB y ->
             let y' = y ys
-             in (SU t, ThunkData binder y')
+             in (SU t, ThunkD binder y')
   force (DB k) (SB x) = CB $ \(Unique.Stream _ ks xs) ->
     let (_, k') = k ks
         (_, x') = x xs
-     in ForceCode k' x'
+     in ForceC k' x'
 
   call g (SB k) = CB $ \s ->
     let (_, k') = k s
-     in GlobalCode g k'
+     in GlobalC g k'
 
 instance Cps Simplifier where
   letTo t f = SB $ \(Unique.Stream newId xs ys) ->
     let binder = Variable t newId
-     in case f (DB $ \_ -> (t, VariableData binder)) of
+     in case f (DB $ \_ -> (t, VariableD binder)) of
           CB y ->
             let y' = y ys
-             in (SF t, ToStack binder y')
+             in (SF t, ToS binder y')
 
   throw (SB k) (DB x) = CB $ \(Unique.Stream _ ks xs) ->
     let (_, k') = k ks
         (_, x') = x xs
-     in ThrowCode k' x'
+     in ThrowC k' x'
 
   apply (DB x) (SB k) = SB $ \(Unique.Stream _ ks xs) ->
     let (xt, x') = x xs
         (kt, k') = k ks
-     in (xt `SFn` kt, ApplyStack x' k')
+     in (xt `SFn` kt, ApplyS x' k')
 
-build :: DataRep Simplifier a -> Data a
+build :: DataRep Simplifier a -> D a
 build (DB s) = snd (Unique.withStream s)
 
-simplify :: Data a -> Data a
-simplify (ThunkData binder body) = ThunkData binder (simpCode body)
+simplify :: D a -> D a
+simplify (ThunkD binder body) = ThunkD binder (simpC body)
 simplify x = x
 
-simpStack :: Stack a -> Stack a
-simpStack (ToStack binder body) = ToStack binder (simpCode body)
-simpStack (ApplyStack h t) = ApplyStack (simplify h) (simpStack t)
-simpStack x = x
+simpS :: S a -> S a
+simpS (ToS binder body) = ToS binder (simpC body)
+simpS (ApplyS h t) = ApplyS (simplify h) (simpS t)
+simpS x = x
 
-simpCode :: Code -> Code
-simpCode code = case code of
-  ThrowCode (ToStack binder body) value -> simpCode (LetBeCode value binder body)
-  ForceCode (ThunkData label body) k -> simpCode (LetLabelCode k label body)
-  ThrowCode k x -> ThrowCode (simpStack k) (simplify x)
-  ForceCode f x -> ForceCode (simplify f) (simpStack x)
-  LetLabelCode thing binder body -> LetLabelCode (simpStack thing) binder (simpCode body)
-  LetBeCode thing binder body -> LetBeCode (simplify thing) binder (simpCode body)
-  GlobalCode g k -> GlobalCode g (simpStack k)
-  LambdaCode k binder label body -> LambdaCode (simpStack k) binder label (simpCode body)
+simpC :: C -> C
+simpC code = case code of
+  ThrowC (ToS binder body) value -> simpC (LetBeC value binder body)
+  ForceC (ThunkD label body) k -> simpC (LetLabelC k label body)
+  ThrowC k x -> ThrowC (simpS k) (simplify x)
+  ForceC f x -> ForceC (simplify f) (simpS x)
+  LetLabelC thing binder body -> LetLabelC (simpS thing) binder (simpC body)
+  LetBeC thing binder body -> LetBeC (simplify thing) binder (simpC body)
+  GlobalC g k -> GlobalC g (simpS k)
+  LambdaC k binder label body -> LambdaC (simpS k) binder label (simpC body)
 
-abstract :: Cps t => Data a -> DataRep t a
-abstract x = abstData x LabelMap.empty VarMap.empty
+abstract :: Cps t => D a -> DataRep t a
+abstract x = abstD x LabelMap.empty VarMap.empty
 
-abstData :: Cps t => Data a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> DataRep t a
-abstData x = case x of
-  ConstantData k -> \_ _ -> constant k
-  VariableData v -> \_ env -> case VarMap.lookup v env of
+abstD :: Cps t => D a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> DataRep t a
+abstD x = case x of
+  ConstantD k -> \_ _ -> constant k
+  VariableD v -> \_ env -> case VarMap.lookup v env of
     Just x -> x
     Nothing -> error "variable not found in environment"
-  ThunkData label@(Label t _) body ->
-    let body' = abstCode body
+  ThunkD label@(Label t _) body ->
+    let body' = abstC body
      in \lenv env ->
           thunk t $ \k ->
             body' (LabelMap.insert label k lenv) env
 
-abstStack :: Cps t => Stack a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> StackRep t a
-abstStack stk = case stk of
-  LabelStack v -> \lenv _ -> case LabelMap.lookup v lenv of
+abstS :: Cps t => S a -> LabelMap (StackRep t) -> VarMap (DataRep t) -> StackRep t a
+abstS stk = case stk of
+  LabelS v -> \lenv _ -> case LabelMap.lookup v lenv of
     Just x -> x
     Nothing -> error "label not found in environment"
-  ToStack binder@(Variable t _) body ->
-    let body' = abstCode body
+  ToS binder@(Variable t _) body ->
+    let body' = abstC body
      in \lenv env ->
           letTo t $ \value ->
             body' lenv (VarMap.insert binder value env)
-  ApplyStack h t ->
-    let h' = abstData h
-        t' = abstStack t
+  ApplyS h t ->
+    let h' = abstD h
+        t' = abstS t
      in \lenv env -> apply (h' lenv env) (t' lenv env)
 
-abstCode :: Cps t => Code -> LabelMap (StackRep t) -> VarMap (DataRep t) -> CodeRep t Void
-abstCode c = case c of
-  GlobalCode g k ->
-    let k' = abstStack k
+abstC :: Cps t => C -> LabelMap (StackRep t) -> VarMap (DataRep t) -> CodeRep t Void
+abstC c = case c of
+  GlobalC g k ->
+    let k' = abstS k
      in \lenv env -> call g (k' lenv env)
-  ThrowCode k x ->
-    let value' = abstData x
-        k' = abstStack k
+  ThrowC k x ->
+    let value' = abstD x
+        k' = abstS k
      in \lenv env -> throw (k' lenv env) (value' lenv env)
-  ForceCode k x ->
-    let value' = abstStack x
-        k' = abstData k
+  ForceC k x ->
+    let value' = abstS x
+        k' = abstD k
      in \lenv env -> force (k' lenv env) (value' lenv env)
-  LetBeCode value binder body ->
-    let value' = abstData value
-        body' = abstCode body
+  LetBeC value binder body ->
+    let value' = abstD value
+        body' = abstC body
      in \lenv env -> body' lenv (VarMap.insert binder (value' lenv env) env)
-  LetLabelCode value binder body ->
-    let value' = abstStack value
-        body' = abstCode body
+  LetLabelC value binder body ->
+    let value' = abstS value
+        body' = abstC body
      in \lenv env -> body' (LabelMap.insert binder (value' lenv env) lenv) env
-  LambdaCode k binder@(Variable t _) label@(Label a _) body ->
-    let body' = abstCode body
-        k' = abstStack k
+  LambdaC k binder@(Variable t _) label@(Label a _) body ->
+    let body' = abstC body
+        k' = abstS k
      in \lenv env ->
           lambda
             (k' lenv env)
