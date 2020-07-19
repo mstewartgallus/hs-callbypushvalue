@@ -26,7 +26,7 @@ import HasTuple
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCode t, HasStack t, HasLetLabel t, HasLet t, HasThunk t, HasTuple t) => Cps t where
+class (HasConstants t, HasThunk t, HasCode t, HasStack t, HasLetLabel t, HasLet t, HasThunk t, HasTuple t) => Cps t where
   throw :: Stack t (F a) -> Data t a -> Code t Void
 
   letTo :: SSet a -> (Data t a -> Code t Void) -> Stack t (F a)

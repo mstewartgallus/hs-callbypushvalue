@@ -8,199 +8,79 @@ module CallccSimplifier (Simplifier, simplifyExtract) where
 
 import Callcc
 import Common
-import Constant (Constant)
-import qualified Constant
-import Core
-import Global
 import HasCode
 import HasConstants
 import HasData
+import HasGlobals
 import HasLet
 import HasLetTo
 import HasReturn
 import HasStack
 import HasThunk
 import HasTuple
-import Label
-import LabelMap (LabelMap)
-import qualified LabelMap
-import qualified Unique
-import qualified VarMap
-import VarMap (VarMap)
-import Variable
 
-simplifyExtract :: Callcc t => Code Simplifier a -> Code t a
-simplifyExtract term = abstractC (simplify (build term))
+simplifyExtract :: Callcc t => Code (Simplifier t) a -> Code t a
+simplifyExtract term = abstract term
 
-data C a where
-  GlobalC :: Global a -> S a -> C Void
-  LambdaC :: S (a :=> b) -> Variable a -> Label b -> C c -> C c
-  ApplyC :: C (a :=> b) -> D a -> C b
-  ReturnC :: D a -> C (F a)
-  LetBeC :: D a -> Variable a -> C b -> C b
-  LetToC :: C (F a) -> Variable a -> C b -> C b
-  CatchC :: Label a -> C Void -> C a
-  ThrowC :: S a -> C a -> C Void
-  ForceC :: D (U a) -> S a -> C Void
+data Simplifier t
 
-data S a where
-  LabelStack :: Label a -> S a
+instance HasCode (Simplifier t) where
+  data Code (Simplifier t) a where
+    LambdaC :: SSet a -> (Data t a -> Code t b) -> Code (Simplifier t) (a :=> b)
+    ForceC :: Data t (U a) -> Code (Simplifier t) a
+    ReturnC :: Data t a -> Code (Simplifier t) (F a)
+    C :: Code t a -> Code (Simplifier t) a
 
-data D a where
-  UnitD :: D Unit
-  ConstantD :: Constant a -> D a
-  VariableD :: Variable a -> D a
-  ThunkD :: Label a -> C Void -> D (U a)
-  PairD :: D a -> D b -> D (a :*: b)
+instance HasData (Simplifier t) where
+  data Data (Simplifier t) a where
+    ThunkD :: Code t a -> Data (Simplifier t) (U a)
+    D :: Data t a -> Data (Simplifier t) a
 
-build :: Code Simplifier a -> C a
-build (CB _ s) = Unique.run s
+instance HasStack (Simplifier t) where
+  newtype Stack (Simplifier t) a = S (Stack t a)
 
-data Simplifier
+instance Callcc t => HasConstants (Simplifier t) where
+  constant k = D $ constant k
+  unit = D unit
 
-instance HasCode Simplifier where
-  data Code Simplifier a = CB (SAlgebra a) (Unique.State (C a))
+instance Callcc t => HasReturn (Simplifier t) where
+  returns value = ReturnC $ abstractD value
 
-instance HasData Simplifier where
-  data Data Simplifier a = DB (SSet a) (Unique.State (D a))
+instance Callcc t => HasLet (Simplifier t) where
+  letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
 
-instance HasConstants Simplifier where
-  constant k = DB (Constant.typeOf k) $ pure (ConstantD k)
-  unit = DB SUnit $ pure UnitD
+instance Callcc t => HasLetTo (Simplifier t) where
+  letTo (ReturnC x) f = C $ letBe x $ \x' -> abstract (f (D x'))
+  letTo x f =
+    let
+     in C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
 
-instance HasReturn Simplifier where
-  returns (DB t value) = CB (SF t) $ pure ReturnC <*> value
+  apply (LambdaC _ f) x = C $ letBe (abstractD x) f
+  apply f x = C $ apply (abstract f) (abstractD x)
 
-instance HasLet Simplifier where
-  letBe x@(DB t vx) f =
-    let CB bt _ = f x
-     in CB bt $ do
-          x' <- vx
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableD v)
-          body' <- body
-          pure $ LetBeC x' v body'
+instance Callcc t => HasTuple (Simplifier t)
 
-instance HasLetTo Simplifier where
-  letTo x@(CB (SF t) xs) f =
-    let CB bt _ = f (DB t (pure undefined))
-     in CB bt $ do
-          x' <- xs
-          v <- pure (Variable t) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableD v)
-          body' <- body
-          pure $ LetToC x' v body'
-  apply (CB (_ `SFn` b) f) (DB _ x) =
-    CB b $
-      pure ApplyC <*> f <*> x
+instance Callcc t => HasThunk (Simplifier t) where
+  -- thunk :: SAlgebra a -> (Stack t a -> Code t Void) -> Data t (U a)
+  force x k = C $ force (abstractD x) (abstractS k)
 
-instance HasTuple Simplifier
+  -- lambda :: Stack t (a :=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
+  lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
 
-instance HasStack Simplifier where
-  data Stack Simplifier a = SB (SAlgebra a) (Unique.State (S a))
+  call g k = C $ call g (abstractS k)
 
-instance HasThunk Simplifier where
-  call g (SB _ k) = CB SVoid $ do
-    k' <- k
-    pure (GlobalC g k')
+instance Callcc t => Callcc (Simplifier t) where
+  catch t f = C $ catch t $ \x -> abstract (f (S x))
+  throw k f = C $ throw (abstractS k) (abstract f)
 
-  lambda (SB (t `SFn` result) k) f =
-    let CB bt _ = f ((DB t . pure) $ undefined) ((SB result . pure) $ undefined)
-     in CB bt $ do
-          v <- pure (Variable t) <*> Unique.uniqueId
-          l <- pure (Label result) <*> Unique.uniqueId
-          let CB _ body = f ((DB t . pure) $ VariableD v) ((SB result . pure) $ LabelStack l)
-          body' <- body
-          k' <- k
-          pure $ LambdaC k' v l body'
-  thunk t f = DB (SU t) $ do
-    v <- pure (Label t) <*> Unique.uniqueId
-    let CB _ body = f ((SB t . pure) $ LabelStack v)
-    body' <- body
-    pure $ ThunkD v body'
-  force (DB _ thunk) (SB _ stack) =
-    CB SVoid $
-      pure ForceC <*> thunk <*> stack
+abstract :: Callcc t => Code (Simplifier t) a -> Code t a
+abstract code = case code of
+  ReturnC value -> returns value
+  C c -> c
 
-instance Callcc Simplifier where
-  catch t f = CB t $ do
-    v <- pure (Label t) <*> Unique.uniqueId
-    let CB _ body = f ((SB t . pure) $ LabelStack v)
-    body' <- body
-    pure $ CatchC v body'
-  throw (SB _ x) (CB _ f) =
-    CB SVoid $
-      pure ThrowC <*> x <*> f
+abstractD :: Callcc t => Data (Simplifier t) a -> Data t a
+abstractD x = case x of
+  D d -> d
 
-abstractC :: Callcc t => C a -> Code t a
-abstractC = abstractCode' LabelMap.empty VarMap.empty
-
-abstractD :: Callcc t => D a -> Data t a
-abstractD = abstractData' LabelMap.empty VarMap.empty
-
-abstractCode' :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> C a -> Code t a
-abstractCode' lenv env code = case code of
-  LetBeC term binder body -> letBe (abstractData' lenv env term) $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' lenv env' body
-  LetToC term binder body -> letTo (abstractCode' lenv env term) $ \x ->
-    let env' = VarMap.insert binder x env
-     in abstractCode' lenv env' body
-  ApplyC f x ->
-    let f' = abstractCode' lenv env f
-        x' = abstractData' lenv env x
-     in apply f' x'
-  LambdaC k binder@(Variable t _) lbl@(Label n _) body ->
-    lambda (abstractStack lenv env k) $ \x n ->
-      let env' = VarMap.insert binder x env
-          lenv' = LabelMap.insert lbl n lenv
-       in abstractCode' lenv' env' body
-  ReturnC val -> returns (abstractData' lenv env val)
-  GlobalC g k -> call g (abstractStack lenv env k)
-  CatchC lbl@(Label t _) body -> catch t $ \stk ->
-    let lenv' = LabelMap.insert lbl stk lenv
-     in abstractCode' lenv' env body
-  ThrowC k value -> throw (abstractStack lenv env k) (abstractCode' lenv env value)
-  ForceC thunk (LabelStack lbl) -> case LabelMap.lookup lbl lenv of
-    Just stk -> force (abstractData' lenv env thunk) stk
-
-abstractStack :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> S x -> Stack t x
-abstractStack lenv _ (LabelStack lbl) = case LabelMap.lookup lbl lenv of
-  Just stk -> stk
-
-abstractData' :: Callcc t => LabelMap (Stack t) -> VarMap (Data t) -> D x -> Data t x
-abstractData' lenv env x = case x of
-  ThunkD lbl@(Label t _) body -> thunk t $ \stk ->
-    let lenv' = LabelMap.insert lbl stk lenv
-     in abstractCode' lenv' env body
-  VariableD v@(Variable t u) ->
-    case VarMap.lookup v env of
-      Just x -> x
-      Nothing -> error ("could not find var " ++ show u ++ " of type")
-  ConstantD k -> constant k
-  UnitD -> unit
-  PairD h t -> pair (abstractData' lenv env h) (abstractData' lenv env t)
-
-simplify :: C a -> C a
-simplify = simpC
-
-simpC :: C a -> C a
-simpC code = case code of
-  LetToC (ReturnC value) binder body -> simpC (LetBeC value binder body)
-  LambdaC k binder lbl body -> LambdaC k binder lbl (simpC body)
-  ApplyC f x -> ApplyC (simpC f) (simpD x)
-  LetBeC thing binder body -> LetBeC (simpD thing) binder (simpC body)
-  LetToC act binder body -> LetToC (simpC act) binder (simpC body)
-  CatchC binder body -> CatchC binder (simpC body)
-  ThrowC stack act -> ThrowC stack (simpC act)
-  ForceC th stk -> ForceC (simpD th) stk
-  ReturnC x -> ReturnC (simpD x)
-  g@(GlobalC _ _) -> g
-
-simpD :: D a -> D a
-simpD x = case x of
-  UnitD -> UnitD
-  PairD x y -> PairD (simpD x) (simpD y)
-  ThunkD label body -> ThunkD label (simpC body)
-  g@(ConstantD _) -> g
-  g@(VariableD _) -> g
+abstractS :: Callcc t => Stack (Simplifier t) a -> Stack t a
+abstractS (S x) = x

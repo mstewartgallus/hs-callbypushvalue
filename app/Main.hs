@@ -121,10 +121,12 @@ optimizeCbpv = loop iterCbpv
     loop 0 term = term
     loop n term = loop (n - 1) (Program (step (Program.interpret term)))
 
+type OptCallcc t = CallccSimplifier.Simplifier (MonoInliner (CostInliner t))
+
 optimizeCallcc :: Program Callcc a -> Program Callcc a
 optimizeCallcc = loop iterCallcc
   where
-    step :: Callcc t => Code CallccSimplifier.Simplifier a -> Code t a
+    step :: Callcc t => Code (OptCallcc t) a -> Code t a
     step term =
       let simplified = CallccSimplifier.simplifyExtract term
           monoInlined = MonoInliner.extract simplified
