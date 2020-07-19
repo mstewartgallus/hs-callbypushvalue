@@ -28,33 +28,33 @@ import VarMap (VarMap)
 import qualified VarMap as VarMap
 import Variable
 
-simplifyExtract :: Cbpv t => Code Simplifier a -> Code t a
+simplifyExtract :: Cbpv t => Code (Simplifier t) a -> Code t a
 simplifyExtract term = abstract VarMap.empty (build term)
 
-build :: Code Simplifier a -> C a
+build :: Code (Simplifier t) a -> C a
 build (CB s) = snd (Unique.withStream s)
 
-data Simplifier
+data Simplifier t
 
-instance HasCode Simplifier where
-  newtype Code Simplifier (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, C a))
+instance HasCode (Simplifier t) where
+  newtype Code (Simplifier t) (a :: Algebra) = CB (forall s. Unique.Stream s -> (SAlgebra a, C a))
 
-instance HasData Simplifier where
-  newtype Data Simplifier (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, D a))
+instance HasData (Simplifier t) where
+  newtype Data (Simplifier t) (a :: Set) = DB (forall s. Unique.Stream s -> (SSet a, D a))
 
-instance HasGlobals Simplifier where
+instance HasGlobals (Simplifier t) where
   global g@(Global t _) = CB $ \_ -> (t, GlobalC g)
 
-instance HasConstants Simplifier where
+instance HasConstants (Simplifier t) where
   constant k = DB $ \_ -> (Constant.typeOf k, ConstantD k)
   unit = DB $ \_ -> (SUnit, UnitD)
 
-instance HasReturn Simplifier where
+instance HasReturn (Simplifier t) where
   returns (DB value) = CB $ \s ->
     let (t, value') = value s
      in (SF t, ReturnC value')
 
-instance HasLet Simplifier where
+instance HasLet (Simplifier t) where
   letBe (DB x) f = CB $ \(Unique.Stream newId xs fs) ->
     let (tx, vx) = x xs
         binder = Variable tx newId
@@ -63,7 +63,7 @@ instance HasLet Simplifier where
             let (result, body) = b fs
              in (result, LetBeC vx binder body)
 
-instance HasLetTo Simplifier where
+instance HasLetTo (Simplifier t) where
   letTo (CB x) f = CB $ \(Unique.Stream newId xs fs) ->
     let (SF tx, vx) = x xs
         binder = Variable tx newId
@@ -81,13 +81,13 @@ instance HasLetTo Simplifier where
           LambdaC binder body -> (b, LetBeC vx binder body)
           _ -> (b, ApplyC vf vx)
 
-instance HasTuple Simplifier where
+instance HasTuple (Simplifier t) where
   pair (DB x) (DB y) = DB $ \(Unique.Stream _ xs ys) ->
     let (xt, xv) = x xs
         (yt, yv) = y ys
      in (SPair xt yt, PairD xv yv)
 
-instance Cbpv Simplifier where
+instance Cbpv (Simplifier t) where
   lambda t f = CB $ \(Unique.Stream newId xs fs) ->
     let binder = Variable t newId
      in case f (DB $ \_ -> (t, VariableD binder)) of
