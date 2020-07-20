@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Duplicate (Factory, Generic, extract, copy) where
+module Duplicate (Factory, extract) where
 
 import qualified Callcc
 import Cbpv
@@ -27,17 +27,17 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
+import Program (Program (..))
 import SystemF (SystemF)
 import qualified SystemF
 import TextShow
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: Code Factory a -> Code Generic a
-extract (FacC x) = Unique.withStream x
-
-copy :: SystemF t => Code Generic a -> Code t a
-copy (GenC x) = x LabelMap.empty
+extract :: Code Factory a -> Program SystemF a
+extract (FacC x) =
+  let GenC y = Unique.withStream x
+   in Program (y LabelMap.empty)
 
 data Factory
 

@@ -62,8 +62,8 @@ program = F.lam $ \x ->
       F.<*> (global Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
-  Code Duplicate.Generic a ->
-  ( Code Duplicate.Generic a,
+  Program SystemF a ->
+  ( Program SystemF a,
     Program Cbpv a,
     Program Cbpv a,
     Program Cbpv a,
@@ -74,7 +74,7 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = cbpvProgram (AsCbpv.extract (Duplicate.copy optTerm))
+      cbpv = cbpvProgram (AsCbpv.extract (Program.interpret optTerm))
       intrinsified = cbpvProgram (AsIntrinsified.extract (Program.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = callccProgram (AsCallcc.extract (Program.interpret optIntrinsified))
@@ -94,7 +94,7 @@ cpsValue = Value
 
 type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeTerm :: Code Duplicate.Generic a -> Code Duplicate.Generic a
+optimizeTerm :: Program SystemF a -> Program SystemF a
 optimizeTerm = loop iterTerm
   where
     step :: SystemF t => Code (OptF t) a -> Code t a
@@ -103,9 +103,9 @@ optimizeTerm = loop iterTerm
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
-    loop :: Int -> Code Duplicate.Generic a -> Code Duplicate.Generic a
+    loop :: Int -> Program SystemF a -> Program SystemF a
     loop 0 term = term
-    loop n term = loop (n - 1) (Duplicate.extract (step (Duplicate.copy term)))
+    loop n term = loop (n - 1) (Duplicate.extract (step (Program.interpret term)))
 
 type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
 
@@ -157,10 +157,10 @@ main = do
   putStrLn "Lambda Calculus:"
   T.putStrLn (AsText.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (Duplicate.extract program)
+  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (Program program)
 
   putStrLn "\nOptimized Term:"
-  T.putStrLn (AsText.extract (Duplicate.copy optTerm))
+  T.putStrLn (AsText.extract (Program.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract (Program.interpret cbpv))
