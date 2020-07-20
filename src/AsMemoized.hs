@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -34,23 +35,23 @@ import TextShow
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: Code AsMemoized a -> Program SystemF a
+extract :: Code (AsMemoized k) a -> Program k a
 extract (C x) = Program (Unique.withStream x LabelMap.empty)
 
-data AsMemoized
+data AsMemoized (k :: * -> Constraint)
 
-instance HasCode AsMemoized where
-  newtype Code AsMemoized a = C (forall x. Unique.Stream x -> (forall t. SystemF t => LabelMap (Code t) -> Code t a))
+instance HasCode (AsMemoized k) where
+  newtype Code (AsMemoized k) a = C (forall x. Unique.Stream x -> (forall t. k t => LabelMap (Code t) -> Code t a))
 
-instance HasData AsMemoized where
-  newtype Data AsMemoized a = D (forall x. Unique.Stream x -> (forall t. SystemF t => LabelMap (Code t) -> Data t a))
+instance HasData (AsMemoized k) where
+  newtype Data (AsMemoized k) a = D (forall x. Unique.Stream x -> (forall t. k t => LabelMap (Code t) -> Data t a))
 
-instance HasGlobals AsMemoized where
+instance HasGlobals (AsMemoized SystemF) where
   global g = C $ \_ ->
     let g' = global g
      in \_ -> g'
 
-instance HasConstants AsMemoized where
+instance HasConstants (AsMemoized SystemF) where
   constant k = D $ \_ ->
     let k' = constant k
      in \_ -> k'
@@ -58,12 +59,12 @@ instance HasConstants AsMemoized where
     let u = unit
      in \_ -> u
 
-instance HasReturn AsMemoized where
+instance HasReturn (AsMemoized SystemF) where
   returns (D x) = C $ \xs ->
     let x' = x xs
      in \env -> returns (x' env)
 
-instance SystemF.SystemF AsMemoized where
+instance SystemF (AsMemoized SystemF) where
   -- --   pair (  x) (  y) =  \env -> SystemF.pair (x env) (y env)
 
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
