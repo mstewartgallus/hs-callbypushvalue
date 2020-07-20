@@ -10,6 +10,7 @@ import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
+import Debug.Trace
 import Global
 import HasCode
 import HasConstants
