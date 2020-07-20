@@ -41,19 +41,19 @@ extract (FacC x) =
 
 data Factory
 
-data Generic
+data Generic (k :: * -> Constraint)
 
-instance HasCode Generic where
-  newtype Code Generic a = GenC (forall t. SystemF t => LabelMap (Code t) -> Code t a)
+instance HasCode (Generic k) where
+  newtype Code (Generic k) a = GenC (forall t. k t => LabelMap (Code t) -> Code t a)
 
-instance HasData Generic where
-  newtype Data Generic a = GenD (forall t. SystemF t => LabelMap (Code t) -> Data t a)
+instance HasData (Generic k) where
+  newtype Data (Generic k) a = GenD (forall t. k t => LabelMap (Code t) -> Data t a)
 
 instance HasCode Factory where
-  newtype Code Factory a = FacC (forall x. Unique.Stream x -> Code Generic a)
+  newtype Code Factory a = FacC (forall x. Unique.Stream x -> Code (Generic SystemF) a)
 
 instance HasData Factory where
-  newtype Data Factory a = FacD (forall x. Unique.Stream x -> Data Generic a)
+  newtype Data Factory a = FacD (forall x. Unique.Stream x -> Data (Generic SystemF) a)
 
 instance HasGlobals Factory where
   global g = FacC $ \_ ->

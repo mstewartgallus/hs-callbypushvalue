@@ -10,6 +10,7 @@ import Constant (Constant)
 import qualified Constant
 import Core hiding (minus, plus)
 import qualified Core
+import Debug.Trace
 import Global
 import HasCode
 import HasConstants
@@ -38,7 +39,7 @@ instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = SS (Data t a)
 
 instance HasGlobals t => HasGlobals (Simplifier t) where
-  global g = S NotFn (global g)
+  global g = S NotFn (trace "global" $ global g)
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant k = SS (constant k)
