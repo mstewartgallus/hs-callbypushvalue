@@ -8,6 +8,7 @@ import qualified AsCallcc
 import qualified AsCbpv
 import AsCps
 import qualified AsIntrinsified
+import qualified AsMemoized
 import qualified AsPorcelain
 import AsText
 import qualified Callcc
@@ -27,7 +28,6 @@ import qualified CpsSimplifier
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
-import qualified Duplicate
 import HasCode
 import HasConstants
 import HasData
@@ -105,7 +105,7 @@ optimizeTerm = loop iterTerm
        in inlined
     loop :: Int -> Program SystemF a -> Program SystemF a
     loop 0 term = term
-    loop n term = loop (n - 1) (Duplicate.extract (step (Program.interpret term)))
+    loop n term = loop (n - 1) (AsMemoized.extract (step (Program.interpret term)))
 
 type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
 
