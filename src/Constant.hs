@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE StrictData #-}
 
 module Constant (Constant (..), typeOf) where
 
@@ -9,7 +8,7 @@ import Data.Word
 import TextShow
 
 data Constant a where
-  U64Constant :: Word64 -> Constant U64
+  U64Constant :: Word64 -> Constant 'U64
 
 instance Eq (Constant a) where
   (U64Constant x) == (U64Constant y) = x == y

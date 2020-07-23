@@ -11,7 +11,6 @@ import Common
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
 import HasLet
 import HasLetTo
 import HasReturn
@@ -26,7 +25,7 @@ data Simplifier t
 
 instance HasCode (Simplifier t) where
   data Code (Simplifier t) a where
-    ReturnC :: Data t a -> Code (Simplifier t) (F a)
+    ReturnC :: Data t a -> Code (Simplifier t) ('F a)
     C :: Code t a -> Code (Simplifier t) a
 
 instance HasData (Simplifier t) where
@@ -53,7 +52,9 @@ instance Callcc t => HasLetTo (Simplifier t) where
 
   apply f x = C $ apply (abstract f) (abstractD x)
 
-instance Callcc t => HasTuple (Simplifier t)
+instance Callcc t => HasTuple (Simplifier t) where
+  pair x y = D $ pair (abstractD x) (abstractD y)
+  unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
 instance Callcc t => HasThunk (Simplifier t) where
   thunk t f = D $ thunk t $ \x -> abstract (f (S x))

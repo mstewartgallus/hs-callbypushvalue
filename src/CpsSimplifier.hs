@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -11,10 +10,8 @@ import Cps
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
 import HasLet
 import HasLetLabel
-import HasReturn
 import HasStack
 import HasThunk
 import HasTuple
@@ -30,12 +27,12 @@ instance HasCode (Simplifier t) where
 
 instance HasData (Simplifier t) where
   data Data (Simplifier t) a where
-    ThunkD :: SAlgebra a -> (Stack t a -> Code t Void) -> Data (Simplifier t) (U a)
+    ThunkD :: SAlgebra a -> (Stack t a -> Code t 'Void) -> Data (Simplifier t) ('U a)
     D :: Data t a -> Data (Simplifier t) a
 
 instance HasStack (Simplifier t) where
   data Stack (Simplifier t) a where
-    LetToS :: SSet a -> (Data t a -> Code t Void) -> Stack (Simplifier t) (F a)
+    LetToS :: SSet a -> (Data t a -> Code t 'Void) -> Stack (Simplifier t) ('F a)
     S :: Stack t a -> Stack (Simplifier t) a
 
 instance Cps t => HasConstants (Simplifier t) where
@@ -48,7 +45,9 @@ instance Cps t => HasLet (Simplifier t) where
 instance Cps t => HasLetLabel (Simplifier t) where
   letLabel x f = C $ letLabel (abstractS x) $ \x' -> abstract (f (S x'))
 
-instance Cps t => HasTuple (Simplifier t)
+instance Cps t => HasTuple (Simplifier t) where
+  pair x y = D $ pair (abstractD x) (abstractD y)
+  unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
 instance Cps t => HasThunk (Simplifier t) where
   thunk t f = ThunkD t $ \x -> abstract (f (S x))

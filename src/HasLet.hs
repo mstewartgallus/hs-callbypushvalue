@@ -1,10 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-
 module HasLet (HasLet (..)) where
 
-import Common
 import HasCode
 import HasData
 

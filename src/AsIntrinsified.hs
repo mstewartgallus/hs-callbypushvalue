@@ -6,7 +6,6 @@ module AsIntrinsified (Intrinsify, extract) where
 
 import Cbpv
 import Common
-import Constant
 import Core
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
@@ -72,9 +71,9 @@ intrinsics =
     [ GlobalMap.Entry plus plusIntrinsic
     ]
 
-plusIntrinsic :: Cbpv t => Code t (F U64 :-> F U64 :-> F U64)
-plusIntrinsic = lambda (SU (SF SU64)) $ \x' ->
-  lambda (SU (SF SU64)) $ \y' ->
+plusIntrinsic :: Cbpv t => Code t ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
+plusIntrinsic = lambda inferSet $ \x' ->
+  lambda inferSet $ \y' ->
     letTo (force x') $ \x'' ->
       letTo (force y') $ \y'' ->
         apply (apply (global strictPlus) x'') y''

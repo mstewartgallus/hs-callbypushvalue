@@ -1,9 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-
 module HasGlobals (HasGlobals (..)) where
 
-import Common
 import Global
 import HasCode
 

@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlgebra (..), Set (..), Algebra (..), inferSet, inferAlgebra, KnownSet (..), KnownAlgebra (..)) where
@@ -24,52 +22,52 @@ inferSet = reifySet Proxy
 inferAlgebra :: KnownAlgebra a => SAlgebra a
 inferAlgebra = reifyAlgebra Proxy
 
-class KnownSet (a :: Set) where
+class KnownSet a where
   reifySet :: Proxy a -> SSet a
 
-class KnownAlgebra (a :: Algebra) where
+class KnownAlgebra a where
   reifyAlgebra :: Proxy a -> SAlgebra a
 
-instance KnownSet U64 where
+instance KnownSet 'U64 where
   reifySet Proxy = SU64
 
-instance KnownSet Unit where
+instance KnownSet 'Unit where
   reifySet Proxy = SUnit
 
-instance KnownAlgebra a => KnownSet (U a) where
+instance KnownAlgebra a => KnownSet ('U a) where
   reifySet Proxy = SU (reifyAlgebra Proxy)
 
-instance (KnownSet x, KnownSet y) => KnownSet (x :*: y) where
+instance (KnownSet x, KnownSet y) => KnownSet (x ':*: y) where
   reifySet Proxy = SPair (reifySet Proxy) (reifySet Proxy)
 
-instance KnownAlgebra Void where
+instance KnownAlgebra 'Void where
   reifyAlgebra Proxy = SVoid
 
-instance KnownSet a => KnownAlgebra (F a) where
+instance KnownSet a => KnownAlgebra ('F a) where
   reifyAlgebra Proxy = SF (reifySet Proxy)
 
-instance (KnownSet x, KnownAlgebra y) => KnownAlgebra (x :=> y) where
+instance (KnownSet x, KnownAlgebra y) => KnownAlgebra (x ':=> y) where
   reifyAlgebra Proxy = SFn (reifySet Proxy) (reifyAlgebra Proxy)
 
-data SSet (a :: Set) where
-  SU64 :: SSet U64
-  SUnit :: SSet Unit
-  SU :: SAlgebra a -> SSet (U a)
-  SPair :: SSet a -> SSet b -> SSet (a :*: b)
+data SSet a where
+  SU64 :: SSet 'U64
+  SUnit :: SSet 'Unit
+  SU :: SAlgebra a -> SSet ('U a)
+  SPair :: SSet a -> SSet b -> SSet (a ':*: b)
 
-data SAlgebra (a :: Algebra) where
-  SVoid :: SAlgebra Void
-  SF :: SSet a -> SAlgebra (F a)
-  SFn :: SSet a -> SAlgebra b -> SAlgebra (a :=> b)
+data SAlgebra a where
+  SVoid :: SAlgebra 'Void
+  SF :: SSet a -> SAlgebra ('F a)
+  SFn :: SSet a -> SAlgebra b -> SAlgebra (a ':=> b)
 
 infixr 9 `SFn`
 
 -- Then define the call by name sugarings
-type a :-> b = U a :=> b
+type a :-> b = 'U a ':=> b
 
 infixr 9 :->
 
-type Pair a b = F (U a :*: U b)
+type Pair a b = 'F ('U a ':*: 'U b)
 
 equalSet :: SSet a -> SSet b -> Maybe (a :~: b)
 equalSet SU64 SU64 = Just Refl
@@ -80,6 +78,7 @@ equalSet (SU x) (SU y) = case equalAlg x y of
 equalSet (SPair a b) (SPair a' b') = case (equalSet a a', equalSet b b') of
   (Just Refl, Just Refl) -> Just Refl
   _ -> Nothing
+equalSet _ _ = Nothing
 
 equalAlg :: SAlgebra a -> SAlgebra b -> Maybe (a :~: b)
 equalAlg SVoid SVoid = Just Refl
@@ -89,6 +88,7 @@ equalAlg (SF x) (SF y) = case equalSet x y of
 equalAlg (SFn a b) (SFn a' b') = case (equalSet a a', equalAlg b b') of
   (Just Refl, Just Refl) -> Just Refl
   _ -> Nothing
+equalAlg _ _ = Nothing
 
 instance TextShow (SSet a) where
   showb SU64 = fromString "u64"

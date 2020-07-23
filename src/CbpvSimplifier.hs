@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -24,14 +23,14 @@ data Simplifier t
 
 instance HasCode (Simplifier t) where
   data Code (Simplifier t) a where
-    LambdaC :: SSet a -> (Data t a -> Code t b) -> Code (Simplifier t) (a :=> b)
-    ForceC :: Data t (U a) -> Code (Simplifier t) a
-    ReturnC :: Data t a -> Code (Simplifier t) (F a)
+    LambdaC :: SSet a -> (Data t a -> Code t b) -> Code (Simplifier t) (a ':=> b)
+    ForceC :: Data t ('U a) -> Code (Simplifier t) a
+    ReturnC :: Data t a -> Code (Simplifier t) ('F a)
     C :: Code t a -> Code (Simplifier t) a
 
 instance HasData (Simplifier t) where
   data Data (Simplifier t) a where
-    ThunkD :: Code t a -> Data (Simplifier t) (U a)
+    ThunkD :: Code t a -> Data (Simplifier t) ('U a)
     D :: Data t a -> Data (Simplifier t) a
 
 instance Cbpv t => HasGlobals (Simplifier t) where
@@ -56,13 +55,15 @@ instance Cbpv t => HasLetTo (Simplifier t) where
   apply (LambdaC _ f) x = C $ letBe (abstractD x) f
   apply f x = C $ apply (abstract f) (abstractD x)
 
-instance Cbpv t => HasTuple (Simplifier t)
+instance Cbpv t => HasTuple (Simplifier t) where
+  pair x y = D $ pair (abstractD x) (abstractD y)
+  unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
 instance Cbpv t => Cbpv (Simplifier t) where
   lambda t f = LambdaC t $ \x -> abstract (f (D x))
 
   force (ThunkD code) = C code
-  force thunk = ForceC (abstractD thunk)
+  force th = ForceC (abstractD th)
 
   thunk (ForceC x) = D x
   thunk code = ThunkD (abstract code)
@@ -76,5 +77,5 @@ abstract code = case code of
 
 abstractD :: Cbpv t => Data (Simplifier t) a -> Data t a
 abstractD x = case x of
-  ThunkD x -> thunk x
+  ThunkD cd -> thunk cd
   D d -> d

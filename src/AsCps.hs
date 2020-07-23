@@ -7,13 +7,10 @@ module AsCps (toContinuationPassingStyle, AsCps) where
 import qualified Callcc
 import Common
 import qualified Constant
-import Core
 import qualified Cps
-import Global
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
 import HasLet
 import HasLetLabel
 import HasLetTo
@@ -22,13 +19,13 @@ import HasStack
 import HasThunk
 import HasTuple
 
-toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Code (AsCps t) a -> Data t (U a)
+toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Code (AsCps t) a -> Data t ('U a)
 toContinuationPassingStyle (CodeCallcc t x) = HasThunk.thunk t x
 
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data Code (AsCps t) a = CodeCallcc (SAlgebra a) (Stack t a -> Code t Void)
+  data Code (AsCps t) a = CodeCallcc (SAlgebra a) (Stack t a -> Code t 'Void)
 
 instance HasData t => HasData (AsCps t) where
   data Data (AsCps t) a = DataCallcc (SSet a) (Data t a)
@@ -74,8 +71,8 @@ instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
     case f (SB t k) of
       CodeCallcc _ y -> y Cps.nil
 
-  force (DataCallcc _ thunk) (SB _ stack) = CodeCallcc SVoid $ \_ ->
-    HasThunk.force thunk stack
+  force (DataCallcc _ th) (SB _ stack) = CodeCallcc SVoid $ \_ ->
+    HasThunk.force th stack
 
   call g (SB _ k) = CodeCallcc SVoid $ \_ -> HasThunk.call g k
 

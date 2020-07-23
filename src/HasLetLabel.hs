@@ -1,10 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-
 module HasLetLabel (HasLetLabel (..)) where
 
-import Common
 import HasCode
 import HasStack
 
