@@ -6,7 +6,7 @@ module Main where
 
 import qualified AsCallcc
 import qualified AsCbpv
-import AsCps
+import qualified AsCps
 import qualified AsIntrinsified
 import qualified AsMemoized
 import qualified AsPorcelain
@@ -64,30 +64,30 @@ program = F.lam $ \x ->
 phases ::
   Program SystemF a ->
   ( Program SystemF a,
-    Program Cbpv a,
-    Program Cbpv a,
-    Program Cbpv a,
-    Program Callcc a,
-    Program Callcc a,
+    Value Cbpv (U a),
+    Value Cbpv (U a),
+    Value Cbpv (U a),
+    Value Callcc (U a),
+    Value Callcc (U a),
     Value Cps (U a),
     Value Cps (U a)
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = cbpvProgram (AsCbpv.extract (Program.interpret optTerm))
-      intrinsified = cbpvProgram (AsIntrinsified.extract (Program.interpret cbpv))
+      cbpv = cbpvValue (Cbpv.thunk (AsCbpv.extract (Program.interpret optTerm)))
+      intrinsified = cbpvValue (AsIntrinsified.extract (Value.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
-      catchThrow = callccProgram (AsCallcc.extract (Program.interpret optIntrinsified))
+      catchThrow = callccValue (AsCallcc.extract (Value.interpret optIntrinsified))
       optCatchThrow = optimizeCallcc catchThrow
-      cps = cpsValue (toContinuationPassingStyle (Program.interpret optCatchThrow))
+      cps = cpsValue (AsCps.extract (Value.interpret optCatchThrow))
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
 
-cbpvProgram :: (forall t. Cbpv t => Code t a) -> Program Cbpv a
-cbpvProgram = Program
+cbpvValue :: (forall t. Cbpv t => Data t a) -> Value Cbpv a
+cbpvValue = Value
 
-callccProgram :: (forall t. Callcc t => Code t a) -> Program Callcc a
-callccProgram = Program
+callccValue :: (forall t. Callcc t => Data t a) -> Value Callcc a
+callccValue = Value
 
 cpsValue :: (forall t. Cps t => Data t a) -> Value Cps a
 cpsValue = Value
@@ -109,33 +109,33 @@ optimizeTerm = loop iterTerm
 
 type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeCbpv :: Program Cbpv a -> Program Cbpv a
+optimizeCbpv :: Value Cbpv a -> Value Cbpv a
 optimizeCbpv = loop iterCbpv
   where
-    step :: Cbpv t => Code (OptC t) a -> Code t a
+    step :: Cbpv t => Data (OptC t) a -> Data t a
     step term =
       let simplified = CbpvSimplifier.simplifyExtract term
-          monoInlined = MonoInliner.extract simplified
-          inlined = CostInliner.extract monoInlined
+          monoInlined = MonoInliner.extractData simplified
+          inlined = CostInliner.extractData monoInlined
        in inlined
-    loop :: Int -> Program Cbpv a -> Program Cbpv a
+    loop :: Int -> Value Cbpv a -> Value Cbpv a
     loop 0 term = term
-    loop n term = loop (n - 1) (Program (step (Program.interpret term)))
+    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
 
 type OptCallcc t = CallccSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeCallcc :: Program Callcc a -> Program Callcc a
+optimizeCallcc :: Value Callcc a -> Value Callcc a
 optimizeCallcc = loop iterCallcc
   where
-    step :: Callcc t => Code (OptCallcc t) a -> Code t a
+    step :: Callcc t => Data (OptCallcc t) a -> Data t a
     step term =
       let simplified = CallccSimplifier.simplifyExtract term
-          monoInlined = MonoInliner.extract simplified
-          inlined = CostInliner.extract monoInlined
+          monoInlined = MonoInliner.extractData simplified
+          inlined = CostInliner.extractData monoInlined
        in inlined
-    loop :: Int -> Program Callcc a -> Program Callcc a
+    loop :: Int -> Value Callcc a -> Value Callcc a
     loop 0 term = term
-    loop n term = loop (n - 1) (Program (step (Program.interpret term)))
+    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
 
 type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
 
@@ -163,19 +163,19 @@ main = do
   T.putStrLn (AsText.extract (Program.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
-  T.putStrLn (AsText.extract (Program.interpret cbpv))
+  T.putStrLn (AsText.extractData (Value.interpret cbpv))
 
   putStrLn "\nIntrinsified:"
-  T.putStrLn (AsText.extract (Program.interpret intrinsified))
+  T.putStrLn (AsText.extractData (Value.interpret intrinsified))
 
   putStrLn "\nOptimized Intrinsified:"
-  T.putStrLn (AsText.extract (Program.interpret optIntrinsified))
+  T.putStrLn (AsText.extractData (Value.interpret optIntrinsified))
 
   putStrLn "\nCatch/Throw:"
-  T.putStrLn (AsText.extract (Program.interpret catchThrow))
+  T.putStrLn (AsText.extractData (Value.interpret catchThrow))
 
   putStrLn "\nOptimized Catch/Throw:"
-  T.putStrLn (AsText.extract (Program.interpret optCatchThrow))
+  T.putStrLn (AsText.extractData (Value.interpret optCatchThrow))
 
   putStrLn "\nCps:"
   T.putStrLn (AsText.extractData (Value.interpret cps))

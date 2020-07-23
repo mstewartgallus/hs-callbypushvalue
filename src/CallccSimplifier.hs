@@ -18,8 +18,8 @@ import HasStack
 import HasThunk
 import HasTuple
 
-simplifyExtract :: Callcc t => Code (Simplifier t) a -> Code t a
-simplifyExtract = abstract
+simplifyExtract :: Callcc t => Data (Simplifier t) a -> Data t a
+simplifyExtract = abstractD
 
 data Simplifier t
 

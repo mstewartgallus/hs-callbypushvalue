@@ -18,8 +18,8 @@ import HasLetTo
 import HasReturn
 import HasTuple
 
-extract :: Cbpv t => Code (Intrinsify t) a -> Code t a
-extract (I x) = x
+extract :: Cbpv t => Data (Intrinsify t) a -> Data t a
+extract (IS x) = x
 
 data Intrinsify t
 

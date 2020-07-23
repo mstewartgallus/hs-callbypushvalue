@@ -22,8 +22,8 @@ import qualified HasThunk
 import HasTuple
 import qualified SystemF
 
-extract :: Code (AsCallcc t) a -> Code t a
-extract (CodeCallcc _ x) = x
+extract :: Data (AsCallcc t) a -> Data t a
+extract (DataCallcc _ x) = x
 
 data AsCallcc t
 

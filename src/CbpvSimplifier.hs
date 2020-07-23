@@ -16,8 +16,8 @@ import HasLetTo
 import HasReturn
 import HasTuple
 
-simplifyExtract :: Cbpv t => Code (Simplifier t) a -> Code t a
-simplifyExtract = abstract
+simplifyExtract :: Cbpv t => Data (Simplifier t) a -> Data t a
+simplifyExtract = abstractD
 
 data Simplifier t
 

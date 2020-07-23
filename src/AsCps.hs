@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsCps (toContinuationPassingStyle, AsCps) where
+module AsCps (extract, AsCps) where
 
 import qualified Callcc
 import Common
@@ -19,8 +19,8 @@ import HasStack
 import HasThunk
 import HasTuple
 
-toContinuationPassingStyle :: (HasCode t, Cps.Cps t) => Code (AsCps t) a -> Data t ('U a)
-toContinuationPassingStyle (C t x) = HasThunk.thunk t x
+extract :: Cps.Cps t => Data (AsCps t) a -> Data t a
+extract (D _ x) = x
 
 data AsCps t
 
