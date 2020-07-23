@@ -19,51 +19,51 @@ import HasReturn
 import HasTuple
 
 extract :: Cbpv t => Data (Intrinsify t) a -> Data t a
-extract (IS x) = x
+extract (D x) = x
 
 data Intrinsify t
 
 instance HasCode t => HasCode (Intrinsify t) where
-  newtype Code (Intrinsify t) a = I (Code t a)
+  newtype Code (Intrinsify t) a = C (Code t a)
 
 instance HasData t => HasData (Intrinsify t) where
-  newtype Data (Intrinsify t) a = IS (Data t a)
+  newtype Data (Intrinsify t) a = D (Data t a)
 
 instance Cbpv t => HasGlobals (Intrinsify t) where
-  global g = I $ case GlobalMap.lookup g intrinsics of
+  global g = C $ case GlobalMap.lookup g intrinsics of
     Nothing -> global g
     Just intrinsic -> intrinsic
 
 instance HasConstants t => HasConstants (Intrinsify t) where
-  constant k = IS (constant k)
-  unit = IS unit
+  constant k = D (constant k)
+  unit = D unit
 
 instance Cbpv t => HasTuple (Intrinsify t) where
-  pair (IS x) (IS y) = IS (pair x y)
-  unpair (IS tuple) f = I $ unpair tuple $ \x y ->
-    let I result = f (IS x) (IS y)
+  pair (D x) (D y) = D (pair x y)
+  unpair (D tuple) f = C $ unpair tuple $ \x y ->
+    let C result = f (D x) (D y)
      in result
 
 instance Cbpv t => HasReturn (Intrinsify t) where
-  returns (IS x) = I (returns x)
+  returns (D x) = C (returns x)
 
 instance HasLet t => HasLet (Intrinsify t) where
-  letBe (IS x) f = I $ letBe x $ \x' ->
-    let I body = f (IS x')
+  letBe (D x) f = C $ letBe x $ \x' ->
+    let C body = f (D x')
      in body
 
 instance Cbpv t => HasLetTo (Intrinsify t) where
-  letTo (I x) f = I $ letTo x $ \x' ->
-    let I body = f (IS x')
+  letTo (C x) f = C $ letTo x $ \x' ->
+    let C body = f (D x')
      in body
-  apply (I f) (IS x) = I (apply f x)
+  apply (C f) (D x) = C (apply f x)
 
 instance Cbpv t => Cbpv (Intrinsify t) where
-  lambda t f = I $ lambda t $ \x ->
-    let I body = f (IS x)
+  lambda t f = C $ lambda t $ \x ->
+    let C body = f (D x)
      in body
-  thunk (I x) = IS (thunk x)
-  force (IS x) = I (force x)
+  thunk (C x) = D (thunk x)
+  force (D x) = C (force x)
 
 intrinsics :: Cbpv t => GlobalMap (Code t)
 intrinsics =

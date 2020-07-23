@@ -99,7 +99,7 @@ optimizeTerm = loop iterTerm
   where
     step :: SystemF t => Code (OptF t) a -> Code t a
     step term =
-      let simplified = SystemFSimplifier.simplify term
+      let simplified = SystemFSimplifier.extract term
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
@@ -114,7 +114,7 @@ optimizeCbpv = loop iterCbpv
   where
     step :: Cbpv t => Data (OptC t) a -> Data t a
     step term =
-      let simplified = CbpvSimplifier.simplifyExtract term
+      let simplified = CbpvSimplifier.extract term
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined
@@ -129,7 +129,7 @@ optimizeCallcc = loop iterCallcc
   where
     step :: Callcc t => Data (OptCallcc t) a -> Data t a
     step term =
-      let simplified = CallccSimplifier.simplifyExtract term
+      let simplified = CallccSimplifier.extract term
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined

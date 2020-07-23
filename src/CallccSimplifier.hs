@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CallccSimplifier (Simplifier, simplifyExtract) where
+module CallccSimplifier (Simplifier, extract) where
 
 import Callcc
 import Common
@@ -18,8 +18,8 @@ import HasStack
 import HasThunk
 import HasTuple
 
-simplifyExtract :: Callcc t => Data (Simplifier t) a -> Data t a
-simplifyExtract = abstractD
+extract :: Callcc t => Data (Simplifier t) a -> Data t a
+extract = abstractD
 
 data Simplifier t
 

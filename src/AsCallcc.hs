@@ -23,49 +23,49 @@ import HasTuple
 import qualified SystemF
 
 extract :: Data (AsCallcc t) a -> Data t a
-extract (DataCallcc _ x) = x
+extract (D _ x) = x
 
 data AsCallcc t
 
 instance HasCode t => HasCode (AsCallcc t) where
-  data Code (AsCallcc t) a = CodeCallcc (SAlgebra a) (Code t a)
+  data Code (AsCallcc t) a = C (SAlgebra a) (Code t a)
 
 instance HasData t => HasData (AsCallcc t) where
-  data Data (AsCallcc t) a = DataCallcc (SSet a) (Data t a)
+  data Data (AsCallcc t) a = D (SSet a) (Data t a)
 
 instance Callcc.Callcc t => HasGlobals (AsCallcc t) where
-  global g@(Global t _) = CodeCallcc t (Callcc.catch t (HasThunk.call g))
+  global g@(Global t _) = C t (Callcc.catch t (HasThunk.call g))
 
 instance HasConstants t => HasConstants (AsCallcc t) where
-  constant k = DataCallcc (Constant.typeOf k) $ constant k
+  constant k = D (Constant.typeOf k) $ constant k
 
 instance HasReturn t => HasReturn (AsCallcc t) where
-  returns (DataCallcc t x) = CodeCallcc (SF t) $ returns x
+  returns (D t x) = C (SF t) $ returns x
 
 instance HasLet t => HasLet (AsCallcc t) where
-  letBe (DataCallcc t x) f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ letBe x $ \x' ->
-          let CodeCallcc _ body = f (DataCallcc t x')
+  letBe (D t x) f =
+    let C bt _ = f (D t undefined)
+     in C bt $ letBe x $ \x' ->
+          let C _ body = f (D t x')
            in body
 
 instance Callcc.Callcc t => HasLetTo (AsCallcc t) where
-  letTo (CodeCallcc (SF t) x) f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc bt $ letTo x $ \x' ->
-          let CodeCallcc _ body = f (DataCallcc t x')
+  letTo (C (SF t) x) f =
+    let C bt _ = f (D t undefined)
+     in C bt $ letTo x $ \x' ->
+          let C _ body = f (D t x')
            in body
-  apply (CodeCallcc (_ `SFn` b) f) (DataCallcc _ x) = CodeCallcc b $ apply f x
+  apply (C (_ `SFn` b) f) (D _ x) = C b $ apply f x
 
 instance HasTuple t => HasTuple (AsCallcc t)
 
 instance Callcc.Callcc t => Cbpv.Cbpv (AsCallcc t) where
   lambda t f =
-    let CodeCallcc bt _ = f (DataCallcc t undefined)
-     in CodeCallcc (t `SFn` bt) $ Callcc.catch (t `SFn` bt) $ \k ->
+    let C bt _ = f (D t undefined)
+     in C (t `SFn` bt) $ Callcc.catch (t `SFn` bt) $ \k ->
           HasThunk.lambda k $ \x n ->
-            let CodeCallcc _ body = f (DataCallcc t x)
+            let C _ body = f (D t x)
              in Callcc.throw n body
-  force (DataCallcc (SU t) thunk) = CodeCallcc t $ Callcc.catch t (HasThunk.force thunk)
-  thunk (CodeCallcc t code) = DataCallcc (SU t) $ HasThunk.thunk t $ \x ->
+  force (D (SU t) thunk) = C t $ Callcc.catch t (HasThunk.force thunk)
+  thunk (C t code) = D (SU t) $ HasThunk.thunk t $ \x ->
     Callcc.throw x code

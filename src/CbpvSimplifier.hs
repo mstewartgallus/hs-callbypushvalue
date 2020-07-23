@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CbpvSimplifier (Simplifier, simplifyExtract) where
+module CbpvSimplifier (Simplifier, extract) where
 
 import Cbpv
 import Common
@@ -16,8 +16,8 @@ import HasLetTo
 import HasReturn
 import HasTuple
 
-simplifyExtract :: Cbpv t => Data (Simplifier t) a -> Data t a
-simplifyExtract = abstractD
+extract :: Cbpv t => Data (Simplifier t) a -> Data t a
+extract = abstractD
 
 data Simplifier t
 

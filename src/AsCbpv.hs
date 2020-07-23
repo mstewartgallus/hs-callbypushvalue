@@ -20,33 +20,33 @@ import HasTuple
 import qualified SystemF as F
 
 extract :: Code (AsCbpv t) a -> Code t a
-extract (AsCbpv x) = x
+extract (C x) = x
 
 data AsCbpv t
 
 instance HasCode t => HasCode (AsCbpv t) where
-  newtype Code (AsCbpv t) a = AsCbpv (Code t a)
+  newtype Code (AsCbpv t) a = C (Code t a)
 
 instance HasData t => HasData (AsCbpv t) where
-  newtype Data (AsCbpv t) a = DataRep (Data t a)
+  newtype Data (AsCbpv t) a = D (Data t a)
 
 instance HasGlobals t => HasGlobals (AsCbpv t) where
-  global g = AsCbpv (global g)
+  global g = C (global g)
 
 instance HasConstants t => HasConstants (AsCbpv t) where
-  unit = DataRep unit
-  constant k = DataRep (constant k)
+  unit = D unit
+  constant k = D (constant k)
 
 instance HasReturn t => HasReturn (AsCbpv t) where
-  returns (DataRep k) = AsCbpv (returns k)
+  returns (D k) = C (returns k)
 
 instance Cbpv t => F.SystemF (AsCbpv t) where
-  pair (AsCbpv x) (AsCbpv y) = AsCbpv $ returns (pair (thunk x) (thunk y))
+  pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
 
-  letBe (AsCbpv x) f = AsCbpv $ letBe (Cbpv.thunk x) $ \x' ->
-    let AsCbpv body = f (AsCbpv (Cbpv.force x'))
+  letBe (C x) f = C $ letBe (Cbpv.thunk x) $ \x' ->
+    let C body = f (C (Cbpv.force x'))
      in body
-  lambda t f = AsCbpv $ lambda (SU t) $ \x ->
-    let AsCbpv body = f (AsCbpv (force x))
+  lambda t f = C $ lambda (SU t) $ \x ->
+    let C body = f (C (force x))
      in body
-  AsCbpv f <*> AsCbpv x = AsCbpv $ apply f (thunk x)
+  C f <*> C x = C $ apply f (thunk x)

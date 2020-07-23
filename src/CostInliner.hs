@@ -25,10 +25,10 @@ import qualified Unique
 import Prelude hiding ((<*>))
 
 extract :: Code (CostInliner t) a -> Code t a
-extract (I _ x) = x
+extract (C _ x) = x
 
 extractData :: Data (CostInliner t) a -> Data t a
-extractData (CS _ x) = x
+extractData (D _ x) = x
 
 -- | Tagless final newtype to inline letBe clauses based on a simple
 -- cost model
@@ -40,114 +40,114 @@ extractData (CS _ x) = x
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  data Data (CostInliner t) a = CS Int (Data t a)
+  data Data (CostInliner t) a = D Int (Data t a)
 
 instance HasCode t => HasCode (CostInliner t) where
-  data Code (CostInliner t) a = I Int (Code t a)
+  data Code (CostInliner t) a = C Int (Code t a)
 
 instance HasStack t => HasStack (CostInliner t) where
-  data Stack (CostInliner t) a = SB Int (Stack t a)
+  data Stack (CostInliner t) a = S Int (Stack t a)
 
 instance HasGlobals t => HasGlobals (CostInliner t) where
-  global g = I 0 (global g)
+  global g = C 0 (global g)
 
 instance HasReturn t => HasReturn (CostInliner t) where
-  returns (CS cost k) = I cost (returns k)
+  returns (D cost k) = C cost (returns k)
 
 instance F.SystemF t => F.SystemF (CostInliner t) where
-  pair (I xcost x) (I ycost y) = I (xcost + ycost + 1) (F.pair x y)
+  pair (C xcost x) (C ycost y) = C (xcost + ycost + 1) (F.pair x y)
 
-  letBe (I xcost x) f = result
+  letBe (C xcost x) f = result
     where
       result
         | xcost <= 3 = inlined
         | otherwise = notinlined
-      inlined@(I fcost _) = f (I 0 x)
-      notinlined = I (xcost + fcost + 1) $ F.letBe x $ \x' -> case f (I 0 x') of
-        I _ y -> y
+      inlined@(C fcost _) = f (C 0 x)
+      notinlined = C (xcost + fcost + 1) $ F.letBe x $ \x' -> case f (C 0 x') of
+        C _ y -> y
 
   lambda t f = result
     where
-      I fcost _ = f (I 0 (global (probe t)))
-      result = I (fcost + 1) $ F.lambda t $ \x' -> case f (I 0 x') of
-        I _ y -> y
-  I fcost f <*> I xcost x = I (fcost + xcost + 1) (f F.<*> x)
+      C fcost _ = f (C 0 (global (probe t)))
+      result = C (fcost + 1) $ F.lambda t $ \x' -> case f (C 0 x') of
+        C _ y -> y
+  C fcost f <*> C xcost x = C (fcost + xcost + 1) (f F.<*> x)
 
 instance HasConstants t => HasConstants (CostInliner t) where
-  constant k = CS 0 (constant k)
-  unit = CS 0 unit
+  constant k = D 0 (constant k)
+  unit = D 0 unit
 
 instance HasTuple t => HasTuple (CostInliner t) where
-  pair (CS xcost x) (CS ycost y) = CS (xcost + ycost + 1) (pair x y)
+  pair (D xcost x) (D ycost y) = D (xcost + ycost + 1) (pair x y)
 
 instance HasLet t => HasLet (CostInliner t) where
-  letBe (CS xcost x) f = result
+  letBe (D xcost x) f = result
     where
       result
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
-      inlined@(I inlineCost _) = f (CS 1 x)
-      notinlined = I (xcost + fcost + 1) $ letBe x $ \x' -> case f (CS 0 x') of
-        I _ y -> y
-      I fcost _ = f (CS 0 x)
+      inlined@(C inlineCost _) = f (D 1 x)
+      notinlined = C (xcost + fcost + 1) $ letBe x $ \x' -> case f (D 0 x') of
+        C _ y -> y
+      C fcost _ = f (D 0 x)
 
 instance HasLetLabel t => HasLetLabel (CostInliner t) where
-  letLabel (SB xcost x) f = result
+  letLabel (S xcost x) f = result
     where
       result
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
-      inlined@(I inlineCost _) = f (SB 1 x)
-      notinlined = I (xcost + fcost + 1) $ letLabel x $ \x' -> case f (SB 0 x') of
-        I _ y -> y
-      I fcost _ = f (SB 0 x)
+      inlined@(C inlineCost _) = f (S 1 x)
+      notinlined = C (xcost + fcost + 1) $ letLabel x $ \x' -> case f (S 0 x') of
+        C _ y -> y
+      C fcost _ = f (S 0 x)
 
 instance HasLetTo t => HasLetTo (CostInliner t) where
-  letTo (I xcost x) f =
+  letTo (C xcost x) f =
     let -- fixme... figure out a better probe...
-        I fcost _ = f (CS 0 undefined)
-     in I (xcost + fcost + 1) $ letTo x $ \x' -> case f (CS 0 x') of
-          I _ y -> y
+        C fcost _ = f (D 0 undefined)
+     in C (xcost + fcost + 1) $ letTo x $ \x' -> case f (D 0 x') of
+          C _ y -> y
 
-  apply (I fcost f) (CS xcost x) = I (fcost + xcost + 1) (apply f x)
+  apply (C fcost f) (D xcost x) = C (fcost + xcost + 1) (apply f x)
 
 instance Cbpv t => Cbpv (CostInliner t) where
   lambda t f =
-    let I fcost _ = f (CS 0 undefined)
-     in I (fcost + 1) $ lambda t $ \x' -> case f (CS 0 x') of
-          I _ y -> y
-  force (CS cost thunk) = I (cost + 1) (force thunk)
-  thunk (I cost code) = CS (cost + 1) (thunk code)
+    let C fcost _ = f (D 0 undefined)
+     in C (fcost + 1) $ lambda t $ \x' -> case f (D 0 x') of
+          C _ y -> y
+  force (D cost thunk) = C (cost + 1) (force thunk)
+  thunk (C cost code) = D (cost + 1) (thunk code)
 
 instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
-  lambda (SB kcost k) f =
-    let I fcost _ = f (CS 0 undefined) (SB 0 undefined)
-     in I (kcost + fcost + 1) $ HasThunk.lambda k $ \x n -> case f (CS 0 x) (SB 0 n) of
-          I _ y -> y
+  lambda (S kcost k) f =
+    let C fcost _ = f (D 0 undefined) (S 0 undefined)
+     in C (kcost + fcost + 1) $ HasThunk.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
+          C _ y -> y
   thunk t f =
-    let I fcost _ = f (SB 0 undefined)
-     in CS (fcost + 1) $ HasThunk.thunk t $ \x' -> case f (SB 0 x') of
-          I _ y -> y
-  force (CS tcost thunk) (SB scost stack) = I (tcost + scost + 1) (HasThunk.force thunk stack)
+    let C fcost _ = f (S 0 undefined)
+     in D (fcost + 1) $ HasThunk.thunk t $ \x' -> case f (S 0 x') of
+          C _ y -> y
+  force (D tcost thunk) (S scost stack) = C (tcost + scost + 1) (HasThunk.force thunk stack)
 
-  call g (SB kcost k) = I (kcost + 1) (HasThunk.call g k)
+  call g (S kcost k) = C (kcost + 1) (HasThunk.call g k)
 
 instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
   catch t f =
-    let I fcost _ = f (SB 0 undefined)
-     in I (fcost + 1) $ Callcc.catch t $ \x' -> case f (SB 0 x') of
-          I _ y -> y
-  throw (SB scost stack) (I xcost x) = I (scost + xcost + 1) (Callcc.throw stack x)
+    let C fcost _ = f (S 0 undefined)
+     in C (fcost + 1) $ Callcc.catch t $ \x' -> case f (S 0 x') of
+          C _ y -> y
+  throw (S scost stack) (C xcost x) = C (scost + xcost + 1) (Callcc.throw stack x)
 
 instance Cps.Cps t => Cps.Cps (CostInliner t) where
   letTo t f =
-    let I fcost _ = f (CS 0 undefined)
-     in SB fcost $ Cps.letTo t $ \x' -> case f (CS 0 x') of
-          I _ y -> y
+    let C fcost _ = f (D 0 undefined)
+     in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
+          C _ y -> y
 
-  throw (SB tcost stk) (CS scost c) = I (tcost + scost) (Cps.throw stk c)
+  throw (S tcost stk) (D scost c) = C (tcost + scost) (Cps.throw stk c)
 
-  apply (CS xcost x) (SB kcost k) = SB (xcost + kcost) $ Cps.apply x k
+  apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
 
 probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")
