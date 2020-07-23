@@ -5,17 +5,10 @@
 module SystemF (lam, SystemF (..)) where
 
 import Common
-import Constant (Constant)
-import qualified Constant
-import Core hiding (minus, plus)
-import qualified Core
-import Global
 import HasCode
 import HasConstants
-import HasData
 import HasGlobals
 import HasReturn
-import Name
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate

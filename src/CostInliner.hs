@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module CostInliner (extract, extractData, CostInliner (..)) where
+module CostInliner (extract, extractData, CostInliner) where
 
 import qualified Callcc
 import Cbpv
@@ -21,7 +21,6 @@ import qualified HasThunk
 import HasTuple
 import Name
 import qualified SystemF as F
-import qualified Unique
 import Prelude hiding ((<*>))
 
 extract :: Code (CostInliner t) a -> Code t a
@@ -56,6 +55,10 @@ instance HasReturn t => HasReturn (CostInliner t) where
 
 instance F.SystemF t => F.SystemF (CostInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost + 1) (F.pair x y)
+  unpair (C tcost tuple) f =
+    let C rcost _ = f (C 0 undefined) (C 0 undefined)
+     in C (tcost + rcost + 1) $ F.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
+          C _ r -> r
 
   letBe (C xcost x) f = result
     where
@@ -79,6 +82,10 @@ instance HasConstants t => HasConstants (CostInliner t) where
 
 instance HasTuple t => HasTuple (CostInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost + 1) (pair x y)
+  unpair (D tcost tuple) f =
+    let C rcost _ = f (D 0 undefined) (D 0 undefined)
+     in C (tcost + rcost + 1) $ unpair tuple $ \x y -> case f (D 0 x) (D 0 y) of
+          C _ r -> r
 
 instance HasLet t => HasLet (CostInliner t) where
   letBe (D xcost x) f = result
@@ -116,7 +123,7 @@ instance Cbpv t => Cbpv (CostInliner t) where
     let C fcost _ = f (D 0 undefined)
      in C (fcost + 1) $ lambda t $ \x' -> case f (D 0 x') of
           C _ y -> y
-  force (D cost thunk) = C (cost + 1) (force thunk)
+  force (D cost th) = C (cost + 1) (force th)
   thunk (C cost code) = D (cost + 1) (thunk code)
 
 instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
@@ -128,7 +135,7 @@ instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
     let C fcost _ = f (S 0 undefined)
      in D (fcost + 1) $ HasThunk.thunk t $ \x' -> case f (S 0 x') of
           C _ y -> y
-  force (D tcost thunk) (S scost stack) = C (tcost + scost + 1) (HasThunk.force thunk stack)
+  force (D tcost th) (S scost stack) = C (tcost + scost + 1) (HasThunk.force th stack)
 
   call g (S kcost k) = C (kcost + 1) (HasThunk.call g k)
 
@@ -140,6 +147,8 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
   throw (S scost stack) (C xcost x) = C (scost + xcost + 1) (Callcc.throw stack x)
 
 instance Cps.Cps t => Cps.Cps (CostInliner t) where
+  nil = S 0 Cps.nil
+
   letTo t f =
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of

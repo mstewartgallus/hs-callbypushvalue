@@ -3,7 +3,6 @@
 
 module Program (Program (..), interpret) where
 
-import Common
 import HasCode
 
 newtype Program k a = Program (forall t. k t => Code t a)

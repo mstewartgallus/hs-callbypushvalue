@@ -6,21 +6,13 @@
 module SystemFSimplifier (extract, Simplifier) where
 
 import Common
-import Constant (Constant)
-import qualified Constant
-import Core hiding (minus, plus)
-import qualified Core
-import Global
 import HasCode
 import HasConstants
 import HasData
 import HasGlobals
 import HasReturn
-import Name
 import SystemF
 import Prelude hiding ((<*>))
-
--- fixme... factor out ?
 
 extract :: SystemF t => Code (Simplifier t) a -> Code t a
 extract (C _ x) = x
@@ -49,6 +41,9 @@ instance HasReturn t => HasReturn (Simplifier t) where
 
 instance SystemF t => SystemF (Simplifier t) where
   pair (C _ x) (C _ y) = C NotFn (pair x y)
+  unpair (C _ tuple) f = C NotFn $ unpair tuple $ \x y ->
+    case f (C NotFn x) (C NotFn y) of
+      C _ r -> r
 
   letBe (C _ x) f = C NotFn $ letBe x $ \x' -> case f (C NotFn x') of
     C _ y -> y

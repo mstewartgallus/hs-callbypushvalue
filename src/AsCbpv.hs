@@ -2,13 +2,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsCbpv (extract, AsCbpv (..)) where
+module AsCbpv (extract, AsCbpv) where
 
 import Cbpv
 import Common
-import qualified Constant
-import Core
-import Global
 import HasCode
 import HasConstants
 import HasData
@@ -42,6 +39,9 @@ instance HasReturn t => HasReturn (AsCbpv t) where
 
 instance Cbpv t => F.SystemF (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
+  unpair (C tuple) f = C $ letTo tuple $ \tuple' ->
+    unpair tuple' $ \x y -> case f (C (Cbpv.force x)) (C (Cbpv.force y)) of
+      C r -> r
 
   letBe (C x) f = C $ letBe (Cbpv.thunk x) $ \x' ->
     let C body = f (C (Cbpv.force x'))

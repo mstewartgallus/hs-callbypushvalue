@@ -1,13 +1,10 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module AsText (extract, extractData, AsText (..)) where
+module AsText (extract, extractData, AsText) where
 
 import qualified Callcc
 import qualified Cbpv
-import Common
 import qualified Cps
 import qualified Data.Text as T
 import HasCode
@@ -46,7 +43,17 @@ instance HasConstants AsText where
   constant k = D $ \_ -> showb k
   unit = D $ \_ -> fromString "."
 
-instance HasTuple AsText
+instance HasTuple AsText where
+  pair (D x) (D y) = D $ \(Unique.Stream _ xs ys) ->
+    let x' = x xs
+        y' = y ys
+     in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
+
+  unpair (D tuple) f = C $ \(Unique.Stream xId ts (Unique.Stream yId _ bodys)) ->
+    let x = fromString "v" <> showb xId
+        y = fromString "v" <> showb yId
+        C body = f (D $ \_ -> x) (D $ \_ -> y)
+     in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
 instance HasReturn AsText where
   returns (D k) = C $ \s ->
@@ -58,6 +65,12 @@ instance SystemF.SystemF AsText where
         y' = y ys
      in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
 
+  unpair (C tuple) f = C $ \(Unique.Stream xId ts (Unique.Stream yId _ bodys)) ->
+    let x = fromString "l" <> showb xId
+        y = fromString "l" <> showb yId
+        C body = f (C $ \_ -> x) (C $ \_ -> y)
+     in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
+
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (C $ \_ -> binder)
@@ -66,7 +79,7 @@ instance SystemF.SystemF AsText where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = fromString "v" <> showb newId
         C y = f (C $ \_ -> binder)
-     in fromString "λ " <> binder <> fromString ".\n" <> y ys
+     in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> y ys
 
   C f <*> C x = C $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
@@ -124,6 +137,7 @@ instance Callcc.Callcc AsText where
   throw (S f) (C x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
 
 instance Cps.Cps AsText where
+  nil = S $ \_ -> fromString "nil"
   letTo t f = S $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)

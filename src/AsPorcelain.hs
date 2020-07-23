@@ -5,7 +5,6 @@ module AsPorcelain (Porcelain, extract) where
 
 import Common
 import Constant
-import Core
 import qualified Cps
 import Data.Text
 import HasCode
@@ -22,16 +21,22 @@ import qualified Unique
 extract :: Data Porcelain a -> Text
 extract (D val) = toText (Unique.run val)
 
+ws :: Builder
 ws = fromString " "
 
+lp :: Builder
 lp = fromString "("
 
+rp :: Builder
 rp = fromString ")"
 
+atom :: String -> Builder
 atom = fromString
 
+node :: Builder -> Builder
 node x = lp <> x <> rp
 
+fresh :: Unique.State Builder
 fresh = do
   v <- Unique.uniqueId
   pure $ fromString "v" <> showb v
@@ -54,6 +59,7 @@ instance HasStack Porcelain where
   newtype Stack Porcelain a = S (Unique.State Builder)
 
 instance HasConstants Porcelain where
+  unit = D $ pure $ atom "unit"
   constant (U64Constant x) = D $ pure $ node $ atom "u64" <> ws <> showb x
 
 instance HasTuple Porcelain
@@ -63,8 +69,8 @@ instance HasLet Porcelain
 instance HasLetLabel Porcelain
 
 instance HasThunk Porcelain where
-  force (D thunk) (S k) = C $ do
-    thunk' <- thunk
+  force (D th) (S k) = C $ do
+    thunk' <- th
     k' <- k
     pure $ node $ atom "force" <> ws <> thunk' <> ws <> k'
   thunk t f = D $ do

@@ -30,17 +30,17 @@ instance HasCode t => HasCode (AsCps t) where
 instance HasData t => HasData (AsCps t) where
   data Data (AsCps t) a = D (SSet a) (Data t a)
 
-instance (HasStack t) => HasStack (AsCps t) where
+instance HasStack t => HasStack (AsCps t) where
   data Stack (AsCps t) a = S (SAlgebra a) (Stack t a)
 
-instance (HasData t, HasConstants t) => HasConstants (AsCps t) where
+instance HasConstants t => HasConstants (AsCps t) where
   unit = D SUnit unit
   constant k = D (Constant.typeOf k) $ constant k
 
-instance (HasCode t, Cps.Cps t) => HasReturn (AsCps t) where
+instance Cps.Cps t => HasReturn (AsCps t) where
   returns (D t x) = C (SF t) $ \k -> Cps.throw k x
 
-instance (HasLet t) => HasLet (AsCps t) where
+instance HasLet t => HasLet (AsCps t) where
   letBe (D t x) f =
     let C b _ = f (D t x)
      in C b $ \k ->
@@ -48,22 +48,23 @@ instance (HasLet t) => HasLet (AsCps t) where
             case f (D t val) of
               C _ f' -> f' k
 
-instance (Cps.Cps t) => HasLetTo (AsCps t) where
+instance Cps.Cps t => HasLetTo (AsCps t) where
   letTo (C (SF t) x) f =
     let C b _ = f (D t undefined)
-     in C b $ \k ->
-          x
-            ( Cps.letTo t $ \val ->
-                case f (D t val) of
-                  C _ f' -> f' k
-            )
+     in C b $ \k -> x $ Cps.letTo t $ \val ->
+          case f (D t val) of
+            C _ f' -> f' k
   apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
 
-instance (HasCode t, Cps.Cps t) => HasTuple (AsCps t) where
+instance Cps.Cps t => HasTuple (AsCps t) where
   pair (D tx x) (D ty y) = D (SPair tx ty) (pair x y)
+  unpair (D (SPair tx ty) tuple) f =
+    let C t _ = f (D tx undefined) (D ty undefined)
+     in C t $ \k -> unpair tuple $ \x y -> case f (D tx x) (D ty y) of
+          C _ result -> result k
 
 instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
-  lambda s@(S (xt `SFn` r) lam) f =
+  lambda (S (xt `SFn` r) lam) f =
     let C ct _ = f (D xt undefined) (S r undefined)
      in C ct $ \k -> HasThunk.lambda lam $ \x t ->
           let C _ y = f (D xt x) (S r t)
