@@ -5,6 +5,7 @@
 module AsCps (extract, AsCps) where
 
 import qualified Callcc
+import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..))
 import Common
 import qualified Constant
 import qualified Cps
@@ -12,11 +13,8 @@ import Global
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
 import HasLetLabel
-import HasReturn
 import HasStack
 import HasTuple
 

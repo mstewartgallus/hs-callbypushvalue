@@ -6,15 +6,13 @@
 module CallccSimplifier (Simplifier, extract) where
 
 import Callcc
+import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..))
 import Common
 import Cps (HasThunk (..))
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
-import HasReturn
 import HasStack
 import HasTuple
 

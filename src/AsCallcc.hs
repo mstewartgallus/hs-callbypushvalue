@@ -6,6 +6,7 @@ module AsCallcc (extract, AsCallcc) where
 
 import qualified Callcc
 import qualified Cbpv
+import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..), HasThunk (..))
 import Common
 import qualified Constant
 import qualified Cps
@@ -13,11 +14,7 @@ import Global
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
-import HasReturn
-import HasThunk
 import HasTuple
 
 extract :: Data (AsCallcc t) a -> Data t a

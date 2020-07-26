@@ -9,11 +9,7 @@ import Common
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
-import HasReturn
-import HasThunk
 import HasTuple
 import qualified SystemF as F
 

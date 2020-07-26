@@ -16,6 +16,7 @@ import Callcc (Callcc)
 import qualified CallccSimplifier
 import Cbpv (Cbpv)
 import qualified Cbpv
+import Cbpv (HasGlobals (..), HasReturn (..), HasThunk (..))
 import qualified CbpvSimplifier
 import Common
 import qualified Constant
@@ -31,9 +32,6 @@ import Data.Word
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
-import HasReturn
-import HasThunk
 import qualified Interpreter
 import MonoInliner (MonoInliner)
 import qualified MonoInliner

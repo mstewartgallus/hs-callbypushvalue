@@ -16,12 +16,9 @@ import Global
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
 import HasLet
 import HasLetLabel
-import HasReturn
 import HasStack
-import qualified HasThunk
 import HasTuple
 import Label
 import LabelMap (LabelMap)

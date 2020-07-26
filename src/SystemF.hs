@@ -4,11 +4,11 @@
 
 module SystemF (lam, SystemF (..)) where
 
+-- FIXME !
+import Cbpv (HasGlobals (..), HasReturn (..))
 import Common
 import HasCode
 import HasConstants
-import HasGlobals
-import HasReturn
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate

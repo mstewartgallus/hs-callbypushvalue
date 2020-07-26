@@ -4,19 +4,15 @@
 module AsText (extract, extractData, AsText) where
 
 import qualified Callcc
-import qualified Cbpv
+import Cbpv
 import qualified Cps
 import qualified Data.Text as T
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
 import HasLetLabel
-import HasReturn
 import qualified HasStack
-import HasThunk
 import HasTuple
 import qualified SystemF
 import TextShow

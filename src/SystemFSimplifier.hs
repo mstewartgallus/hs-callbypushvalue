@@ -5,12 +5,11 @@
 
 module SystemFSimplifier (extract, Simplifier) where
 
+import Cbpv (HasGlobals (..), HasReturn (..))
 import Common
 import HasCode
 import HasConstants
 import HasData
-import HasGlobals
-import HasReturn
 import SystemF
 import Prelude hiding ((<*>))
 

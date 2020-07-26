@@ -13,13 +13,9 @@ import Global
 import HasCode
 import HasConstants
 import HasData
-import HasFn
-import HasGlobals
 import HasLet
 import HasLetLabel
-import HasReturn
 import HasStack
-import HasThunk
 import HasTuple
 import Name
 import qualified SystemF
