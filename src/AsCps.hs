@@ -4,7 +4,6 @@
 
 module AsCps (extract, AsCps) where
 
-import qualified Callcc
 import Cbpv
 import Common
 import qualified Constant

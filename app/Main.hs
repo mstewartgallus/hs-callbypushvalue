@@ -4,16 +4,12 @@
 
 module Main where
 
-import qualified AsCallcc
 import qualified AsCbpv
 import qualified AsCps
 import qualified AsIntrinsified
 import qualified AsMemoized
 import qualified AsPorcelain
 import AsText
-import qualified Callcc
-import Callcc (Callcc)
-import qualified CallccSimplifier
 import Cbpv (Cbpv)
 import qualified Cbpv
 import Cbpv (HasCall (..), HasReturn (..), HasThunk (..))

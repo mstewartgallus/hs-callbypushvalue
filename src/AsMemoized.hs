@@ -6,7 +6,6 @@
 
 module AsMemoized (AsMemoized, extract) where
 
-import qualified Callcc
 import Cbpv (HasCall (..), HasReturn (..))
 import Common
 import qualified Cps

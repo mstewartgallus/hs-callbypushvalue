@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 633b7ce60ccb0f023a40f030e29910e8cf332c096f282c70886dab122bba2b25
+-- hash: 9a80ffd85efdec995425e46dd2522f1d99c9c35405931c3fd28a6d3ce47e254a
 
 name:           cpbv
 version:        0.1.0.0
@@ -27,15 +27,12 @@ source-repository head
 
 library
   exposed-modules:
-      AsCallcc
       AsCbpv
       AsCps
       AsIntrinsified
       AsMemoized
       AsPorcelain
       AsText
-      Callcc
-      CallccSimplifier
       Cbpv
       CbpvSimplifier
       Common

@@ -3,7 +3,6 @@
 
 module AsText (extract, extractData, AsText) where
 
-import qualified Callcc
 import Cbpv
 import qualified Cps
 import qualified Data.Text as T
@@ -117,13 +116,6 @@ instance Cps.HasThunk AsText where
         C body = f (S $ \_ -> binder)
      in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   force (D f) (S x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
-
-instance Callcc.Callcc AsText where
-  catch t f = C $ \(Unique.Stream newId _ s) ->
-    let binder = fromString "l" <> showb newId
-        C body = f (S $ \_ -> binder)
-     in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-  throw (S f) (C x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
 
 instance Cps.HasReturn AsText where
   letTo t f = S $ \(Unique.Stream newId _ s) ->

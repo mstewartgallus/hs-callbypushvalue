@@ -4,7 +4,6 @@
 
 module MonoInliner (extract, extractData, MonoInliner) where
 
-import qualified Callcc
 import Cbpv
 import Common
 import qualified Cps
@@ -99,13 +98,6 @@ instance Cps.HasThunk t => Cps.HasThunk (MonoInliner t) where
      in D fcost $ Cps.thunk t $ \x' -> case f (S 0 x') of
           C _ y -> y
   force (D tcost th) (S scost stack) = C (tcost + scost) (Cps.force th stack)
-
-instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
-  catch t f =
-    let C fcost _ = f (S 0 undefined)
-     in C fcost $ Callcc.catch t $ \x' -> case f (S 0 x') of
-          C _ y -> y
-  throw (S scost stack) (C xcost x) = C (scost + xcost) (Callcc.throw stack x)
 
 instance Cps.HasReturn t => Cps.HasReturn (MonoInliner t) where
   letTo t f =

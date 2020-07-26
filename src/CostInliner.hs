@@ -2,7 +2,6 @@
 
 module CostInliner (extract, extractData, CostInliner) where
 
-import qualified Callcc
 import Cbpv
 import Common
 import qualified Cps
@@ -142,13 +141,6 @@ instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
 
 instance Cps.Cps t => Cps.Cps (CostInliner t) where
   nil = S 0 Cps.nil
-
-instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
-  catch t f =
-    let C fcost _ = f (S 0 undefined)
-     in C (fcost + 1) $ Callcc.catch t $ \x' -> case f (S 0 x') of
-          C _ y -> y
-  throw (S scost stack) (C xcost x) = C (scost + xcost + 1) (Callcc.throw stack x)
 
 instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f =
