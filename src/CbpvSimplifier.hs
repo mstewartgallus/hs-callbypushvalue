@@ -13,62 +13,64 @@ import HasData
 import HasLet
 import HasTuple
 
-extract :: Cbpv t => Data (Simplifier t) a -> Data t a
+extract :: Data (Simplifier t) a -> Data t a
 extract = abstractD
 
 data Simplifier t
 
+data TermC t a where
+  LambdaC :: SSet a -> (Data t a -> Code t b) -> TermC t (a ':=> b)
+  ForceC :: Data t ('U a) -> TermC t a
+  ReturnC :: Data t a -> TermC t ('F a)
+  NothingC :: TermC t a
+
+data TermD t a where
+  ThunkD :: Code t a -> TermD t ('U a)
+  NothingD :: TermD t a
+
+c = C NothingC
+
+d = D NothingD
+
 instance HasCode (Simplifier t) where
-  data Code (Simplifier t) a where
-    LambdaC :: SSet a -> (Data t a -> Code t b) -> Code (Simplifier t) (a ':=> b)
-    ForceC :: Data t ('U a) -> Code (Simplifier t) a
-    ReturnC :: Data t a -> Code (Simplifier t) ('F a)
-    C :: Code t a -> Code (Simplifier t) a
+  data Code (Simplifier t) a = C (TermC t a) (Code t a)
 
 instance HasData (Simplifier t) where
-  data Data (Simplifier t) a where
-    ThunkD :: Code t a -> Data (Simplifier t) ('U a)
-    D :: Data t a -> Data (Simplifier t) a
-
-instance Cbpv t => HasCall (Simplifier t) where
-  call g = C $ call g
+  data Data (Simplifier t) a = D (TermD t a) (Data t a)
 
 instance Cbpv t => HasConstants (Simplifier t) where
-  constant k = D $ constant k
+  constant k = d $ constant k
 
-instance Cbpv t => HasReturn (Simplifier t) where
-  returns value = ReturnC $ abstractD value
-  letTo (ReturnC x) f = C $ letBe x $ \x' -> abstract (f (D x'))
-  letTo x f = C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
+instance HasCall t => HasCall (Simplifier t) where
+  call g = c $ call g
 
-instance Cbpv t => HasLet (Simplifier t) where
-  letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
+instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
+  returns value = C (ReturnC $ abstractD value) $ returns $ abstractD value
+  letTo (C (ReturnC x) _) f = c $ letBe x $ \x' -> abstract (f (d x'))
+  letTo x f = c $ letTo (abstract x) $ \x' -> abstract (f (d x'))
 
-instance Cbpv t => HasTuple (Simplifier t) where
-  pair x y = D $ pair (abstractD x) (abstractD y)
-  unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
+instance HasLet t => HasLet (Simplifier t) where
+  letBe x f = c $ letBe (abstractD x) $ \x' -> abstract (f (d x'))
 
-instance Cbpv t => HasFn (Simplifier t) where
-  lambda t f = LambdaC t $ \x -> abstract (f (D x))
+instance HasTuple t => HasTuple (Simplifier t) where
+  pair x y = d $ pair (abstractD x) (abstractD y)
+  unpair tuple f = c $ unpair (abstractD tuple) $ \x y -> abstract (f (d x) (d y))
 
-  apply (LambdaC _ f) x = C $ letBe (abstractD x) f
-  apply f x = C $ apply (abstract f) (abstractD x)
+instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
+  lambda t f = C (LambdaC t $ \x -> abstract (f (d x))) $ lambda t $ \x -> abstract (f (d x))
 
-instance Cbpv t => HasThunk (Simplifier t) where
-  force (ThunkD code) = C code
-  force th = ForceC (abstractD th)
+  apply (C (LambdaC _ f) _) x = c $ letBe (abstractD x) f
+  apply f x = c $ apply (abstract f) (abstractD x)
 
-  thunk (ForceC x) = D x
-  thunk code = ThunkD (abstract code)
+instance HasThunk t => HasThunk (Simplifier t) where
+  force (D (ThunkD code) _) = c code
+  force th = C (ForceC (abstractD th)) (force (abstractD th))
 
-abstract :: Cbpv t => Code (Simplifier t) a -> Code t a
-abstract code = case code of
-  ForceC x -> force x
-  LambdaC t f -> lambda t f
-  ReturnC value -> returns value
-  C c -> c
+  thunk (C (ForceC x) _) = d x
+  thunk code = D (ThunkD (abstract code)) $ thunk $ abstract code
 
-abstractD :: Cbpv t => Data (Simplifier t) a -> Data t a
-abstractD x = case x of
-  ThunkD cd -> thunk cd
-  D d -> d
+abstract :: Code (Simplifier t) a -> Code t a
+abstract (C _ code) = code
+
+abstractD :: Data (Simplifier t) a -> Data t a
+abstractD (D _ x) = x

@@ -13,7 +13,7 @@ import HasData
 import SystemF
 import Prelude hiding ((<*>))
 
-extract :: SystemF t => Code (Simplifier t) a -> Code t a
+extract :: Code (Simplifier t) a -> Code t a
 extract (C _ x) = x
 
 data Simplifier t
