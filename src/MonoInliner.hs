@@ -127,13 +127,14 @@ instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
 instance Cps.Cps t => Cps.Cps (MonoInliner t) where
   nil = S 0 Cps.nil
 
-instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
+instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost) (SystemF.pair x y)
   unpair (C tcost tuple) f =
     let C rcost _ = f (C 0 undefined) (C 0 undefined)
      in C (tcost + rcost) $ SystemF.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
           C _ r -> r
 
+instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
   letBe (C xcost x) f = result
     where
       result
@@ -144,11 +145,9 @@ instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
         C _ y -> y
       C fcost _ = f (C 0 x)
 
+instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where
   lambda t f =
-    let C fcost _ = f (C 0 (call (probe t)))
+    let C fcost _ = f (C 0 undefined)
      in C fcost $ SystemF.lambda t $ \x' -> case f (C 0 x') of
           C _ y -> y
   C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)
-
-probe :: SAlgebra a -> Global a
-probe t = Global t $ Name (T.pack "core") (T.pack "probe")

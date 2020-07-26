@@ -7,7 +7,7 @@
 module AsMemoized (AsMemoized, extract) where
 
 import qualified Callcc
-import Cbpv
+import Cbpv (HasCall (..), HasReturn (..))
 import Common
 import qualified Cps
 import qualified Data.Text as T
@@ -19,13 +19,12 @@ import HasData
 import HasLet
 import HasLetLabel
 import HasStack
-import HasTuple
 import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
 import Program (Program (..))
-import SystemF (SystemF)
+import SystemF (HasFn, HasTuple, SystemF)
 import qualified SystemF
 import TextShow
 import qualified Unique
@@ -61,8 +60,6 @@ instance HasReturn (AsMemoized SystemF) where
      in \env -> returns (x' env)
 
 instance SystemF (AsMemoized SystemF) where
-  -- --   pair (  x) (  y) =  \env -> SystemF.pair (x env) (y env)
-
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let x' = x xs
         binder = Label undefined newId
@@ -72,6 +69,9 @@ instance SystemF (AsMemoized SystemF) where
      in \env ->
           SystemF.letBe (x' env) $ \val -> y' (LabelMap.insert binder val env)
 
+instance HasTuple (AsMemoized SystemF)
+
+instance HasFn (AsMemoized SystemF) where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = Label t newId
         C y =

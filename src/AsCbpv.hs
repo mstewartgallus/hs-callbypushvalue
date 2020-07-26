@@ -34,15 +34,18 @@ instance HasConstants t => HasConstants (AsCbpv t) where
 instance HasReturn t => HasReturn (AsCbpv t) where
   returns (D k) = C (returns k)
 
-instance Cbpv t => F.SystemF (AsCbpv t) where
+instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
   unpair (C tuple) f = C $ letTo tuple $ \tuple' ->
     unpair tuple' $ \x y -> case f (C (force x)) (C (force y)) of
       C r -> r
 
+instance Cbpv t => F.SystemF (AsCbpv t) where
   letBe (C x) f = C $ letBe (thunk x) $ \x' ->
     let C body = f (C (force x'))
      in body
+
+instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) $ \x ->
     let C body = f (C (force x))
      in body

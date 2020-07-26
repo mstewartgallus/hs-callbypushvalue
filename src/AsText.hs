@@ -59,7 +59,7 @@ instance HasReturn AsText where
   returns (D k) = C $ \s ->
     fromString "(return " <> k s <> fromString ")"
 
-instance SystemF.SystemF AsText where
+instance SystemF.HasTuple AsText where
   pair (C x) (C y) = C $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys
@@ -71,16 +71,17 @@ instance SystemF.SystemF AsText where
         C body = f (C $ \_ -> x) (C $ \_ -> y)
      in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
+instance SystemF.SystemF AsText where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (C $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
+instance SystemF.HasFn AsText where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = fromString "v" <> showb newId
         C y = f (C $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> y ys
-
   C f <*> C x = C $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 

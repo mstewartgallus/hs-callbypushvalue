@@ -38,15 +38,17 @@ instance HasConstants t => HasConstants (Simplifier t) where
 instance HasReturn t => HasReturn (Simplifier t) where
   returns (D k) = C NotFn (returns k)
 
-instance SystemF t => SystemF (Simplifier t) where
+instance HasTuple t => HasTuple (Simplifier t) where
   pair (C _ x) (C _ y) = C NotFn (pair x y)
   unpair (C _ tuple) f = C NotFn $ unpair tuple $ \x y ->
     case f (C NotFn x) (C NotFn y) of
       C _ r -> r
 
+instance SystemF t => SystemF (Simplifier t) where
   letBe (C _ x) f = C NotFn $ letBe x $ \x' -> case f (C NotFn x') of
     C _ y -> y
 
+instance (SystemF t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
     let f' x' = case f (C NotFn x') of
           C _ y -> y

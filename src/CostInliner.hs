@@ -54,13 +54,14 @@ instance HasReturn t => HasReturn (CostInliner t) where
           C _ y -> y
   returns (D cost k) = C cost (returns k)
 
-instance F.SystemF t => F.SystemF (CostInliner t) where
+instance F.HasTuple t => F.HasTuple (CostInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost + 1) (F.pair x y)
   unpair (C tcost tuple) f =
     let C rcost _ = f (C 0 undefined) (C 0 undefined)
      in C (tcost + rcost + 1) $ F.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
           C _ r -> r
 
+instance F.SystemF t => F.SystemF (CostInliner t) where
   letBe (C xcost x) f = result
     where
       result
@@ -70,9 +71,10 @@ instance F.SystemF t => F.SystemF (CostInliner t) where
       notinlined = C (xcost + fcost + 1) $ F.letBe x $ \x' -> case f (C 0 x') of
         C _ y -> y
 
+instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = result
     where
-      C fcost _ = f (C 0 (call (probe t)))
+      C fcost _ = f (C 0 undefined)
       result = C (fcost + 1) $ F.lambda t $ \x' -> case f (C 0 x') of
         C _ y -> y
   C fcost f <*> C xcost x = C (fcost + xcost + 1) (f F.<*> x)
