@@ -126,7 +126,7 @@ instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
      in C (tcost + rcost) $ SystemF.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
           C _ r -> r
 
-instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
+instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
   letBe (C xcost x) f = result
     where
       result

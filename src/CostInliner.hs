@@ -60,7 +60,7 @@ instance F.HasTuple t => F.HasTuple (CostInliner t) where
      in C (tcost + rcost + 1) $ F.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
           C _ r -> r
 
-instance F.SystemF t => F.SystemF (CostInliner t) where
+instance F.HasLet t => F.HasLet (CostInliner t) where
   letBe (C xcost x) f = result
     where
       result

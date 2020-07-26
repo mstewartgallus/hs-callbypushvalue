@@ -32,7 +32,7 @@ instance HasCode AsText where
   newtype Code AsText a = C (forall s. Unique.Stream s -> Builder)
 
 instance HasCall AsText where
-  call g = C $ \_ -> showb g
+  call g = C $ \_ -> fromString "call " <> showb g
 
 instance HasConstants AsText where
   constant k = D $ \_ -> showb k
@@ -70,7 +70,7 @@ instance SystemF.HasTuple AsText where
         C body = f (C $ \_ -> x) (C $ \_ -> y)
      in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
-instance SystemF.SystemF AsText where
+instance SystemF.HasLet AsText where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (C $ \_ -> binder)

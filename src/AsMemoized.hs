@@ -58,7 +58,7 @@ instance HasReturn (AsMemoized SystemF) where
     let x' = x xs
      in \env -> returns (x' env)
 
-instance SystemF (AsMemoized SystemF) where
+instance SystemF.HasLet (AsMemoized SystemF) where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let x' = x xs
         binder = Label undefined newId

@@ -40,7 +40,7 @@ instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
     unpair tuple' $ \x y -> case f (C (force x)) (C (force y)) of
       C r -> r
 
-instance Cbpv t => F.SystemF (AsCbpv t) where
+instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   letBe (C x) f = C $ letBe (thunk x) $ \x' ->
     let C body = f (C (force x'))
      in body

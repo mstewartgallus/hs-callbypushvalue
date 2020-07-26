@@ -44,11 +44,11 @@ instance HasTuple t => HasTuple (Simplifier t) where
     case f (C NotFn x) (C NotFn y) of
       C _ r -> r
 
-instance SystemF t => SystemF (Simplifier t) where
+instance HasLet t => HasLet (Simplifier t) where
   letBe (C _ x) f = C NotFn $ letBe x $ \x' -> case f (C NotFn x') of
     C _ y -> y
 
-instance (SystemF t, HasFn t) => HasFn (Simplifier t) where
+instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
     let f' x' = case f (C NotFn x') of
           C _ y -> y
