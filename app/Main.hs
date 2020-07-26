@@ -10,6 +10,8 @@ import qualified AsIntrinsified
 import qualified AsMemoized
 import qualified AsPorcelain
 import AsText
+import Box (Box, mkProgram, mkValue)
+import qualified Box
 import Cbpv (Cbpv)
 import qualified Cbpv
 import Cbpv (HasCall (..), HasReturn (..), HasThunk (..))
@@ -31,14 +33,10 @@ import HasData
 import qualified Interpreter
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
-import Program (Program (..))
-import qualified Program
 import SystemF (SystemF)
 import qualified SystemF as F
 import qualified SystemFSimplifier
 import TextShow
-import Value (Value (..))
-import qualified Value
 
 iterTerm = 20
 
@@ -55,32 +53,32 @@ program = F.lam $ \x ->
       F.<*> (call Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
-  Program SystemF a ->
-  ( Program SystemF a,
-    Value Cbpv (U a),
-    Value Cbpv (U a),
-    Value Cbpv (U a),
-    Value Cps (U a),
-    Value Cps (U a)
+  Code (Box SystemF) a ->
+  ( Code (Box SystemF) a,
+    Data (Box Cbpv) (U a),
+    Data (Box Cbpv) (U a),
+    Data (Box Cbpv) (U a),
+    Data (Box Cps) (U a),
+    Data (Box Cps) (U a)
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = cbpvValue (thunk (AsCbpv.extract (Program.interpret optTerm)))
-      intrinsified = cbpvValue (AsIntrinsified.extract (Value.interpret cbpv))
+      cbpv = cbpvValue (thunk (AsCbpv.extract (Box.interpret optTerm)))
+      intrinsified = cbpvValue (AsIntrinsified.extract (Box.interpretValue cbpv))
       optIntrinsified = optimizeCbpv intrinsified
-      cps = cpsValue (AsCps.extract (Value.interpret optIntrinsified))
+      cps = cpsValue (AsCps.extract (Box.interpretValue optIntrinsified))
       optCps = optimizeCps cps
    in (optTerm, cbpv, intrinsified, optIntrinsified, cps, optCps)
 
-cbpvValue :: (forall t. Cbpv t => Data t a) -> Value Cbpv a
-cbpvValue = Value
+cbpvValue :: (forall t. Cbpv t => Data t a) -> Data (Box Cbpv) a
+cbpvValue = mkValue
 
-cpsValue :: (forall t. Cps t => Data t a) -> Value Cps a
-cpsValue = Value
+cpsValue :: (forall t. Cps t => Data t a) -> Data (Box Cps) a
+cpsValue = mkValue
 
 type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeTerm :: Program SystemF a -> Program SystemF a
+optimizeTerm :: Code (Box SystemF) a -> Code (Box SystemF) a
 optimizeTerm = loop iterTerm
   where
     step :: SystemF t => Code (OptF t) a -> Code t a
@@ -89,13 +87,13 @@ optimizeTerm = loop iterTerm
           monoInlined = MonoInliner.extract simplified
           inlined = CostInliner.extract monoInlined
        in inlined
-    loop :: Int -> Program SystemF a -> Program SystemF a
+    loop :: Int -> Code (Box SystemF) a -> Code (Box SystemF) a
     loop 0 term = term
-    loop n term = loop (n - 1) (AsMemoized.extract (step (Program.interpret term)))
+    loop n term = loop (n - 1) (AsMemoized.extract (step (Box.interpret term)))
 
 type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeCbpv :: Value Cbpv a -> Value Cbpv a
+optimizeCbpv :: Data (Box Cbpv) a -> Data (Box Cbpv) a
 optimizeCbpv = loop iterCbpv
   where
     step :: Cbpv t => Data (OptC t) a -> Data t a
@@ -104,13 +102,13 @@ optimizeCbpv = loop iterCbpv
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined
-    loop :: Int -> Value Cbpv a -> Value Cbpv a
+    loop :: Int -> Data (Box Cbpv) a -> Data (Box Cbpv) a
     loop 0 term = term
-    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
+    loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
 
 type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeCps :: Value Cps a -> Value Cps a
+optimizeCps :: Data (Box Cps) a -> Data (Box Cps) a
 optimizeCps = loop iterCps
   where
     step :: Cps t => Data (OptCps t) a -> Data t a
@@ -119,40 +117,40 @@ optimizeCps = loop iterCps
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined
-    loop :: Int -> Value Cps a -> Value Cps a
+    loop :: Int -> Data (Box Cps) a -> Data (Box Cps) a
     loop 0 term = term
-    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
+    loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
 
 main :: IO ()
 main = do
   putStrLn "Lambda Calculus:"
   T.putStrLn (AsText.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, cps, optCps) = phases (Program program)
+  let (optTerm, cbpv, intrinsified, optIntrinsified, cps, optCps) = phases (mkProgram program)
 
   putStrLn "\nOptimized Term:"
-  T.putStrLn (AsText.extract (Program.interpret optTerm))
+  T.putStrLn (AsText.extract (Box.interpret optTerm))
 
   putStrLn "\nCall By Push Value:"
-  T.putStrLn (AsText.extractData (Value.interpret cbpv))
+  T.putStrLn (AsText.extractData (Box.interpretValue cbpv))
 
   putStrLn "\nIntrinsified:"
-  T.putStrLn (AsText.extractData (Value.interpret intrinsified))
+  T.putStrLn (AsText.extractData (Box.interpretValue intrinsified))
 
   putStrLn "\nOptimized Intrinsified:"
-  T.putStrLn (AsText.extractData (Value.interpret optIntrinsified))
+  T.putStrLn (AsText.extractData (Box.interpretValue optIntrinsified))
 
   putStrLn "\nCps:"
-  T.putStrLn (AsText.extractData (Value.interpret cps))
+  T.putStrLn (AsText.extractData (Box.interpretValue cps))
 
   putStrLn "\nOptimized Cps:"
-  T.putStrLn (AsText.extractData (Value.interpret optCps))
+  T.putStrLn (AsText.extractData (Box.interpretValue optCps))
 
   putStrLn "\nPorcelain Output:"
-  T.putStrLn (AsPorcelain.extract (Value.interpret optCps))
+  T.putStrLn (AsPorcelain.extract (Box.interpretValue optCps))
 
   putStrLn "\nEvaluates to:"
-  let cpsData = Interpreter.evaluate (Value.interpret optCps)
+  let cpsData = Interpreter.evaluate (Box.interpretValue optCps)
 
   let Interpreter.Thunk k = cpsData
   let Interpreter.Behaviour eff = k (t 4 `Interpreter.Apply` t 8 `Interpreter.Apply` (Interpreter.Returns $ \(Interpreter.I x) -> Interpreter.Behaviour $ printT x))

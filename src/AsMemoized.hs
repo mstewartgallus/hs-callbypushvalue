@@ -6,6 +6,7 @@
 
 module AsMemoized (AsMemoized, extract) where
 
+import Box
 import Cbpv (HasCall (..), HasReturn (..))
 import Common
 import qualified Cps
@@ -21,15 +22,14 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
-import Program (Program (..))
 import SystemF (HasFn, HasTuple, SystemF)
 import qualified SystemF
 import TextShow
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: Code (AsMemoized k) a -> Program k a
-extract (C x) = Program (Unique.withStream x LabelMap.empty)
+extract :: Code (AsMemoized k) a -> Code (Box k) a
+extract (C x) = mkProgram (Unique.withStream x LabelMap.empty)
 
 data AsMemoized (k :: * -> Constraint)
 

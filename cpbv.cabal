@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 99c0a8495e5fb8a2ed59ae6aca86ab1ffdf6f16f6d6681240e697e1e823c2ba2
+-- hash: be781add41ee9df3b0f85c8c2b6016e25f778417c6d5b7c234c51dbbe66f5621
 
 name:           cpbv
 version:        0.1.0.0
@@ -33,6 +33,7 @@ library
       AsMemoized
       AsPorcelain
       AsText
+      Box
       Cbpv
       CbpvSimplifier
       Common
@@ -54,11 +55,9 @@ library
       LabelMap
       MonoInliner
       Name
-      Program
       SystemF
       SystemFSimplifier
       Unique
-      Value
       Variable
       VarMap
   other-modules:
