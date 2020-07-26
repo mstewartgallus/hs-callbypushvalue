@@ -48,8 +48,6 @@ iterTerm = 20
 
 iterCbpv = 20
 
-iterCallcc = 20
-
 iterCps = 20
 
 program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
@@ -66,8 +64,6 @@ phases ::
     Value Cbpv (U a),
     Value Cbpv (U a),
     Value Cbpv (U a),
-    Value Callcc (U a),
-    Value Callcc (U a),
     Value Cps (U a),
     Value Cps (U a)
   )
@@ -76,17 +72,12 @@ phases term =
       cbpv = cbpvValue (thunk (AsCbpv.extract (Program.interpret optTerm)))
       intrinsified = cbpvValue (AsIntrinsified.extract (Value.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
-      catchThrow = callccValue (AsCallcc.extract (Value.interpret optIntrinsified))
-      optCatchThrow = optimizeCallcc catchThrow
-      cps = cpsValue (AsCps.extract (Value.interpret optCatchThrow))
+      cps = cpsValue (AsCps.extract (Value.interpret optIntrinsified))
       optCps = optimizeCps cps
-   in (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps)
+   in (optTerm, cbpv, intrinsified, optIntrinsified, cps, optCps)
 
 cbpvValue :: (forall t. Cbpv t => Data t a) -> Value Cbpv a
 cbpvValue = Value
-
-callccValue :: (forall t. Callcc t => Data t a) -> Value Callcc a
-callccValue = Value
 
 cpsValue :: (forall t. Cps t => Data t a) -> Value Cps a
 cpsValue = Value
@@ -121,21 +112,6 @@ optimizeCbpv = loop iterCbpv
     loop 0 term = term
     loop n term = loop (n - 1) (Value (step (Value.interpret term)))
 
-type OptCallcc t = CallccSimplifier.Simplifier (MonoInliner (CostInliner t))
-
-optimizeCallcc :: Value Callcc a -> Value Callcc a
-optimizeCallcc = loop iterCallcc
-  where
-    step :: Callcc t => Data (OptCallcc t) a -> Data t a
-    step term =
-      let simplified = CallccSimplifier.extract term
-          monoInlined = MonoInliner.extractData simplified
-          inlined = CostInliner.extractData monoInlined
-       in inlined
-    loop :: Int -> Value Callcc a -> Value Callcc a
-    loop 0 term = term
-    loop n term = loop (n - 1) (Value (step (Value.interpret term)))
-
 type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
 
 optimizeCps :: Value Cps a -> Value Cps a
@@ -156,7 +132,7 @@ main = do
   putStrLn "Lambda Calculus:"
   T.putStrLn (AsText.extract program)
 
-  let (optTerm, cbpv, intrinsified, optIntrinsified, catchThrow, optCatchThrow, cps, optCps) = phases (Program program)
+  let (optTerm, cbpv, intrinsified, optIntrinsified, cps, optCps) = phases (Program program)
 
   putStrLn "\nOptimized Term:"
   T.putStrLn (AsText.extract (Program.interpret optTerm))
@@ -169,12 +145,6 @@ main = do
 
   putStrLn "\nOptimized Intrinsified:"
   T.putStrLn (AsText.extractData (Value.interpret optIntrinsified))
-
-  putStrLn "\nCatch/Throw:"
-  T.putStrLn (AsText.extractData (Value.interpret catchThrow))
-
-  putStrLn "\nOptimized Catch/Throw:"
-  T.putStrLn (AsText.extractData (Value.interpret optCatchThrow))
 
   putStrLn "\nCps:"
   T.putStrLn (AsText.extractData (Value.interpret cps))

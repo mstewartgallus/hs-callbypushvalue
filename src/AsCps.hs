@@ -5,7 +5,7 @@
 module AsCps (extract, AsCps) where
 
 import qualified Callcc
-import Cbpv (HasCall (..), HasFn (..), HasReturn (..))
+import Cbpv
 import Common
 import qualified Constant
 import qualified Cps
@@ -59,13 +59,9 @@ instance Cps.Cps t => HasTuple (AsCps t) where
      in C t $ \k -> unpair tuple $ \x y -> case f (D tx x) (D ty y) of
           C _ result -> result k
 
-instance Cps.Cps t => Cps.HasThunk (AsCps t) where
-  thunk t f = D (SU t) $ Cps.thunk t $ \k ->
-    case f (S t k) of
-      C _ y -> y Cps.nil
-
-  force (D _ th) (S _ stack) = C SVoid $ \_ ->
-    Cps.force th stack
+instance Cps.HasThunk t => HasThunk (AsCps t) where
+  force (D (SU t) thunk) = C t $ \k -> Cps.force thunk k
+  thunk (C t code) = D (SU t) $ Cps.thunk t code
 
 instance Cps.Cps t => HasFn (AsCps t) where
   apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
@@ -78,10 +74,3 @@ instance Cps.Cps t => HasFn (AsCps t) where
 instance Cps.Cps t => HasCall (AsCps t) where
   call g@(Global t _) = C t $ \k -> letLabel k $ \k' ->
     Cps.call g k'
-
-instance Cps.Cps t => Callcc.Callcc (AsCps t) where
-  catch t f = C t $ \k -> letLabel k $ \k' ->
-    case f (S t k') of
-      C _ y -> y Cps.nil
-
-  throw (S _ x) (C _ f) = C SVoid $ \_ -> f x
