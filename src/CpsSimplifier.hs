@@ -31,6 +31,7 @@ instance HasData (Simplifier t) where
 
 instance HasStack (Simplifier t) where
   data Stack (Simplifier t) a where
+    ApplyS :: Data t a -> Stack t b -> Stack (Simplifier t) (a ':=> b)
     LetToS :: SSet a -> (Data t a -> Code t 'Void) -> Stack (Simplifier t) ('F a)
     S :: Stack t a -> Stack (Simplifier t) a
 
@@ -60,7 +61,10 @@ instance Cps t => HasReturn (Simplifier t) where
   letTo t f = LetToS t $ \x -> abstract (f (D x))
 
 instance Cps t => HasFn (Simplifier t) where
-  apply x f = S $ apply (abstractD x) (abstractS f)
+  apply x f = ApplyS (abstractD x) (abstractS f)
+  lambda (ApplyS x t) f = C $ letLabel t $ \t' ->
+    letBe x $ \x' ->
+      abstract (f (D x') (S t'))
   lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
 
 instance Cps t => HasCall (Simplifier t) where
@@ -78,4 +82,5 @@ abstractD x = case x of
 abstractS :: Cps t => Stack (Simplifier t) a -> Stack t a
 abstractS x = case x of
   LetToS t f -> letTo t f
+  ApplyS h t -> apply h t
   S s -> s
