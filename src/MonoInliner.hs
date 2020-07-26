@@ -13,7 +13,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import HasStack
 import HasTuple
 import Name
@@ -61,14 +60,14 @@ instance HasLet t => HasLet (MonoInliner t) where
         C _ y -> y
       C fcost _ = f (D 0 x)
 
-instance HasLetLabel t => HasLetLabel (MonoInliner t) where
-  letLabel (S xcost x) f = result
+instance Cps.HasLabel t => Cps.HasLabel (MonoInliner t) where
+  label (S xcost x) f = result
     where
       result
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
       inlined@(C inlineCost _) = f (S 1 x)
-      notinlined = C (xcost + fcost) $ letLabel x $ \x' -> case f (S 0 x') of
+      notinlined = C (xcost + fcost) $ Cps.label x $ \x' -> case f (S 0 x') of
         C _ y -> y
       C fcost _ = f (S 0 x)
 

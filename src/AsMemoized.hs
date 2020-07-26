@@ -16,7 +16,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import HasStack
 import Label
 import LabelMap (LabelMap)

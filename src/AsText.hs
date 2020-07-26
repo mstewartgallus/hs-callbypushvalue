@@ -10,7 +10,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import qualified HasStack
 import HasTuple
 import qualified SystemF
@@ -89,8 +88,8 @@ instance HasLet AsText where
         C y = f (D $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
-instance HasLetLabel AsText where
-  letLabel (S x) f = C $ \(Unique.Stream newId xs ys) ->
+instance Cps.HasLabel AsText where
+  label (S x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (S $ \_ -> binder)
      in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys

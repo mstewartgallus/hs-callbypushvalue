@@ -11,7 +11,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import HasStack
 import HasTuple
 
@@ -41,8 +40,8 @@ instance Cps t => HasConstants (Simplifier t) where
 instance Cps t => HasLet (Simplifier t) where
   letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
 
-instance Cps t => HasLetLabel (Simplifier t) where
-  letLabel x f = C $ letLabel (abstractS x) $ \x' -> abstract (f (S x'))
+instance Cps t => HasLabel (Simplifier t) where
+  label x f = C $ label (abstractS x) $ \x' -> abstract (f (S x'))
 
 instance Cps t => HasTuple (Simplifier t) where
   pair x y = D $ pair (abstractD x) (abstractD y)
@@ -51,7 +50,7 @@ instance Cps t => HasTuple (Simplifier t) where
 instance Cps t => HasThunk (Simplifier t) where
   thunk t f = ThunkD t $ \x -> abstract (f (S x))
 
-  force (ThunkD _ f) x = C $ letLabel (abstractS x) f
+  force (ThunkD _ f) x = C $ label (abstractS x) f
   force x k = C $ force (abstractD x) (abstractS k)
 
 instance Cps t => HasReturn (Simplifier t) where
@@ -62,7 +61,7 @@ instance Cps t => HasReturn (Simplifier t) where
 
 instance Cps t => HasFn (Simplifier t) where
   apply x f = ApplyS (abstractD x) (abstractS f)
-  lambda (ApplyS x t) f = C $ letLabel t $ \t' ->
+  lambda (ApplyS x t) f = C $ label t $ \t' ->
     letBe x $ \x' ->
       abstract (f (D x') (S t'))
   lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))

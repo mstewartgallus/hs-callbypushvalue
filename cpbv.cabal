@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a80ffd85efdec995425e46dd2522f1d99c9c35405931c3fd28a6d3ce47e254a
+-- hash: 99c0a8495e5fb8a2ed59ae6aca86ab1ffdf6f16f6d6681240e697e1e823c2ba2
 
 name:           cpbv
 version:        0.1.0.0
@@ -47,7 +47,6 @@ library
       HasConstants
       HasData
       HasLet
-      HasLetLabel
       HasStack
       HasTuple
       Interpreter

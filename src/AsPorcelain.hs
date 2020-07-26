@@ -11,7 +11,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import HasStack
 import HasTuple
 import TextShow
@@ -64,7 +63,7 @@ instance HasTuple Porcelain
 
 instance HasLet Porcelain
 
-instance HasLetLabel Porcelain
+instance HasLabel Porcelain
 
 instance HasThunk Porcelain where
   force (D th) (S k) = C $ do

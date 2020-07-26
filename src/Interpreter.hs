@@ -16,7 +16,6 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
-import HasLetLabel
 import HasStack
 import HasTuple
 
@@ -62,8 +61,8 @@ instance HasTuple X where
 instance HasLet X where
   letBe x f = f x
 
-instance HasLetLabel X where
-  letLabel x f = f x
+instance HasLabel X where
+  label x f = f x
 
 instance HasThunk X where
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
