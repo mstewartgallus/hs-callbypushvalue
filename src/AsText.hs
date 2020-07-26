@@ -9,8 +9,6 @@ import qualified Cps
 import qualified Data.Text as T
 import HasCode
 import HasConstants
-import qualified HasCpsReturn as Cps
-import qualified HasCpsThunk as Cps
 import HasData
 import HasFn
 import HasGlobals
@@ -116,7 +114,7 @@ instance HasThunk AsText where
 instance HasStack.HasStack AsText where
   data Stack AsText a = S (forall s. Unique.Stream s -> TextShow.Builder)
 
-instance Cps.HasCpsThunk AsText where
+instance Cps.HasThunk AsText where
   thunk t f = D $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
         C body = f (S $ \_ -> binder)
@@ -130,7 +128,7 @@ instance Callcc.Callcc AsText where
      in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   throw (S f) (C x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
 
-instance Cps.HasCpsReturn AsText where
+instance Cps.HasReturn AsText where
   letTo t f = S $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
@@ -141,11 +139,15 @@ instance Cps.HasCpsReturn AsText where
 
 instance Cps.Cps AsText where
   nil = S $ \_ -> fromString "nil"
+
+instance Cps.HasFn AsText where
   lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->
     let binder = fromString "v" <> showb h
         lbl = fromString "l" <> showb t
         C body = f (D $ \_ -> binder) (S $ \_ -> lbl)
      in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
-  call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s
   apply (D x) (S k) = S $ \(Unique.Stream _ ks xs) ->
     k ks <> fromString " :: " <> x xs
+
+instance Cps.HasGlobals AsText where
+  call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s

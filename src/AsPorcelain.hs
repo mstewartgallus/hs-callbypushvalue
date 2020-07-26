@@ -5,12 +5,10 @@ module AsPorcelain (Porcelain, extract) where
 
 import Common
 import Constant
-import qualified Cps
+import Cps
 import Data.Text
 import HasCode
 import HasConstants
-import HasCpsReturn
-import HasCpsThunk
 import HasData
 import HasLet
 import HasLetLabel
@@ -69,7 +67,7 @@ instance HasLet Porcelain
 
 instance HasLetLabel Porcelain
 
-instance HasCpsThunk Porcelain where
+instance HasThunk Porcelain where
   force (D th) (S k) = C $ do
     thunk' <- th
     k' <- k
@@ -80,7 +78,7 @@ instance HasCpsThunk Porcelain where
     body' <- body
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
 
-instance HasCpsReturn Porcelain where
+instance HasReturn Porcelain where
   returns (S k) (D value) = C $ do
     k' <- k
     value' <- value
@@ -91,7 +89,7 @@ instance HasCpsReturn Porcelain where
     body' <- body
     pure $ node $ atom "to" <> ws <> v <> ws <> pType t <> ws <> body'
 
-instance Cps.Cps Porcelain where
+instance HasFn Porcelain where
   apply (D h) (S t) = S $ do
     h' <- h
     t' <- t
@@ -103,7 +101,11 @@ instance Cps.Cps Porcelain where
     let C body = f (D $ pure x) (S $ pure n)
     body' <- body
     pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> ws <> body'
-  nil = S $ pure $ atom "nil"
+
+instance HasGlobals Porcelain where
   call g (S k) = C $ do
     k' <- k
     pure $ node $ atom "call" <> ws <> showb g <> ws <> k'
+
+instance Cps.Cps Porcelain where
+  nil = S $ pure $ atom "nil"

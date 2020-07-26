@@ -12,8 +12,6 @@ import qualified Data.Text as T
 import Global
 import HasCode
 import HasConstants
-import qualified HasCpsReturn as Cps
-import qualified HasCpsThunk as Cps
 import HasData
 import HasFn
 import HasGlobals
@@ -99,7 +97,7 @@ instance HasThunk t => HasThunk (MonoInliner t) where
   force (D cost th) = C cost (force th)
   thunk (C cost code) = D cost (thunk code)
 
-instance Cps.HasCpsThunk t => Cps.HasCpsThunk (MonoInliner t) where
+instance Cps.HasThunk t => Cps.HasThunk (MonoInliner t) where
   thunk t f =
     let C fcost _ = f (S 0 undefined)
      in D fcost $ Cps.thunk t $ \x' -> case f (S 0 x') of
@@ -113,20 +111,24 @@ instance Callcc.Callcc t => Callcc.Callcc (MonoInliner t) where
           C _ y -> y
   throw (S scost stack) (C xcost x) = C (scost + xcost) (Callcc.throw stack x)
 
-instance Cps.Cps t => Cps.HasCpsReturn (MonoInliner t) where
+instance Cps.HasReturn t => Cps.HasReturn (MonoInliner t) where
   letTo t f =
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
           C _ y -> y
   returns (S tcost stk) (D scost c) = C (tcost + scost) (Cps.returns stk c)
 
-instance Cps.Cps t => Cps.Cps (MonoInliner t) where
+instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
   apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
   lambda (S kcost k) f =
     let C fcost _ = f (D 0 undefined) (S 0 undefined)
      in C (kcost + fcost) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
           C _ y -> y
+
+instance Cps.HasGlobals t => Cps.HasGlobals (MonoInliner t) where
   call g (S kcost k) = C kcost (Cps.call g k)
+
+instance Cps.Cps t => Cps.Cps (MonoInliner t) where
   nil = S 0 Cps.nil
 
 instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where

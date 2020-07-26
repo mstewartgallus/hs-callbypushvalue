@@ -14,8 +14,6 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
 import HasConstants
-import HasCpsReturn
-import HasCpsThunk
 import HasData
 import HasLet
 import HasLetLabel
@@ -70,23 +68,26 @@ instance HasLet X where
 instance HasLetLabel X where
   letLabel x f = f x
 
-instance HasCpsThunk X where
+instance HasThunk X where
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
   force (V (Thunk f)) (K x) = C (f x)
 
-instance HasCpsReturn X where
+instance HasReturn X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
   returns (K (Returns k)) (V x) = C (k x)
 
-instance Cps X where
+instance HasFn X where
   apply (V h) (K t) = K (Apply h t)
   lambda (K (Apply h t)) f = f (V h) (K t)
 
+instance HasGlobals X where
   call g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
+
+instance Cps X where
   nil = K Nil
 
 newtype G a = G (Kont a -> R)

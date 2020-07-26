@@ -8,10 +8,10 @@ import qualified Callcc
 import qualified Cbpv
 import Common
 import qualified Constant
+import qualified Cps
 import Global
 import HasCode
 import HasConstants
-import qualified HasCpsThunk as Cps
 import HasData
 import HasFn
 import HasGlobals
@@ -55,6 +55,7 @@ instance Callcc.Callcc t => HasReturn (AsCallcc t) where
 
 instance HasTuple t => HasTuple (AsCallcc t) where
   pair (D tx x) (D ty y) = D (SPair tx ty) (pair x y)
+
   unpair (D (SPair tx ty) tuple) f =
     let C t _ = f (D tx undefined) (D ty undefined)
      in C t $ unpair tuple $ \x y -> case f (D tx x) (D ty y) of

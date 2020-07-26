@@ -9,8 +9,6 @@ import Common
 import Cps
 import HasCode
 import HasConstants
-import HasCpsReturn
-import HasCpsThunk
 import HasData
 import HasLet
 import HasLetLabel
@@ -50,22 +48,26 @@ instance Cps t => HasTuple (Simplifier t) where
   pair x y = D $ pair (abstractD x) (abstractD y)
   unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
-instance Cps t => HasCpsThunk (Simplifier t) where
+instance Cps t => HasThunk (Simplifier t) where
   thunk t f = ThunkD t $ \x -> abstract (f (S x))
 
   force (ThunkD _ f) x = C $ letLabel (abstractS x) f
   force x k = C $ force (abstractD x) (abstractS k)
 
-instance Cps t => HasCpsReturn (Simplifier t) where
+instance Cps t => HasReturn (Simplifier t) where
   returns (LetToS _ f) x = C $ letBe (abstractD x) f
   returns k x = C $ returns (abstractS k) (abstractD x)
 
   letTo t f = LetToS t $ \x -> abstract (f (D x))
 
-instance Cps t => Cps.Cps (Simplifier t) where
+instance Cps t => HasFn (Simplifier t) where
   apply x f = S $ apply (abstractD x) (abstractS f)
   lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
+
+instance Cps t => HasGlobals (Simplifier t) where
   call g k = C $ call g (abstractS k)
+
+instance Cps t => Cps (Simplifier t) where
   nil = S nil
 
 abstract :: Cps t => Code (Simplifier t) a -> Code t a

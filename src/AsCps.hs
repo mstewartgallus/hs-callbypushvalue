@@ -11,8 +11,6 @@ import qualified Cps
 import Global
 import HasCode
 import HasConstants
-import qualified HasCpsReturn as Cps
-import qualified HasCpsThunk as Cps
 import HasData
 import HasFn
 import HasGlobals
@@ -63,7 +61,7 @@ instance Cps.Cps t => HasTuple (AsCps t) where
      in C t $ \k -> unpair tuple $ \x y -> case f (D tx x) (D ty y) of
           C _ result -> result k
 
-instance Cps.Cps t => Cps.HasCpsThunk (AsCps t) where
+instance Cps.Cps t => Cps.HasThunk (AsCps t) where
   thunk t f = D (SU t) $ Cps.thunk t $ \k ->
     case f (S t k) of
       C _ y -> y Cps.nil

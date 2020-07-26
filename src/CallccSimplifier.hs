@@ -7,9 +7,9 @@ module CallccSimplifier (Simplifier, extract) where
 
 import Callcc
 import Common
+import Cps (HasThunk (..))
 import HasCode
 import HasConstants
-import HasCpsThunk
 import HasData
 import HasFn
 import HasGlobals
@@ -57,7 +57,7 @@ instance Callcc t => HasTuple (Simplifier t) where
   pair x y = D $ pair (abstractD x) (abstractD y)
   unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
-instance Callcc t => HasCpsThunk (Simplifier t) where
+instance Callcc t => HasThunk (Simplifier t) where
   thunk t f = D $ thunk t $ \x -> abstract (f (S x))
   force x k = C $ force (abstractD x) (abstractS k)
 

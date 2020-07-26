@@ -10,8 +10,6 @@ import qualified Data.Text as T
 import Global
 import HasCode
 import HasConstants
-import qualified HasCpsReturn as Cps
-import qualified HasCpsThunk as Cps
 import HasData
 import HasFn
 import HasGlobals
@@ -127,20 +125,24 @@ instance HasThunk t => HasThunk (CostInliner t) where
   force (D cost th) = C (cost + 1) (force th)
   thunk (C cost code) = D (cost + 1) (thunk code)
 
-instance Cps.HasCpsThunk t => Cps.HasCpsThunk (CostInliner t) where
+instance Cps.HasThunk t => Cps.HasThunk (CostInliner t) where
   thunk t f =
     let C fcost _ = f (S 0 undefined)
      in D (fcost + 1) $ Cps.thunk t $ \x' -> case f (S 0 x') of
           C _ y -> y
   force (D tcost th) (S scost stack) = C (tcost + scost + 1) (Cps.force th stack)
 
-instance Cps.Cps t => Cps.Cps (CostInliner t) where
+instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
   lambda (S kcost k) f =
     let C fcost _ = f (D 0 undefined) (S 0 undefined)
      in C (kcost + fcost + 1) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
           C _ y -> y
   apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
+
+instance Cps.HasGlobals t => Cps.HasGlobals (CostInliner t) where
   call g (S kcost k) = C (kcost + 1) (Cps.call g k)
+
+instance Cps.Cps t => Cps.Cps (CostInliner t) where
   nil = S 0 Cps.nil
 
 instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
@@ -150,7 +152,7 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
           C _ y -> y
   throw (S scost stack) (C xcost x) = C (scost + xcost + 1) (Callcc.throw stack x)
 
-instance Cps.Cps t => Cps.HasCpsReturn (CostInliner t) where
+instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f =
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
