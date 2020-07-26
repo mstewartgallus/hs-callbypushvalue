@@ -11,12 +11,13 @@ import qualified Constant
 import Global
 import HasCode
 import HasConstants
+import qualified HasCpsThunk as Cps
 import HasData
+import HasFn
 import HasGlobals
 import HasLet
-import HasLetTo
 import HasReturn
-import qualified HasThunk
+import HasThunk
 import HasTuple
 
 extract :: Data (AsCallcc t) a -> Data t a
@@ -30,15 +31,12 @@ instance HasCode t => HasCode (AsCallcc t) where
 instance HasData t => HasData (AsCallcc t) where
   data Data (AsCallcc t) a = D (SSet a) (Data t a)
 
-instance Callcc.Callcc t => HasGlobals (AsCallcc t) where
-  global g@(Global t _) = C t (Callcc.catch t (HasThunk.call g))
+instance HasGlobals t => HasGlobals (AsCallcc t) where
+  global g@(Global t _) = C t (global g)
 
 instance HasConstants t => HasConstants (AsCallcc t) where
   unit = D SUnit unit
   constant k = D (Constant.typeOf k) $ constant k
-
-instance HasReturn t => HasReturn (AsCallcc t) where
-  returns (D t x) = C (SF t) $ returns x
 
 instance HasLet t => HasLet (AsCallcc t) where
   letBe (D t x) f =
@@ -47,13 +45,13 @@ instance HasLet t => HasLet (AsCallcc t) where
           let C _ body = f (D t x')
            in body
 
-instance Callcc.Callcc t => HasLetTo (AsCallcc t) where
+instance Callcc.Callcc t => HasReturn (AsCallcc t) where
+  returns (D t x) = C (SF t) $ returns x
   letTo (C (SF t) x) f =
     let C bt _ = f (D t undefined)
      in C bt $ letTo x $ \x' ->
           let C _ body = f (D t x')
            in body
-  apply (C (_ `SFn` b) f) (D _ x) = C b $ apply f x
 
 instance HasTuple t => HasTuple (AsCallcc t) where
   pair (D tx x) (D ty y) = D (SPair tx ty) (pair x y)
@@ -62,13 +60,15 @@ instance HasTuple t => HasTuple (AsCallcc t) where
      in C t $ unpair tuple $ \x y -> case f (D tx x) (D ty y) of
           C _ result -> result
 
-instance Callcc.Callcc t => Cbpv.Cbpv (AsCallcc t) where
+instance HasFn t => HasFn (AsCallcc t) where
+  apply (C (_ `SFn` b) f) (D _ x) = C b $ apply f x
   lambda t f =
     let C bt _ = f (D t undefined)
-     in C (t `SFn` bt) $ Callcc.catch (t `SFn` bt) $ \k ->
-          HasThunk.lambda k $ \x n ->
-            let C _ body = f (D t x)
-             in Callcc.throw n body
-  force (D (SU t) thunk) = C t $ Callcc.catch t (HasThunk.force thunk)
-  thunk (C t code) = D (SU t) $ HasThunk.thunk t $ \x ->
+     in C (t `SFn` bt) $ lambda t $ \x ->
+          let C _ body = f (D t x)
+           in body
+
+instance Callcc.Callcc t => HasThunk (AsCallcc t) where
+  force (D (SU t) thunk) = C t $ Callcc.catch t (Cps.force thunk)
+  thunk (C t code) = D (SU t) $ Cps.thunk t $ \x ->
     Callcc.throw x code

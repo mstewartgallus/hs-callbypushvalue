@@ -19,7 +19,6 @@ import HasData
 import HasGlobals
 import HasLet
 import HasLetLabel
-import HasLetTo
 import HasReturn
 import HasStack
 import qualified HasThunk

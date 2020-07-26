@@ -10,10 +10,11 @@ import Common
 import HasCode
 import HasConstants
 import HasData
+import HasFn
 import HasGlobals
 import HasLet
-import HasLetTo
 import HasReturn
+import HasThunk
 import HasTuple
 
 extract :: Cbpv t => Data (Simplifier t) a -> Data t a
@@ -42,26 +43,25 @@ instance Cbpv t => HasConstants (Simplifier t) where
 
 instance Cbpv t => HasReturn (Simplifier t) where
   returns value = ReturnC $ abstractD value
-
-instance Cbpv t => HasLet (Simplifier t) where
-  letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
-
-instance Cbpv t => HasLetTo (Simplifier t) where
   letTo (ReturnC x) f = C $ letBe x $ \x' -> abstract (f (D x'))
   letTo x f =
     let
      in C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
 
-  apply (LambdaC _ f) x = C $ letBe (abstractD x) f
-  apply f x = C $ apply (abstract f) (abstractD x)
+instance Cbpv t => HasLet (Simplifier t) where
+  letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
 
 instance Cbpv t => HasTuple (Simplifier t) where
   pair x y = D $ pair (abstractD x) (abstractD y)
   unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
 
-instance Cbpv t => Cbpv (Simplifier t) where
+instance Cbpv t => HasFn (Simplifier t) where
   lambda t f = LambdaC t $ \x -> abstract (f (D x))
 
+  apply (LambdaC _ f) x = C $ letBe (abstractD x) f
+  apply f x = C $ apply (abstract f) (abstractD x)
+
+instance Cbpv t => HasThunk (Simplifier t) where
   force (ThunkD code) = C code
   force th = ForceC (abstractD th)
 

@@ -12,10 +12,11 @@ import qualified GlobalMap
 import HasCode
 import HasConstants
 import HasData
+import HasFn
 import HasGlobals
 import HasLet
-import HasLetTo
 import HasReturn
+import HasThunk
 import HasTuple
 
 extract :: Cbpv t => Data (Intrinsify t) a -> Data t a
@@ -44,24 +45,24 @@ instance Cbpv t => HasTuple (Intrinsify t) where
     let C result = f (D x) (D y)
      in result
 
-instance Cbpv t => HasReturn (Intrinsify t) where
-  returns (D x) = C (returns x)
-
 instance HasLet t => HasLet (Intrinsify t) where
   letBe (D x) f = C $ letBe x $ \x' ->
     let C body = f (D x')
      in body
 
-instance Cbpv t => HasLetTo (Intrinsify t) where
+instance HasReturn t => HasReturn (Intrinsify t) where
+  returns (D x) = C (returns x)
   letTo (C x) f = C $ letTo x $ \x' ->
     let C body = f (D x')
      in body
-  apply (C f) (D x) = C (apply f x)
 
-instance Cbpv t => Cbpv (Intrinsify t) where
+instance HasFn t => HasFn (Intrinsify t) where
+  apply (C f) (D x) = C (apply f x)
   lambda t f = C $ lambda t $ \x ->
     let C body = f (D x)
      in body
+
+instance HasThunk t => HasThunk (Intrinsify t) where
   thunk (C x) = D (thunk x)
   force (D x) = C (force x)
 

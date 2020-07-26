@@ -33,6 +33,7 @@ import HasConstants
 import HasData
 import HasGlobals
 import HasReturn
+import HasThunk
 import qualified Interpreter
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
@@ -74,7 +75,7 @@ phases ::
   )
 phases term =
   let optTerm = optimizeTerm term
-      cbpv = cbpvValue (Cbpv.thunk (AsCbpv.extract (Program.interpret optTerm)))
+      cbpv = cbpvValue (thunk (AsCbpv.extract (Program.interpret optTerm)))
       intrinsified = cbpvValue (AsIntrinsified.extract (Value.interpret cbpv))
       optIntrinsified = optimizeCbpv intrinsified
       catchThrow = callccValue (AsCallcc.extract (Value.interpret optIntrinsified))

@@ -14,11 +14,12 @@ import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCode
 import HasConstants
+import HasCpsReturn
+import HasCpsThunk
 import HasData
 import HasLet
 import HasLetLabel
 import HasStack
-import HasThunk
 import HasTuple
 
 evaluate :: Data X a -> Value a
@@ -69,24 +70,23 @@ instance HasLet X where
 instance HasLetLabel X where
   letLabel x f = f x
 
-instance HasThunk X where
-  lambda (K (Apply h t)) f = f (V h) (K t)
+instance HasCpsThunk X where
   thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
   force (V (Thunk f)) (K x) = C (f x)
 
+instance HasCpsReturn X where
+  letTo _ f = K $ Returns $ \x -> case f (V x) of
+    C k -> k
+  throw (K (Returns k)) (V x) = C (k x)
+
+instance Cps X where
+  apply (V h) (K t) = K (Apply h t)
+  lambda (K (Apply h t)) f = f (V h) (K t)
+
   call g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
-
-instance Cps X where
-  throw (K (Returns k)) (V x) = C (k x)
-
-  letTo _ f = K $ Returns $ \x -> case f (V x) of
-    C k -> k
-
-  apply (V h) (K t) = K (Apply h t)
-
   nil = K Nil
 
 newtype G a = G (Kont a -> R)

@@ -9,14 +9,16 @@ import qualified Cps
 import qualified Data.Text as T
 import HasCode
 import HasConstants
+import qualified HasCpsReturn as Cps
+import qualified HasCpsThunk as Cps
 import HasData
+import HasFn
 import HasGlobals
 import HasLet
 import HasLetLabel
-import HasLetTo
 import HasReturn
 import qualified HasStack
-import qualified HasThunk
+import HasThunk
 import HasTuple
 import qualified SystemF
 import TextShow
@@ -56,6 +58,10 @@ instance HasTuple AsText where
      in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
 instance HasReturn AsText where
+  letTo (C x) f = C $ \(Unique.Stream newId xs ys) ->
+    let binder = fromString "v" <> showb newId
+        C y = f (D $ \_ -> binder)
+     in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
   returns (D k) = C $ \s ->
     fromString "(return " <> k s <> fromString ")"
 
@@ -96,38 +102,26 @@ instance HasLetLabel AsText where
         C y = f (S $ \_ -> binder)
      in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys
 
-instance HasLetTo AsText where
-  letTo (C x) f = C $ \(Unique.Stream newId xs ys) ->
-    let binder = fromString "v" <> showb newId
-        C y = f (D $ \_ -> binder)
-     in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
-
+instance HasFn AsText where
   apply (C f) (D x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
-
-instance Cbpv.Cbpv AsText where
   lambda t f = C $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
+
+instance HasThunk AsText where
   thunk (C code) = D $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (D thunk) = C $ \s -> fromString "! " <> thunk s
 
 instance HasStack.HasStack AsText where
   data Stack AsText a = S (forall s. Unique.Stream s -> TextShow.Builder)
 
-instance HasThunk.HasThunk AsText where
-  lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->
-    let binder = fromString "v" <> showb h
-        lbl = fromString "l" <> showb t
-        C body = f (D $ \_ -> binder) (S $ \_ -> lbl)
-     in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
+instance Cps.HasCpsThunk AsText where
   thunk t f = D $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
         C body = f (S $ \_ -> binder)
      in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   force (D f) (S x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
-
-  call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s
 
 instance Callcc.Callcc AsText where
   catch t f = C $ \(Unique.Stream newId _ s) ->
@@ -136,8 +130,7 @@ instance Callcc.Callcc AsText where
      in fromString "catch " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   throw (S f) (C x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\nthrow " <> f fs
 
-instance Cps.Cps AsText where
-  nil = S $ \_ -> fromString "nil"
+instance Cps.HasCpsReturn AsText where
   letTo t f = S $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
@@ -146,5 +139,13 @@ instance Cps.Cps AsText where
   throw (S k) (D x) = C $ \(Unique.Stream _ ks xs) ->
     fromString "throw " <> k ks <> fromString " " <> x xs
 
+instance Cps.Cps AsText where
+  nil = S $ \_ -> fromString "nil"
+  lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->
+    let binder = fromString "v" <> showb h
+        lbl = fromString "l" <> showb t
+        C body = f (D $ \_ -> binder) (S $ \_ -> lbl)
+     in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
+  call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s
   apply (D x) (S k) = S $ \(Unique.Stream _ ks xs) ->
     k ks <> fromString " :: " <> x xs

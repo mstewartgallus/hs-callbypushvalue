@@ -10,14 +10,16 @@ import qualified Data.Text as T
 import Global
 import HasCode
 import HasConstants
+import qualified HasCpsReturn as Cps
+import qualified HasCpsThunk as Cps
 import HasData
+import HasFn
 import HasGlobals
 import HasLet
 import HasLetLabel
-import HasLetTo
 import HasReturn
 import HasStack
-import qualified HasThunk
+import HasThunk
 import HasTuple
 import Name
 import qualified SystemF as F
@@ -51,6 +53,11 @@ instance HasGlobals t => HasGlobals (CostInliner t) where
   global g = C 0 (global g)
 
 instance HasReturn t => HasReturn (CostInliner t) where
+  letTo (C xcost x) f =
+    let -- fixme... figure out a better probe...
+        C fcost _ = f (D 0 undefined)
+     in C (xcost + fcost + 1) $ letTo x $ \x' -> case f (D 0 x') of
+          C _ y -> y
   returns (D cost k) = C cost (returns k)
 
 instance F.SystemF t => F.SystemF (CostInliner t) where
@@ -109,35 +116,32 @@ instance HasLetLabel t => HasLetLabel (CostInliner t) where
         C _ y -> y
       C fcost _ = f (S 0 x)
 
-instance HasLetTo t => HasLetTo (CostInliner t) where
-  letTo (C xcost x) f =
-    let -- fixme... figure out a better probe...
-        C fcost _ = f (D 0 undefined)
-     in C (xcost + fcost + 1) $ letTo x $ \x' -> case f (D 0 x') of
-          C _ y -> y
-
+instance HasFn t => HasFn (CostInliner t) where
   apply (C fcost f) (D xcost x) = C (fcost + xcost + 1) (apply f x)
-
-instance Cbpv t => Cbpv (CostInliner t) where
   lambda t f =
     let C fcost _ = f (D 0 undefined)
      in C (fcost + 1) $ lambda t $ \x' -> case f (D 0 x') of
           C _ y -> y
+
+instance HasThunk t => HasThunk (CostInliner t) where
   force (D cost th) = C (cost + 1) (force th)
   thunk (C cost code) = D (cost + 1) (thunk code)
 
-instance HasThunk.HasThunk t => HasThunk.HasThunk (CostInliner t) where
-  lambda (S kcost k) f =
-    let C fcost _ = f (D 0 undefined) (S 0 undefined)
-     in C (kcost + fcost + 1) $ HasThunk.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
-          C _ y -> y
+instance Cps.HasCpsThunk t => Cps.HasCpsThunk (CostInliner t) where
   thunk t f =
     let C fcost _ = f (S 0 undefined)
-     in D (fcost + 1) $ HasThunk.thunk t $ \x' -> case f (S 0 x') of
+     in D (fcost + 1) $ Cps.thunk t $ \x' -> case f (S 0 x') of
           C _ y -> y
-  force (D tcost th) (S scost stack) = C (tcost + scost + 1) (HasThunk.force th stack)
+  force (D tcost th) (S scost stack) = C (tcost + scost + 1) (Cps.force th stack)
 
-  call g (S kcost k) = C (kcost + 1) (HasThunk.call g k)
+instance Cps.Cps t => Cps.Cps (CostInliner t) where
+  lambda (S kcost k) f =
+    let C fcost _ = f (D 0 undefined) (S 0 undefined)
+     in C (kcost + fcost + 1) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
+          C _ y -> y
+  apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
+  call g (S kcost k) = C (kcost + 1) (Cps.call g k)
+  nil = S 0 Cps.nil
 
 instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
   catch t f =
@@ -146,17 +150,13 @@ instance Callcc.Callcc t => Callcc.Callcc (CostInliner t) where
           C _ y -> y
   throw (S scost stack) (C xcost x) = C (scost + xcost + 1) (Callcc.throw stack x)
 
-instance Cps.Cps t => Cps.Cps (CostInliner t) where
-  nil = S 0 Cps.nil
-
+instance Cps.Cps t => Cps.HasCpsReturn (CostInliner t) where
   letTo t f =
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
           C _ y -> y
 
   throw (S tcost stk) (D scost c) = C (tcost + scost) (Cps.throw stk c)
-
-  apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
 
 probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

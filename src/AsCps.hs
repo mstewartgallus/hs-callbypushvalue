@@ -8,15 +8,18 @@ import qualified Callcc
 import Common
 import qualified Constant
 import qualified Cps
+import Global
 import HasCode
 import HasConstants
+import qualified HasCpsReturn as Cps
+import qualified HasCpsThunk as Cps
 import HasData
+import HasFn
+import HasGlobals
 import HasLet
 import HasLetLabel
-import HasLetTo
 import HasReturn
 import HasStack
-import HasThunk
 import HasTuple
 
 extract :: Cps.Cps t => Data (AsCps t) a -> Data t a
@@ -37,9 +40,6 @@ instance HasConstants t => HasConstants (AsCps t) where
   unit = D SUnit unit
   constant k = D (Constant.typeOf k) $ constant k
 
-instance Cps.Cps t => HasReturn (AsCps t) where
-  returns (D t x) = C (SF t) $ \k -> Cps.throw k x
-
 instance HasLet t => HasLet (AsCps t) where
   letBe (D t x) f =
     let C b _ = f (D t x)
@@ -48,13 +48,13 @@ instance HasLet t => HasLet (AsCps t) where
             case f (D t val) of
               C _ f' -> f' k
 
-instance Cps.Cps t => HasLetTo (AsCps t) where
+instance Cps.Cps t => HasReturn (AsCps t) where
+  returns (D t x) = C (SF t) $ \k -> Cps.throw k x
   letTo (C (SF t) x) f =
     let C b _ = f (D t undefined)
      in C b $ \k -> x $ Cps.letTo t $ \val ->
           case f (D t val) of
             C _ f' -> f' k
-  apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
 
 instance Cps.Cps t => HasTuple (AsCps t) where
   pair (D tx x) (D ty y) = D (SPair tx ty) (pair x y)
@@ -63,21 +63,25 @@ instance Cps.Cps t => HasTuple (AsCps t) where
      in C t $ \k -> unpair tuple $ \x y -> case f (D tx x) (D ty y) of
           C _ result -> result k
 
-instance (HasThunk t, Cps.Cps t) => HasThunk.HasThunk (AsCps t) where
-  lambda (S (xt `SFn` r) lam) f =
-    let C ct _ = f (D xt undefined) (S r undefined)
-     in C ct $ \k -> HasThunk.lambda lam $ \x t ->
-          let C _ y = f (D xt x) (S r t)
-           in y k
-
-  thunk t f = D (SU t) $ HasThunk.thunk t $ \k ->
+instance Cps.Cps t => Cps.HasCpsThunk (AsCps t) where
+  thunk t f = D (SU t) $ Cps.thunk t $ \k ->
     case f (S t k) of
       C _ y -> y Cps.nil
 
   force (D _ th) (S _ stack) = C SVoid $ \_ ->
-    HasThunk.force th stack
+    Cps.force th stack
 
-  call g (S _ k) = C SVoid $ \_ -> HasThunk.call g k
+instance Cps.Cps t => HasFn (AsCps t) where
+  apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
+  lambda t f =
+    let C bt _ = f (D t undefined)
+     in C (t `SFn` bt) $ \k -> Cps.lambda k $ \x next ->
+          let C _ body = f (D t x)
+           in body next
+
+instance Cps.Cps t => HasGlobals (AsCps t) where
+  global g@(Global t _) = C t $ \k -> letLabel k $ \k' ->
+    Cps.call g k'
 
 instance Cps.Cps t => Callcc.Callcc (AsCps t) where
   catch t f = C t $ \k -> letLabel k $ \k' ->
