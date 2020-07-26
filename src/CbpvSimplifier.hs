@@ -45,29 +45,31 @@ instance HasCall t => HasCall (Simplifier t) where
   call g = c $ call g
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns value = C (ReturnC $ abstractD value) $ returns $ abstractD value
+  returns (D _ value) = C (ReturnC value) $ returns value
   letTo (C (ReturnC x) _) f = c $ letBe x $ \x' -> abstract (f (d x'))
-  letTo x f = c $ letTo (abstract x) $ \x' -> abstract (f (d x'))
+  letTo (C _ x) f = c $ letTo x $ \x' -> abstract (f (d x'))
 
 instance HasLet t => HasLet (Simplifier t) where
-  letBe x f = c $ letBe (abstractD x) $ \x' -> abstract (f (d x'))
+  letBe (D _ x) f = c $ letBe x $ \x' -> abstract (f (d x'))
 
 instance HasTuple t => HasTuple (Simplifier t) where
-  pair x y = d $ pair (abstractD x) (abstractD y)
-  unpair tuple f = c $ unpair (abstractD tuple) $ \x y -> abstract (f (d x) (d y))
+  pair (D _ x) (D _ y) = d $ pair x y
+  unpair (D _ tuple) f = c $ unpair tuple $ \x y -> abstract (f (d x) (d y))
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
-  lambda t f = C (LambdaC t $ \x -> abstract (f (d x))) $ lambda t $ \x -> abstract (f (d x))
+  lambda t f =
+    let f' x = abstract (f (d x))
+     in C (LambdaC t f') $ lambda t f'
 
-  apply (C (LambdaC _ f) _) x = c $ letBe (abstractD x) f
-  apply f x = c $ apply (abstract f) (abstractD x)
+  apply (C (LambdaC _ f) _) (D _ x) = c $ letBe x f
+  apply (C _ f) (D _ x) = c $ apply f x
 
 instance HasThunk t => HasThunk (Simplifier t) where
   force (D (ThunkD code) _) = c code
-  force th = C (ForceC (abstractD th)) (force (abstractD th))
+  force (D _ th) = C (ForceC th) (force th)
 
   thunk (C (ForceC x) _) = d x
-  thunk code = D (ThunkD (abstract code)) $ thunk $ abstract code
+  thunk (C _ code) = D (ThunkD code) (thunk code)
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code
