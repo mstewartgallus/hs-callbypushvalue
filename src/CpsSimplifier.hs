@@ -36,7 +36,6 @@ instance HasStack (Simplifier t) where
 
 instance Cps t => HasConstants (Simplifier t) where
   constant k = D $ constant k
-  unit = D unit
 
 instance Cps t => HasLet (Simplifier t) where
   letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
@@ -66,9 +65,6 @@ instance Cps t => HasFn (Simplifier t) where
 
 instance Cps t => HasCall (Simplifier t) where
   call g k = C $ call g (abstractS k)
-
-instance Cps t => Cps (Simplifier t) where
-  nil = S nil
 
 abstract :: Cps t => Code (Simplifier t) a -> Code t a
 abstract code = case code of

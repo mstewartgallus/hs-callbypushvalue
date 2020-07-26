@@ -49,9 +49,6 @@ instance HasConstants (AsMemoized SystemF) where
   constant k = D $ \_ ->
     let k' = constant k
      in \_ -> k'
-  unit = D $ \_ ->
-    let u = unit
-     in \_ -> u
 
 instance HasReturn (AsMemoized SystemF) where
   returns (D x) = C $ \xs ->

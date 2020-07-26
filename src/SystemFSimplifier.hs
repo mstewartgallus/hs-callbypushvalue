@@ -33,7 +33,6 @@ instance HasCall t => HasCall (Simplifier t) where
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant k = D (constant k)
-  unit = D unit
 
 instance HasReturn t => HasReturn (Simplifier t) where
   returns (D k) = C NotFn (returns k)

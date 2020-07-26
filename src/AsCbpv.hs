@@ -28,7 +28,6 @@ instance HasCall t => HasCall (AsCbpv t) where
   call g = C (call g)
 
 instance HasConstants t => HasConstants (AsCbpv t) where
-  unit = D unit
   constant k = D (constant k)
 
 instance HasReturn t => HasReturn (AsCbpv t) where

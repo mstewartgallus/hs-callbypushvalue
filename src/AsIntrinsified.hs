@@ -33,7 +33,6 @@ instance Cbpv t => HasCall (Intrinsify t) where
 
 instance HasConstants t => HasConstants (Intrinsify t) where
   constant k = D (constant k)
-  unit = D unit
 
 instance Cbpv t => HasTuple (Intrinsify t) where
   pair (D x) (D y) = D (pair x y)

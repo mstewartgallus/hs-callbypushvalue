@@ -32,7 +32,6 @@ instance HasStack t => HasStack (AsCps t) where
   data Stack (AsCps t) a = S (SAlgebra a) (Stack t a)
 
 instance HasConstants t => HasConstants (AsCps t) where
-  unit = D SUnit unit
   constant k = D (Constant.typeOf k) $ constant k
 
 instance HasLet t => HasLet (AsCps t) where

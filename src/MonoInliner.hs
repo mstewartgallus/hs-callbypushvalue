@@ -42,7 +42,6 @@ instance HasCall t => HasCall (MonoInliner t) where
 
 instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = D 0 (constant k)
-  unit = D 0 unit
 
 instance HasTuple t => HasTuple (MonoInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost) (pair x y)
@@ -115,9 +114,6 @@ instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
 
 instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
   call g (S kcost k) = C kcost (Cps.call g k)
-
-instance Cps.Cps t => Cps.Cps (MonoInliner t) where
-  nil = S 0 Cps.nil
 
 instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost) (SystemF.pair x y)

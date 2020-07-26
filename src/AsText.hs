@@ -36,7 +36,6 @@ instance HasCall AsText where
 
 instance HasConstants AsText where
   constant k = D $ \_ -> showb k
-  unit = D $ \_ -> fromString "."
 
 instance HasTuple AsText where
   pair (D x) (D y) = D $ \(Unique.Stream _ xs ys) ->
@@ -125,9 +124,6 @@ instance Cps.HasReturn AsText where
 
   returns (S k) (D x) = C $ \(Unique.Stream _ ks xs) ->
     fromString "return " <> k ks <> fromString " " <> x xs
-
-instance Cps.Cps AsText where
-  nil = S $ \_ -> fromString "nil"
 
 instance Cps.HasFn AsText where
   lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->

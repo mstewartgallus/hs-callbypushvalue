@@ -58,7 +58,6 @@ instance HasStack Porcelain where
   newtype Stack Porcelain a = S (Unique.State Builder)
 
 instance HasConstants Porcelain where
-  unit = D $ pure $ atom "unit"
   constant (U64Constant x) = D $ pure $ node $ atom "u64" <> ws <> showb x
 
 instance HasTuple Porcelain
@@ -106,6 +105,3 @@ instance HasCall Porcelain where
   call g (S k) = C $ do
     k' <- k
     pure $ node $ atom "call" <> ws <> showb g <> ws <> k'
-
-instance Cps.Cps Porcelain where
-  nil = S $ pure $ atom "nil"

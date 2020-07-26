@@ -37,8 +37,6 @@ newtype R = Behaviour (IO ())
 
 data family Kont (a :: Algebra) :: *
 
-data instance Kont 'Void = Nil
-
 newtype instance Kont ('F a) = Returns (Value a -> R)
 
 data instance Kont (a ':=> b) = Apply (Value a) (Kont b)
@@ -56,7 +54,6 @@ instance HasStack X where
 
 instance HasConstants X where
   constant (U64Constant x) = V (I x)
-  unit = V Coin
 
 instance HasTuple X where
   pair (V x) (V y) = V (x ::: y)
@@ -86,9 +83,6 @@ instance HasCall X where
   call g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"
-
-instance Cps X where
-  nil = K Nil
 
 newtype G a = G (Kont a -> R)
 

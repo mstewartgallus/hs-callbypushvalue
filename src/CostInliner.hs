@@ -80,7 +80,6 @@ instance F.HasFn t => F.HasFn (CostInliner t) where
 
 instance HasConstants t => HasConstants (CostInliner t) where
   constant k = D 0 (constant k)
-  unit = D 0 unit
 
 instance HasTuple t => HasTuple (CostInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost + 1) (pair x y)
@@ -138,9 +137,6 @@ instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
 
 instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
   call g (S kcost k) = C (kcost + 1) (Cps.call g k)
-
-instance Cps.Cps t => Cps.Cps (CostInliner t) where
-  nil = S 0 Cps.nil
 
 instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f =

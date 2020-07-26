@@ -35,7 +35,6 @@ instance Cbpv t => HasCall (Simplifier t) where
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant k = D $ constant k
-  unit = D $ unit
 
 instance Cbpv t => HasReturn (Simplifier t) where
   returns value = ReturnC $ abstractD value
