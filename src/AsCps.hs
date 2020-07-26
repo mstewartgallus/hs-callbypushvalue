@@ -5,7 +5,7 @@
 module AsCps (extract, AsCps) where
 
 import qualified Callcc
-import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..))
+import Cbpv (HasCall (..), HasFn (..), HasReturn (..))
 import Common
 import qualified Constant
 import qualified Cps
@@ -75,8 +75,8 @@ instance Cps.Cps t => HasFn (AsCps t) where
           let C _ body = f (D t x)
            in body next
 
-instance Cps.Cps t => HasGlobals (AsCps t) where
-  global g@(Global t _) = C t $ \k -> letLabel k $ \k' ->
+instance Cps.Cps t => HasCall (AsCps t) where
+  call g@(Global t _) = C t $ \k -> letLabel k $ \k' ->
     Cps.call g k'
 
 instance Cps.Cps t => Callcc.Callcc (AsCps t) where

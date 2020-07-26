@@ -42,9 +42,9 @@ instance HasCode (AsMemoized k) where
 instance HasData (AsMemoized k) where
   newtype Data (AsMemoized k) a = D (forall x. Unique.Stream x -> (forall t. k t => LabelMap (Code t) -> Data t a))
 
-instance HasGlobals (AsMemoized SystemF) where
-  global g = C $ \_ ->
-    let g' = global g
+instance HasCall (AsMemoized SystemF) where
+  call g = C $ \_ ->
+    let g' = call g
      in \_ -> g'
 
 instance HasConstants (AsMemoized SystemF) where

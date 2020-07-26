@@ -32,8 +32,8 @@ instance HasData AsText where
 instance HasCode AsText where
   newtype Code AsText a = C (forall s. Unique.Stream s -> Builder)
 
-instance HasGlobals AsText where
-  global g = C $ \_ -> showb g
+instance HasCall AsText where
+  call g = C $ \_ -> showb g
 
 instance HasConstants AsText where
   constant k = D $ \_ -> showb k
@@ -145,5 +145,5 @@ instance Cps.HasFn AsText where
   apply (D x) (S k) = S $ \(Unique.Stream _ ks xs) ->
     k ks <> fromString " :: " <> x xs
 
-instance Cps.HasGlobals AsText where
+instance Cps.HasCall AsText where
   call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s

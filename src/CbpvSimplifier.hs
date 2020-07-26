@@ -30,8 +30,8 @@ instance HasData (Simplifier t) where
     ThunkD :: Code t a -> Data (Simplifier t) ('U a)
     D :: Data t a -> Data (Simplifier t) a
 
-instance Cbpv t => HasGlobals (Simplifier t) where
-  global g = C $ global g
+instance Cbpv t => HasCall (Simplifier t) where
+  call g = C $ call g
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant k = D $ constant k

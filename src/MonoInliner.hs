@@ -38,8 +38,8 @@ instance HasData t => HasData (MonoInliner t) where
 instance HasStack t => HasStack (MonoInliner t) where
   data Stack (MonoInliner t) a = S Int (Stack t a)
 
-instance HasGlobals t => HasGlobals (MonoInliner t) where
-  global g = C 0 (global g)
+instance HasCall t => HasCall (MonoInliner t) where
+  call g = C 0 (call g)
 
 instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = D 0 (constant k)
@@ -121,7 +121,7 @@ instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
      in C (kcost + fcost) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
           C _ y -> y
 
-instance Cps.HasGlobals t => Cps.HasGlobals (MonoInliner t) where
+instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
   call g (S kcost k) = C kcost (Cps.call g k)
 
 instance Cps.Cps t => Cps.Cps (MonoInliner t) where
@@ -145,7 +145,7 @@ instance SystemF.SystemF t => SystemF.SystemF (MonoInliner t) where
       C fcost _ = f (C 0 x)
 
   lambda t f =
-    let C fcost _ = f (C 0 (global (probe t)))
+    let C fcost _ = f (C 0 (call (probe t)))
      in C fcost $ SystemF.lambda t $ \x' -> case f (C 0 x') of
           C _ y -> y
   C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)

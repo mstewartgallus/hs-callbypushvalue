@@ -24,8 +24,8 @@ instance HasCode t => HasCode (AsCbpv t) where
 instance HasData t => HasData (AsCbpv t) where
   newtype Data (AsCbpv t) a = D (Data t a)
 
-instance HasGlobals t => HasGlobals (AsCbpv t) where
-  global g = C (global g)
+instance HasCall t => HasCall (AsCbpv t) where
+  call g = C (call g)
 
 instance HasConstants t => HasConstants (AsCbpv t) where
   unit = D unit

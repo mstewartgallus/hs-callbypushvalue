@@ -5,7 +5,7 @@
 
 module SystemFSimplifier (extract, Simplifier) where
 
-import Cbpv (HasGlobals (..), HasReturn (..))
+import Cbpv (HasCall (..), HasReturn (..))
 import Common
 import HasCode
 import HasConstants
@@ -28,8 +28,8 @@ instance HasCode t => HasCode (Simplifier t) where
 instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (Data t a)
 
-instance HasGlobals t => HasGlobals (Simplifier t) where
-  global g = C NotFn (global g)
+instance HasCall t => HasCall (Simplifier t) where
+  call g = C NotFn (call g)
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant k = D (constant k)

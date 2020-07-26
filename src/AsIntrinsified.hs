@@ -26,9 +26,9 @@ instance HasCode t => HasCode (Intrinsify t) where
 instance HasData t => HasData (Intrinsify t) where
   newtype Data (Intrinsify t) a = D (Data t a)
 
-instance Cbpv t => HasGlobals (Intrinsify t) where
-  global g = C $ case GlobalMap.lookup g intrinsics of
-    Nothing -> global g
+instance Cbpv t => HasCall (Intrinsify t) where
+  call g = C $ case GlobalMap.lookup g intrinsics of
+    Nothing -> call g
     Just intrinsic -> intrinsic
 
 instance HasConstants t => HasConstants (Intrinsify t) where
@@ -73,4 +73,4 @@ plusIntrinsic = lambda inferSet $ \x' ->
   lambda inferSet $ \y' ->
     letTo (force x') $ \x'' ->
       letTo (force y') $ \y'' ->
-        apply (apply (global strictPlus) x'') y''
+        apply (apply (call strictPlus) x'') y''

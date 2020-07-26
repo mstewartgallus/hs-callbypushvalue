@@ -64,7 +64,7 @@ instance Cps t => HasFn (Simplifier t) where
   apply x f = S $ apply (abstractD x) (abstractS f)
   lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
 
-instance Cps t => HasGlobals (Simplifier t) where
+instance Cps t => HasCall (Simplifier t) where
   call g k = C $ call g (abstractS k)
 
 instance Cps t => Cps (Simplifier t) where

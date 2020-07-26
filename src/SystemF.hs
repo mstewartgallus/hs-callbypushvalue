@@ -5,7 +5,7 @@
 module SystemF (lam, SystemF (..)) where
 
 -- FIXME !
-import Cbpv (HasGlobals (..), HasReturn (..))
+import Cbpv (HasCall (..), HasReturn (..))
 import Common
 import HasCode
 import HasConstants
@@ -15,7 +15,7 @@ import Prelude hiding ((<*>))
 -- representation
 --
 -- FIXME: forall and applyType are still experimental
-class (HasGlobals t, HasConstants t, HasReturn t) => SystemF t where
+class (HasCall t, HasConstants t, HasReturn t) => SystemF t where
   -- | function application
   (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
 

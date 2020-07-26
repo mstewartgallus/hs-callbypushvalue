@@ -82,7 +82,7 @@ instance HasFn X where
   apply (V h) (K t) = K (Apply h t)
   lambda (K (Apply h t)) f = f (V h) (K t)
 
-instance HasGlobals X where
+instance HasCall X where
   call g (K k) = case GlobalMap.lookup g globals of
     Just (G x) -> C (x k)
     Nothing -> error "global not found in environment"

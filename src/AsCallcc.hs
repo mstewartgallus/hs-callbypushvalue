@@ -6,7 +6,7 @@ module AsCallcc (extract, AsCallcc) where
 
 import qualified Callcc
 import qualified Cbpv
-import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..), HasThunk (..))
+import Cbpv (HasCall (..), HasFn (..), HasReturn (..), HasThunk (..))
 import Common
 import qualified Constant
 import qualified Cps
@@ -28,8 +28,8 @@ instance HasCode t => HasCode (AsCallcc t) where
 instance HasData t => HasData (AsCallcc t) where
   data Data (AsCallcc t) a = D (SSet a) (Data t a)
 
-instance HasGlobals t => HasGlobals (AsCallcc t) where
-  global g@(Global t _) = C t (global g)
+instance HasCall t => HasCall (AsCallcc t) where
+  call g@(Global t _) = C t (call g)
 
 instance HasConstants t => HasConstants (AsCallcc t) where
   unit = D SUnit unit

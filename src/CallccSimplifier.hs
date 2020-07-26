@@ -6,7 +6,7 @@
 module CallccSimplifier (Simplifier, extract) where
 
 import Callcc
-import Cbpv (HasFn (..), HasGlobals (..), HasReturn (..))
+import Cbpv (HasCall (..), HasFn (..), HasReturn (..))
 import Common
 import Cps (HasThunk (..))
 import HasCode
@@ -48,8 +48,8 @@ instance Callcc t => HasFn (Simplifier t) where
   apply f x = C $ apply (abstract f) (abstractD x)
   lambda t f = C $ lambda t $ \x -> abstract (f (D x))
 
-instance HasGlobals t => HasGlobals (Simplifier t) where
-  global g = C $ global g
+instance HasCall t => HasCall (Simplifier t) where
+  call g = C $ call g
 
 instance Callcc t => HasTuple (Simplifier t) where
   pair x y = D $ pair (abstractD x) (abstractD y)

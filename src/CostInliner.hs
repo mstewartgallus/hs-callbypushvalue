@@ -43,8 +43,8 @@ instance HasCode t => HasCode (CostInliner t) where
 instance HasStack t => HasStack (CostInliner t) where
   data Stack (CostInliner t) a = S Int (Stack t a)
 
-instance HasGlobals t => HasGlobals (CostInliner t) where
-  global g = C 0 (global g)
+instance HasCall t => HasCall (CostInliner t) where
+  call g = C 0 (call g)
 
 instance HasReturn t => HasReturn (CostInliner t) where
   letTo (C xcost x) f =
@@ -72,7 +72,7 @@ instance F.SystemF t => F.SystemF (CostInliner t) where
 
   lambda t f = result
     where
-      C fcost _ = f (C 0 (global (probe t)))
+      C fcost _ = f (C 0 (call (probe t)))
       result = C (fcost + 1) $ F.lambda t $ \x' -> case f (C 0 x') of
         C _ y -> y
   C fcost f <*> C xcost x = C (fcost + xcost + 1) (f F.<*> x)
@@ -135,7 +135,7 @@ instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
           C _ y -> y
   apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
 
-instance Cps.HasGlobals t => Cps.HasGlobals (CostInliner t) where
+instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
   call g (S kcost k) = C (kcost + 1) (Cps.call g k)
 
 instance Cps.Cps t => Cps.Cps (CostInliner t) where

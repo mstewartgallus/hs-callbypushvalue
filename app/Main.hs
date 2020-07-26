@@ -16,7 +16,7 @@ import Callcc (Callcc)
 import qualified CallccSimplifier
 import Cbpv (Cbpv)
 import qualified Cbpv
-import Cbpv (HasGlobals (..), HasReturn (..), HasThunk (..))
+import Cbpv (HasCall (..), HasReturn (..), HasThunk (..))
 import qualified CbpvSimplifier
 import Common
 import qualified Constant
@@ -56,9 +56,9 @@ program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \x ->
   F.lam $ \y ->
     ( F.lam $ \z ->
-        global Core.plus F.<*> z F.<*> y
+        call Core.plus F.<*> z F.<*> y
     )
-      F.<*> (global Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
+      F.<*> (call Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
 
 phases ::
   Program SystemF a ->

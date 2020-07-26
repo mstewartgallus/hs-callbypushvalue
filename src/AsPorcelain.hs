@@ -102,7 +102,7 @@ instance HasFn Porcelain where
     body' <- body
     pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> ws <> body'
 
-instance HasGlobals Porcelain where
+instance HasCall Porcelain where
   call g (S k) = C $ do
     k' <- k
     pure $ node $ atom "call" <> ws <> showb g <> ws <> k'

@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Cbpv (Cbpv (..), HasReturn (..), HasGlobals (..), HasFn (..), HasThunk (..)) where
+module Cbpv (Cbpv (..), HasReturn (..), HasCall (..), HasFn (..), HasThunk (..)) where
 
 import Common
 import Global
@@ -13,16 +13,16 @@ import HasData
 import HasLet
 import HasTuple
 
-class (HasGlobals t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
+class (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
 
-instance (HasGlobals t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
+instance (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
 
 class (HasData t, HasCode t) => HasReturn t where
   letTo :: Code t ('F a) -> (Data t a -> Code t b) -> Code t b
   returns :: Data t a -> Code t ('F a)
 
-class HasCode t => HasGlobals t where
-  global :: Global a -> Code t a
+class HasCode t => HasCall t where
+  call :: Global a -> Code t a
 
 class (HasData t, HasCode t) => HasFn t where
   lambda :: SSet a -> (Data t a -> Code t b) -> Code t (a ':=> b)
