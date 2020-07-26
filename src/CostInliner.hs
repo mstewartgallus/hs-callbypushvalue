@@ -155,8 +155,7 @@ instance Cps.Cps t => Cps.HasCpsReturn (CostInliner t) where
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
           C _ y -> y
-
-  throw (S tcost stk) (D scost c) = C (tcost + scost) (Cps.throw stk c)
+  returns (S tcost stk) (D scost c) = C (tcost + scost) (Cps.returns stk c)
 
 probe :: SAlgebra a -> Global a
 probe t = Global t $ Name (T.pack "core") (T.pack "probe")

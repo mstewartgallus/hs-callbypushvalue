@@ -118,7 +118,7 @@ instance Cps.Cps t => Cps.HasCpsReturn (MonoInliner t) where
     let C fcost _ = f (D 0 undefined)
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
           C _ y -> y
-  throw (S tcost stk) (D scost c) = C (tcost + scost) (Cps.throw stk c)
+  returns (S tcost stk) (D scost c) = C (tcost + scost) (Cps.returns stk c)
 
 instance Cps.Cps t => Cps.Cps (MonoInliner t) where
   apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k

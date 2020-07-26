@@ -78,7 +78,7 @@ instance HasCpsThunk X where
 instance HasCpsReturn X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
-  throw (K (Returns k)) (V x) = C (k x)
+  returns (K (Returns k)) (V x) = C (k x)
 
 instance Cps X where
   apply (V h) (K t) = K (Apply h t)

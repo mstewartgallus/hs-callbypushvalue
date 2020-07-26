@@ -57,8 +57,8 @@ instance Cps t => HasCpsThunk (Simplifier t) where
   force x k = C $ force (abstractD x) (abstractS k)
 
 instance Cps t => HasCpsReturn (Simplifier t) where
-  throw (LetToS _ f) x = C $ letBe (abstractD x) f
-  throw k x = C $ throw (abstractS k) (abstractD x)
+  returns (LetToS _ f) x = C $ letBe (abstractD x) f
+  returns k x = C $ returns (abstractS k) (abstractD x)
 
   letTo t f = LetToS t $ \x -> abstract (f (D x))
 

@@ -81,10 +81,10 @@ instance HasCpsThunk Porcelain where
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
 
 instance HasCpsReturn Porcelain where
-  throw (S k) (D value) = C $ do
+  returns (S k) (D value) = C $ do
     k' <- k
     value' <- value
-    pure $ node $ atom "throw" <> ws <> k' <> ws <> value'
+    pure $ node $ atom "return" <> ws <> k' <> ws <> value'
   letTo t f = S $ do
     v <- fresh
     let C body = f (D $ pure v)
@@ -102,7 +102,7 @@ instance Cps.Cps Porcelain where
     n <- fresh
     let C body = f (D $ pure x) (S $ pure n)
     body' <- body
-    pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> body'
+    pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> ws <> body'
   nil = S $ pure $ atom "nil"
   call g (S k) = C $ do
     k' <- k

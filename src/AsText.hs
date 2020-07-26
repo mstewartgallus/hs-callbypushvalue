@@ -136,8 +136,8 @@ instance Cps.HasCpsReturn AsText where
         C body = f (D $ \_ -> binder)
      in fromString "to " <> binder <> fromString ": " <> showb t <> fromString ".\n" <> body s
 
-  throw (S k) (D x) = C $ \(Unique.Stream _ ks xs) ->
-    fromString "throw " <> k ks <> fromString " " <> x xs
+  returns (S k) (D x) = C $ \(Unique.Stream _ ks xs) ->
+    fromString "return " <> k ks <> fromString " " <> x xs
 
 instance Cps.Cps AsText where
   nil = S $ \_ -> fromString "nil"
