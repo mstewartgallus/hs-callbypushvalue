@@ -39,9 +39,7 @@ instance Cbpv t => HasConstants (Simplifier t) where
 instance Cbpv t => HasReturn (Simplifier t) where
   returns value = ReturnC $ abstractD value
   letTo (ReturnC x) f = C $ letBe x $ \x' -> abstract (f (D x'))
-  letTo x f =
-    let
-     in C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
+  letTo x f = C $ letTo (abstract x) $ \x' -> abstract (f (D x'))
 
 instance Cbpv t => HasLet (Simplifier t) where
   letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))

@@ -58,10 +58,10 @@ instance Cps.Cps t => HasTuple (AsCps t) where
           C _ result -> result k
 
 instance Cps.HasThunk t => HasThunk (AsCps t) where
-  force (D (SU t) thunk) = C t $ \k -> Cps.force thunk k
-  thunk (C t code) = D (SU t) $ Cps.thunk t code
+  force (D (SU t) thunk) = C t (Cps.force thunk)
+  thunk (C t code) = D (SU t) (Cps.thunk t code)
 
-instance Cps.Cps t => HasFn (AsCps t) where
+instance Cps.HasFn t => HasFn (AsCps t) where
   apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
   lambda t f =
     let C bt _ = f (D t undefined)
@@ -69,6 +69,5 @@ instance Cps.Cps t => HasFn (AsCps t) where
           let C _ body = f (D t x)
            in body next
 
-instance Cps.Cps t => HasCall (AsCps t) where
-  call g@(Global t _) = C t $ \k -> letLabel k $ \k' ->
-    Cps.call g k'
+instance Cps.HasCall t => HasCall (AsCps t) where
+  call g@(Global t _) = C t (Cps.call g)
