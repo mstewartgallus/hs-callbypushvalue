@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CpsSimplifier (Simplifier, simplifyExtract) where
+module CpsSimplifier (Simplifier, extract) where
 
 import Common
 import Cps
@@ -14,72 +14,82 @@ import HasLet
 import HasStack
 import HasTuple
 
-simplifyExtract :: Cps t => Data (Simplifier t) a -> Data t a
-simplifyExtract = abstractD
+extract :: Data (Simplifier t) a -> Data t a
+extract = abstractD
 
 data Simplifier t
 
+data TermC t (a :: Algebra) where
+  NothingC :: TermC t a
+
+data TermD t a where
+  ThunkD :: SAlgebra a -> (Stack t a -> Code t 'Void) -> TermD t ('U a)
+  NothingD :: TermD t a
+
+data TermS t a where
+  ApplyS :: Data t a -> Stack t b -> TermS t (a ':=> b)
+  LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
+  NothingS :: TermS t a
+
+c = C NothingC
+
+d = D NothingD
+
+s = S NothingS
+
 instance HasCode (Simplifier t) where
-  data Code (Simplifier t) a where
-    C :: Code t a -> Code (Simplifier t) a
+  data Code (Simplifier t) a = C (TermC t a) (Code t a)
 
 instance HasData (Simplifier t) where
-  data Data (Simplifier t) a where
-    ThunkD :: SAlgebra a -> (Stack t a -> Code t 'Void) -> Data (Simplifier t) ('U a)
-    D :: Data t a -> Data (Simplifier t) a
+  data Data (Simplifier t) a = D (TermD t a) (Data t a)
 
 instance HasStack (Simplifier t) where
-  data Stack (Simplifier t) a where
-    ApplyS :: Data t a -> Stack t b -> Stack (Simplifier t) (a ':=> b)
-    LetToS :: SSet a -> (Data t a -> Code t 'Void) -> Stack (Simplifier t) ('F a)
-    S :: Stack t a -> Stack (Simplifier t) a
+  data Stack (Simplifier t) a = S (TermS t a) (Stack t a)
 
-instance Cps t => HasConstants (Simplifier t) where
-  constant k = D $ constant k
+instance HasConstants t => HasConstants (Simplifier t) where
+  constant = d . constant
 
-instance Cps t => HasLet (Simplifier t) where
-  letBe x f = C $ letBe (abstractD x) $ \x' -> abstract (f (D x'))
+instance HasLet t => HasLet (Simplifier t) where
+  letBe (D _ x) f = c $ letBe x $ \x' -> abstract (f (d x'))
 
-instance Cps t => HasLabel (Simplifier t) where
-  label x f = C $ label (abstractS x) $ \x' -> abstract (f (S x'))
+instance HasLabel t => HasLabel (Simplifier t) where
+  label (S _ x) f = c $ label x $ \x' -> abstract (f (s x'))
 
-instance Cps t => HasTuple (Simplifier t) where
-  pair x y = D $ pair (abstractD x) (abstractD y)
-  unpair tuple f = C $ unpair (abstractD tuple) $ \x y -> abstract (f (D x) (D y))
+instance HasTuple t => HasTuple (Simplifier t) where
+  pair (D _ x) (D _ y) = d $ pair x y
+  unpair (D _ tuple) f = c $ unpair tuple $ \x y -> abstract (f (d x) (d y))
 
-instance Cps t => HasThunk (Simplifier t) where
-  thunk t f = ThunkD t $ \x -> abstract (f (S x))
+instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
+  thunk t f =
+    let f' x = abstract (f (s x))
+     in D (ThunkD t f') (thunk t f')
 
-  force (ThunkD _ f) x = C $ label (abstractS x) f
-  force x k = C $ force (abstractD x) (abstractS k)
+  force (D (ThunkD _ f) _) (S _ x) = c $ label x f
+  force (D _ x) (S _ k) = c $ force x k
 
-instance Cps t => HasReturn (Simplifier t) where
-  returns (LetToS _ f) x = C $ letBe (abstractD x) f
-  returns k x = C $ returns (abstractS k) (abstractD x)
+instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
+  returns (S (LetToS _ f) _) (D _ x) = c $ letBe x f
+  returns (S _ k) (D _ x) = c $ returns k x
 
-  letTo t f = LetToS t $ \x -> abstract (f (D x))
+  letTo t f =
+    let f' x = abstract (f (d x))
+     in S (LetToS t f') (letTo t f')
 
-instance Cps t => HasFn (Simplifier t) where
-  apply x f = ApplyS (abstractD x) (abstractS f)
-  lambda (ApplyS x t) f = C $ label t $ \t' ->
+instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
+  apply (D _ x) (S _ f) = S (ApplyS x f) (apply x f)
+  lambda (S (ApplyS x t) _) f = c $ label t $ \t' ->
     letBe x $ \x' ->
-      abstract (f (D x') (S t'))
-  lambda k f = C $ lambda (abstractS k) $ \x t -> abstract (f (D x) (S t))
+      abstract (f (d x') (s t'))
+  lambda (S _ k) f = c $ lambda k $ \x t -> abstract (f (d x) (s t))
 
-instance Cps t => HasCall (Simplifier t) where
-  call g k = C $ call g (abstractS k)
+instance HasCall t => HasCall (Simplifier t) where
+  call g (S _ k) = c $ call g k
 
-abstract :: Cps t => Code (Simplifier t) a -> Code t a
-abstract code = case code of
-  C c -> c
+abstract :: Code (Simplifier t) a -> Code t a
+abstract (C _ code) = code
 
-abstractD :: Cps t => Data (Simplifier t) a -> Data t a
-abstractD x = case x of
-  ThunkD t f -> thunk t f
-  D d -> d
+abstractD :: Data (Simplifier t) a -> Data t a
+abstractD (D _ x) = x
 
-abstractS :: Cps t => Stack (Simplifier t) a -> Stack t a
-abstractS x = case x of
-  LetToS t f -> letTo t f
-  ApplyS h t -> apply h t
-  S s -> s
+abstractS :: Stack (Simplifier t) a -> Stack t a
+abstractS (S _ x) = x

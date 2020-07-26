@@ -115,7 +115,7 @@ optimizeCps = loop iterCps
   where
     step :: Cps t => Data (OptCps t) a -> Data t a
     step term =
-      let simplified = CpsSimplifier.simplifyExtract term
+      let simplified = CpsSimplifier.extract term
           monoInlined = MonoInliner.extractData simplified
           inlined = CostInliner.extractData monoInlined
        in inlined
