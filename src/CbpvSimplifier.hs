@@ -18,36 +18,25 @@ extract = abstractD
 
 data Simplifier t
 
-data TermC t a where
-  LambdaC :: SSet a -> (Data t a -> Code t b) -> TermC t (a ':=> b)
-  ForceC :: Data t ('U a) -> TermC t a
-  ReturnC :: Data t a -> TermC t ('F a)
-  NothingC :: TermC t a
+data family TermC t (a :: Algebra)
 
-data TermD t a where
-  ThunkD :: Code t a -> TermD t ('U a)
-  NothingD :: TermD t a
+data family TermD t (a :: Set)
 
-c = C NothingC
+c = C Nothing
 
-d = D NothingD
+d = D Nothing
 
 instance HasCode (Simplifier t) where
-  data Code (Simplifier t) a = C (TermC t a) (Code t a)
+  data Code (Simplifier t) a = C (Maybe (TermC t a)) (Code t a)
 
 instance HasData (Simplifier t) where
-  data Data (Simplifier t) a = D (TermD t a) (Data t a)
+  data Data (Simplifier t) a = D (Maybe (TermD t a)) (Data t a)
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant k = d $ constant k
 
 instance HasCall t => HasCall (Simplifier t) where
   call g = c $ call g
-
-instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns (D _ value) = C (ReturnC value) $ returns value
-  letTo (C (ReturnC x) _) f = c $ letBe x $ \x' -> abstract (f (d x'))
-  letTo (C _ x) f = c $ letTo x $ \x' -> abstract (f (d x'))
 
 instance HasLet t => HasLet (Simplifier t) where
   letBe (D _ x) f = c $ letBe x $ \x' -> abstract (f (d x'))
@@ -56,20 +45,31 @@ instance HasTuple t => HasTuple (Simplifier t) where
   pair (D _ x) (D _ y) = d $ pair x y
   unpair (D _ tuple) f = c $ unpair tuple $ \x y -> abstract (f (d x) (d y))
 
+newtype instance TermC t ('F a) = ReturnC (Data t a)
+
+instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
+  returns (D _ value) = C (Just (ReturnC value)) $ returns value
+  letTo (C (Just (ReturnC x)) _) f = c $ letBe x $ \x' -> abstract (f (d x'))
+  letTo (C _ x) f = c $ letTo x $ \x' -> abstract (f (d x'))
+
+data instance TermC t (a ':=> b) = LambdaC (SSet a) (Data t a -> Code t b)
+
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
     let f' x = abstract (f (d x))
-     in C (LambdaC t f') $ lambda t f'
+     in C (Just (LambdaC t f')) $ lambda t f'
 
-  apply (C (LambdaC _ f) _) (D _ x) = c $ letBe x f
+  apply (C (Just (LambdaC _ f)) _) (D _ x) = c $ letBe x f
   apply (C _ f) (D _ x) = c $ apply f x
 
-instance HasThunk t => HasThunk (Simplifier t) where
-  force (D (ThunkD code) _) = c code
-  force (D _ th) = C (ForceC th) (force th)
+newtype instance TermD t ('U a) = ThunkD (Code t a)
 
-  thunk (C (ForceC x) _) = d x
-  thunk (C _ code) = D (ThunkD code) (thunk code)
+instance HasThunk t => HasThunk (Simplifier t) where
+  force (D (Just (ThunkD code)) _) = c code
+  force (D _ th) = c (force th)
+
+  -- fixme .. pass in thunk info somehow?
+  thunk (C _ code) = D (Just (ThunkD code)) (thunk code)
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code
