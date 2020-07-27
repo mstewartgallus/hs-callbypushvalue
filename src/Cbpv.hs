@@ -23,7 +23,9 @@ class (HasData t, HasCode t) => HasReturn t where
 
 class (HasData t, HasCode t) => HasFn t where
   lambda :: SSet a -> (Data t a -> Code t b) -> Code t (a ':=> b)
-  apply :: Code t (a ':=> b) -> Data t a -> Code t b
+  (<*>) :: Code t (a ':=> b) -> Data t a -> Code t b
+
+infixl 4 <*>
 
 class (HasCode t, HasData t) => HasThunk t where
   thunk :: Code t a -> Data t ('U a)

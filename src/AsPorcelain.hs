@@ -88,7 +88,7 @@ instance HasReturn Porcelain where
     pure $ node $ atom "to" <> ws <> v <> ws <> pType t <> ws <> body'
 
 instance HasFn Porcelain where
-  apply (D h) (S t) = S $ do
+  D h <*> S t = S $ do
     h' <- h
     t' <- t
     pure $ node $ atom "apply" <> ws <> h' <> ws <> t'

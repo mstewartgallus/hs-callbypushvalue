@@ -110,7 +110,7 @@ instance Cps.HasLabel t => Cps.HasLabel (CostInliner t) where
       C fcost _ = f (S 0 x)
 
 instance HasFn t => HasFn (CostInliner t) where
-  apply (C fcost f) (D xcost x) = C (fcost + xcost + 1) (apply f x)
+  C fcost f <*> D xcost x = C (fcost + xcost + 1) (f <*> x)
   lambda t f =
     let C fcost _ = f (D 0 undefined)
      in C (fcost + 1) $ lambda t $ \x' -> case f (D 0 x') of
@@ -132,7 +132,7 @@ instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
     let C fcost _ = f (D 0 undefined) (S 0 undefined)
      in C (kcost + fcost + 1) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
           C _ y -> y
-  apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
+  D xcost x <*> S kcost k = S (xcost + kcost) (x Cps.<*> k)
 
 instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
   call g (S kcost k) = C (kcost + 1) (Cps.call g k)

@@ -99,7 +99,7 @@ instance Cps.HasLabel AsText where
      in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys
 
 instance HasFn AsText where
-  apply (C f) (D x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
+  C f <*> D x = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
   lambda t f = C $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
@@ -134,7 +134,7 @@ instance Cps.HasFn AsText where
         lbl = fromString "l" <> showb t
         C body = f (D $ \_ -> binder) (S $ \_ -> lbl)
      in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
-  apply (D x) (S k) = S $ \(Unique.Stream _ ks xs) ->
+  D x <*> S k = S $ \(Unique.Stream _ ks xs) ->
     k ks <> fromString " :: " <> x xs
 
 instance Cps.HasCall AsText where

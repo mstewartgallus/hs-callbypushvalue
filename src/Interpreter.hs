@@ -75,7 +75,7 @@ instance HasReturn X where
   returns (K (Returns k)) (V x) = C (k x)
 
 instance HasFn X where
-  apply (V h) (K t) = K (Apply h t)
+  V h <*> K t = K (Apply h t)
   lambda (K (Apply h t)) f = f (V h) (K t)
 
 instance HasCall X where

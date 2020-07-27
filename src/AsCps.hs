@@ -59,7 +59,7 @@ instance Cps.HasThunk t => HasThunk (AsCps t) where
   thunk (C t code) = D (SU t) (Cps.thunk t code)
 
 instance Cps.HasFn t => HasFn (AsCps t) where
-  apply (C (_ `SFn` b) f) (D _ x) = C b $ \k -> f (Cps.apply x k)
+  C (_ `SFn` b) f <*> D _ x = C b $ \k -> f (x Cps.<*> k)
   lambda t f =
     let C bt _ = f (D t undefined)
      in C (t `SFn` bt) $ \k -> Cps.lambda k $ \x next ->

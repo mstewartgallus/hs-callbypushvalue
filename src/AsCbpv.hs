@@ -13,6 +13,7 @@ import HasData
 import HasLet
 import HasTuple
 import qualified SystemF as F
+import Prelude hiding ((<*>))
 
 extract :: Code (AsCbpv t) a -> Code t a
 extract (C x) = x
@@ -51,4 +52,4 @@ instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) $ \x ->
     let C body = f (C (force x))
      in body
-  C f <*> C x = C $ apply f (thunk x)
+  C f <*> C x = C (f <*> thunk x)

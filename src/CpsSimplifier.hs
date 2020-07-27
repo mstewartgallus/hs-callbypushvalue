@@ -13,6 +13,7 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import Prelude hiding ((<*>))
 
 extract :: Data (Simplifier t) a -> Data t a
 extract (D _ x) = x
@@ -79,7 +80,7 @@ instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
      in S (LetToS t f') (letTo t f')
 
 instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
-  apply (D _ x) (S _ f) = S (ApplyS x f) (apply x f)
+  D _ x <*> S _ k = S (ApplyS x k) (x <*> k)
   lambda (S (ApplyS x t) _) f = c $ label t $ \t' ->
     letBe x $ \x' ->
       abstract (f (d x') (s t'))

@@ -14,7 +14,7 @@ import Box (Box, mkProgram, mkValue)
 import qualified Box
 import Cbpv (Cbpv)
 import qualified Cbpv
-import Cbpv (HasCall (..), HasThunk (..))
+import Cbpv (HasThunk (..))
 import qualified CbpvSimplifier
 import Common
 import qualified Constant
@@ -27,6 +27,7 @@ import qualified CpsSimplifier
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
+import HasCall
 import HasCode
 import HasData
 import qualified Interpreter

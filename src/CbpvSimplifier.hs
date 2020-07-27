@@ -13,6 +13,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import Prelude hiding ((<*>))
 
 extract :: Data (Simplifier t) a -> Data t a
 extract = abstractD
@@ -62,8 +63,8 @@ instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
     let f' x = abstract (f (d x))
      in C (Just (LambdaC t f')) $ lambda t f'
 
-  apply (C (Just (LambdaC _ f)) _) (D _ x) = c $ letBe x f
-  apply (C _ f) (D _ x) = c $ apply f x
+  C (Just (LambdaC _ f)) _ <*> D _ x = c $ letBe x f
+  C _ f <*> D _ x = c $ f <*> x
 
 newtype instance TermD t ('U a) = ThunkD (Code t a)
 

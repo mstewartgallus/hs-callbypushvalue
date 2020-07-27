@@ -80,7 +80,7 @@ instance HasReturn t => HasReturn (MonoInliner t) where
           C _ y -> y
 
 instance HasFn t => HasFn (MonoInliner t) where
-  apply (C fcost f) (D xcost x) = C (fcost + xcost) (apply f x)
+  C fcost f <*> D xcost x = C (fcost + xcost) (f <*> x)
   lambda t f =
     let C fcost _ = f (D 0 undefined)
      in C fcost $ lambda t $ \x' -> case f (D 0 x') of
@@ -105,7 +105,7 @@ instance Cps.HasReturn t => Cps.HasReturn (MonoInliner t) where
   returns (S tcost stk) (D scost c) = C (tcost + scost) (Cps.returns stk c)
 
 instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
-  apply (D xcost x) (S kcost k) = S (xcost + kcost) $ Cps.apply x k
+  D xcost x <*> S kcost k = S (xcost + kcost) (x Cps.<*> k)
   lambda (S kcost k) f =
     let C fcost _ = f (D 0 undefined) (S 0 undefined)
      in C (kcost + fcost) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of

@@ -15,6 +15,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import Prelude hiding ((<*>))
 
 extract :: Cbpv t => Data (Intrinsify t) a -> Data t a
 extract (D x) = x
@@ -53,7 +54,7 @@ instance HasReturn t => HasReturn (Intrinsify t) where
      in body
 
 instance HasFn t => HasFn (Intrinsify t) where
-  apply (C f) (D x) = C (apply f x)
+  C f <*> D x = C (f <*> x)
   lambda t f = C $ lambda t $ \x ->
     let C body = f (D x)
      in body
@@ -71,6 +72,6 @@ intrinsics =
 plusIntrinsic :: Cbpv t => Code t ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
 plusIntrinsic = lambda inferSet $ \x' ->
   lambda inferSet $ \y' ->
-    letTo (force x') $ \x'' ->
-      letTo (force y') $ \y'' ->
-        apply (apply (call strictPlus) x'') y''
+    force x' `letTo` \x'' ->
+      force y' `letTo` \y'' ->
+        call strictPlus <*> x'' <*> y''
