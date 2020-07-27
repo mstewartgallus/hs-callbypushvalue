@@ -135,7 +135,7 @@ instance Cps.HasFn AsText where
         C body = f (D $ \_ -> binder) (S $ \_ -> lbl)
      in k ks <> fromString " λ " <> binder <> fromString " " <> lbl <> fromString " →\n" <> body s
   D x <*> S k = S $ \(Unique.Stream _ ks xs) ->
-    k ks <> fromString " :: " <> x xs
+    x xs <> fromString " :: " <> k ks
 
 instance Cps.HasCall AsText where
   call g = D $ \_ -> fromString "call " <> showb g

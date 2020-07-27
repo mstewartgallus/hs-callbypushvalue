@@ -31,7 +31,7 @@ class (HasData t, HasCode t, HasStack t) => HasFn t where
   lambda :: Stack t (a ':=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
   (<*>) :: Data t a -> Stack t b -> Stack t (a ':=> b)
 
-infixl 4 <*>
+infixr 4 <*>
 
 -- | Decomposition of returns type into a into callcc style
 class (HasData t, HasCode t, HasStack t) => HasReturn t where
