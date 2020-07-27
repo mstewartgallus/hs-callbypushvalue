@@ -7,6 +7,7 @@ module CbpvSimplifier (Simplifier, extract) where
 
 import Cbpv
 import Common
+import HasCall
 import HasCode
 import HasConstants
 import HasData

@@ -9,6 +9,7 @@ import Common
 import qualified Constant
 import qualified Cps
 import Global
+import HasCall
 import HasCode
 import HasConstants
 import HasData

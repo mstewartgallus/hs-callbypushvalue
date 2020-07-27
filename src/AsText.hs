@@ -6,6 +6,7 @@ module AsText (extract, extractData, AsText) where
 import Cbpv
 import qualified Cps
 import qualified Data.Text as T
+import HasCall
 import HasCode
 import HasConstants
 import HasData

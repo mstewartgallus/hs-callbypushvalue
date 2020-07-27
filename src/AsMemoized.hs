@@ -7,12 +7,12 @@
 module AsMemoized (AsMemoized, extract) where
 
 import Box
-import Cbpv (HasCall (..))
 import Common
 import qualified Cps
 import qualified Data.Text as T
 import GHC.Exts (Constraint)
 import Global
+import HasCall
 import HasCode
 import HasData
 import HasLet

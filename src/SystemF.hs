@@ -6,10 +6,9 @@
 
 module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
 
--- FIXME !
-import Cbpv (HasCall (..))
 import Common
 import Constant
+import HasCall
 import HasCode
 import Prelude hiding ((<*>))
 

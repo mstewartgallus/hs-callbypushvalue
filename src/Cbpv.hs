@@ -7,6 +7,7 @@ module Cbpv (Cbpv, HasReturn (..), HasCall (..), HasFn (..), HasThunk (..)) wher
 
 import Common
 import Global
+import HasCall
 import HasCode
 import HasConstants
 import HasData
@@ -20,9 +21,6 @@ instance (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t,
 class (HasData t, HasCode t) => HasReturn t where
   letTo :: Code t ('F a) -> (Data t a -> Code t b) -> Code t b
   returns :: Data t a -> Code t ('F a)
-
-class HasCode t => HasCall t where
-  call :: Global a -> Code t a
 
 class (HasData t, HasCode t) => HasFn t where
   lambda :: SSet a -> (Data t a -> Code t b) -> Code t (a ':=> b)

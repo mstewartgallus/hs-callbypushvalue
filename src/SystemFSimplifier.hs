@@ -5,8 +5,8 @@
 
 module SystemFSimplifier (extract, Simplifier) where
 
-import Cbpv (HasCall (..))
 import Common
+import HasCall
 import HasCode
 import HasData
 import SystemF

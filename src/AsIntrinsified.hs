@@ -9,6 +9,7 @@ import Common
 import Core
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import HasCall
 import HasCode
 import HasConstants
 import HasData

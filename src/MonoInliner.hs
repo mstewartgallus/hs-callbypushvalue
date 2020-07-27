@@ -6,6 +6,7 @@ module MonoInliner (extract, extractData, MonoInliner) where
 
 import Cbpv
 import qualified Cps
+import HasCall
 import HasCode
 import HasConstants
 import HasData
