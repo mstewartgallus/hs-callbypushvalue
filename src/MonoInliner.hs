@@ -38,6 +38,9 @@ instance HasCall t => HasCall (MonoInliner t) where
 instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = D 0 (constant k)
 
+instance SystemF.HasConstants t => SystemF.HasConstants (MonoInliner t) where
+  constant k = C 0 (SystemF.constant k)
+
 instance HasTuple t => HasTuple (MonoInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost) (pair x y)
   unpair (D tcost tuple) f =

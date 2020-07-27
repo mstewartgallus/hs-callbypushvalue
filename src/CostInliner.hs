@@ -76,6 +76,9 @@ instance F.HasFn t => F.HasFn (CostInliner t) where
 instance HasConstants t => HasConstants (CostInliner t) where
   constant k = D 0 (constant k)
 
+instance F.HasConstants t => F.HasConstants (CostInliner t) where
+  constant k = C 0 (F.constant k)
+
 instance HasTuple t => HasTuple (CostInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost + 1) (pair x y)
   unpair (D tcost tuple) f =

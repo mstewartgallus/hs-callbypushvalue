@@ -33,6 +33,9 @@ instance HasCode AsText where
 instance HasCall AsText where
   call g = C $ \_ -> fromString "call " <> showb g
 
+instance SystemF.HasConstants AsText where
+  constant k = C $ \_ -> showb k
+
 instance HasConstants AsText where
   constant k = D $ \_ -> showb k
 
@@ -54,7 +57,7 @@ instance HasReturn AsText where
         C y = f (D $ \_ -> binder)
      in x xs <> fromString " to " <> binder <> fromString ".\n" <> y ys
   returns (D k) = C $ \s ->
-    fromString "(return " <> k s <> fromString ")"
+    fromString "return " <> k s
 
 instance SystemF.HasTuple AsText where
   pair (C x) (C y) = C $ \(Unique.Stream _ xs ys) ->

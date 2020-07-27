@@ -7,14 +7,13 @@
 module AsMemoized (AsMemoized, extract) where
 
 import Box
-import Cbpv (HasCall (..), HasReturn (..))
+import Cbpv (HasCall (..))
 import Common
 import qualified Cps
 import qualified Data.Text as T
 import GHC.Exts (Constraint)
 import Global
 import HasCode
-import HasConstants
 import HasData
 import HasLet
 import HasStack
@@ -22,7 +21,7 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
-import SystemF (HasFn, HasTuple, SystemF)
+import SystemF (HasConstants (..), HasFn, HasTuple, SystemF)
 import qualified SystemF
 import TextShow
 import qualified Unique
@@ -45,14 +44,9 @@ instance HasCall (AsMemoized SystemF) where
      in \_ -> g'
 
 instance HasConstants (AsMemoized SystemF) where
-  constant k = D $ \_ ->
+  constant k = C $ \_ ->
     let k' = constant k
      in \_ -> k'
-
-instance HasReturn (AsMemoized SystemF) where
-  returns (D x) = C $ \xs ->
-    let x' = x xs
-     in \env -> returns (x' env)
 
 instance SystemF.HasLet (AsMemoized SystemF) where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->

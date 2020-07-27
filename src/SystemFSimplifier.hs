@@ -5,10 +5,9 @@
 
 module SystemFSimplifier (extract, Simplifier) where
 
-import Cbpv (HasCall (..), HasReturn (..))
+import Cbpv (HasCall (..))
 import Common
 import HasCode
-import HasConstants
 import HasData
 import SystemF
 import Prelude hiding ((<*>))
@@ -32,10 +31,7 @@ instance HasCall t => HasCall (Simplifier t) where
   call g = C NotFn (call g)
 
 instance HasConstants t => HasConstants (Simplifier t) where
-  constant k = D (constant k)
-
-instance HasReturn t => HasReturn (Simplifier t) where
-  returns (D k) = C NotFn (returns k)
+  constant k = C NotFn (constant k)
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair (C _ x) (C _ y) = C NotFn (pair x y)

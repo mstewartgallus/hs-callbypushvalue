@@ -14,7 +14,7 @@ import Box (Box, mkProgram, mkValue)
 import qualified Box
 import Cbpv (Cbpv)
 import qualified Cbpv
-import Cbpv (HasCall (..), HasReturn (..), HasThunk (..))
+import Cbpv (HasCall (..), HasThunk (..))
 import qualified CbpvSimplifier
 import Common
 import qualified Constant
@@ -28,7 +28,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCode
-import HasConstants
 import HasData
 import qualified Interpreter
 import MonoInliner (MonoInliner)
@@ -50,7 +49,7 @@ program = F.lam $ \x ->
     ( F.lam $ \z ->
         call Core.plus F.<*> z F.<*> y
     )
-      F.<*> (call Core.plus F.<*> returns (constant (Constant.U64Constant 8)) F.<*> y)
+      F.<*> (call Core.plus F.<*> F.constant (Constant.U64Constant 8) F.<*> y)
 
 phases ::
   Code (Box SystemF) a ->

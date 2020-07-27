@@ -4,13 +4,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..)) where
+module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
 
 -- FIXME !
-import Cbpv (HasCall (..), HasReturn (..))
+import Cbpv (HasCall (..))
 import Common
+import Constant
 import HasCode
-import HasConstants
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
@@ -21,12 +21,15 @@ import Prelude hiding ((<*>))
 -- adjoint functors.)
 --
 -- FIXME: forall and applyType are not yet implemented
-class (HasCode t, HasCall t, HasConstants t, HasReturn t, HasFn t, HasLet t, HasTuple t) => SystemF t
+class (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
 
-instance (HasCode t, HasCall t, HasConstants t, HasReturn t, HasFn t, HasLet t, HasTuple t) => SystemF t
+instance (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
 
 class HasCode t => HasLet t where
   letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
+
+class HasCode t => HasConstants t where
+  constant :: Constant a -> Code t (F a)
 
 class HasCode t => HasTuple t where
   pair :: Code t a -> Code t b -> Code t (Pair a b)

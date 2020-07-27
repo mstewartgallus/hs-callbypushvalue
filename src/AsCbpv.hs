@@ -27,8 +27,8 @@ instance HasData t => HasData (AsCbpv t) where
 instance HasCall t => HasCall (AsCbpv t) where
   call g = C (call g)
 
-instance HasConstants t => HasConstants (AsCbpv t) where
-  constant k = D (constant k)
+instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
+  constant k = C (returns (constant k))
 
 instance HasReturn t => HasReturn (AsCbpv t) where
   returns (D k) = C (returns k)
