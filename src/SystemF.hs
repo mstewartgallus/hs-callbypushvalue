@@ -28,7 +28,7 @@ class HasCode t => HasLet t where
   letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
 
 class HasCode t => HasConstants t where
-  constant :: Constant a -> Code t (F a)
+  constant :: Constant a -> Code t ('F a)
 
 class HasCode t => HasTuple t where
   pair :: Code t a -> Code t b -> Code t (Pair a b)

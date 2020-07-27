@@ -8,7 +8,6 @@ module SystemFSimplifier (extract, Simplifier) where
 import Common
 import HasCall
 import HasCode
-import HasData
 import SystemF
 import Prelude hiding ((<*>))
 
@@ -23,9 +22,6 @@ data MaybeFn t a where
 
 instance HasCode t => HasCode (Simplifier t) where
   data Code (Simplifier t) a = C (MaybeFn t a) (Code t a)
-
-instance HasData t => HasData (Simplifier t) where
-  newtype Data (Simplifier t) a = D (Data t a)
 
 instance HasCall t => HasCall (Simplifier t) where
   call g = C NotFn (call g)

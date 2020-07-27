@@ -107,7 +107,7 @@ instance HasFn AsText where
 
 instance HasThunk AsText where
   thunk (C code) = D $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
-  force (D thunk) = C $ \s -> fromString "! " <> thunk s
+  force (D th) = C $ \s -> fromString "! " <> th s
 
 instance HasStack.HasStack AsText where
   data Stack AsText a = S (forall s. Unique.Stream s -> TextShow.Builder)
