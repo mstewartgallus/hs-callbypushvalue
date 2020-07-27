@@ -77,10 +77,10 @@ instance HasThunk Porcelain where
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
 
 instance HasReturn Porcelain where
-  returns (S k) (D value) = C $ do
+  returns (D value) (S k) = C $ do
     k' <- k
     value' <- value
-    pure $ node $ atom "return" <> ws <> k' <> ws <> value'
+    pure $ node $ atom "return" <> ws <> value' <> ws <> k'
   letTo t f = S $ do
     v <- fresh
     let C body = f (D $ pure v)

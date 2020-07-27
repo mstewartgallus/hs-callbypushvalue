@@ -117,7 +117,7 @@ instance Cps.HasThunk AsText where
     let binder = fromString "l" <> showb newId
         C body = f (S $ \_ -> binder)
      in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
-  force (D f) (S x) = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n! " <> f fs
+  force (D f) (S x) = C $ \(Unique.Stream _ fs xs) -> fromString "! " <> f fs <> fromString " " <> x xs
 
 instance Cps.HasReturn AsText where
   letTo t f = S $ \(Unique.Stream newId _ s) ->
@@ -125,8 +125,8 @@ instance Cps.HasReturn AsText where
         C body = f (D $ \_ -> binder)
      in fromString "to " <> binder <> fromString ": " <> showb t <> fromString ".\n" <> body s
 
-  returns (S k) (D x) = C $ \(Unique.Stream _ ks xs) ->
-    fromString "return " <> k ks <> fromString " " <> x xs
+  returns (D x) (S k) = C $ \(Unique.Stream _ ks xs) ->
+    fromString "return " <> x xs <> fromString " " <> k ks
 
 instance Cps.HasFn AsText where
   lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->

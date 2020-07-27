@@ -40,7 +40,7 @@ instance HasLet t => HasLet (AsCps t) where
               C _ f' -> f' k
 
 instance Cps.Cps t => HasReturn (AsCps t) where
-  returns (D t x) = C (SF t) $ \k -> Cps.returns k x
+  returns (D t x) = C (SF t) (Cps.returns x)
   letTo (C (SF t) x) f =
     let C b _ = f (D t undefined)
      in C b $ \k -> x $ Cps.letTo t $ \val ->

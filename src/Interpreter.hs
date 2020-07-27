@@ -72,7 +72,7 @@ instance HasThunk X where
 instance HasReturn X where
   letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
-  returns (K (Returns k)) (V x) = C (k x)
+  returns (V x) (K (Returns k)) = C (k x)
 
 instance HasFn X where
   V h <*> K t = K (Apply h t)

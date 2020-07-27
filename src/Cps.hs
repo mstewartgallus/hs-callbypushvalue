@@ -35,7 +35,7 @@ infixl 4 <*>
 
 -- | Decomposition of returns type into a into callcc style
 class (HasData t, HasCode t, HasStack t) => HasReturn t where
-  returns :: Stack t ('F a) -> Data t a -> Code t 'Void
+  returns :: Data t a -> Stack t ('F a) -> Code t 'Void
   letTo :: SSet a -> (Data t a -> Code t 'Void) -> Stack t ('F a)
 
 -- | Decomposition of thunks into cps style

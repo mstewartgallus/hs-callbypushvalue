@@ -72,8 +72,8 @@ instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   force (D _ x) (S _ k) = c $ force x k
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns (S (LetToS _ f) _) (D _ x) = c $ letBe x f
-  returns (S _ k) (D _ x) = c $ returns k x
+  returns (D _ x) (S (LetToS _ f) _) = c $ letBe x f
+  returns (D _ x) (S _ k) = c $ returns x k
 
   letTo t f =
     let f' x = abstract (f (d x))
