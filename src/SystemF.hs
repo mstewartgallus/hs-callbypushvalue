@@ -10,6 +10,8 @@ import Common
 import Constant
 import HasCall
 import HasCode
+import Path (Path)
+import qualified Path
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
@@ -39,10 +41,10 @@ class HasCode t => HasTuple t where
 
 class HasCode t => HasFn t where
   (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
-  lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a :-> b)
+  lambda :: SAlgebra a -> Path (->) (Code t a) (Code t b) -> Code t (a :-> b)
 
 infixl 4 <*>
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
 lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a :-> b)
-lam = lambda inferAlgebra
+lam f = lambda inferAlgebra (Path.make f)

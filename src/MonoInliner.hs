@@ -5,6 +5,7 @@
 module MonoInliner (extract, extractData, MonoInliner) where
 
 import Cbpv
+import Control.Category
 import qualified Cps
 import HasCall
 import HasCode
@@ -13,8 +14,9 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import qualified Path
 import qualified SystemF
-import Prelude hiding ((<*>))
+import Prelude hiding ((.), (<*>))
 
 data MonoInliner t
 
@@ -134,7 +136,6 @@ instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
 
 instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where
   lambda t f =
-    let C fcost _ = f (C 0 undefined)
-     in C fcost $ SystemF.lambda t $ \x' -> case f (C 0 x') of
-          C _ y -> y
+    let C fcost _ = Path.flatten f (C 0 undefined)
+     in C fcost $ SystemF.lambda t (Path.make extract . f . Path.make (C 0))
   C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)

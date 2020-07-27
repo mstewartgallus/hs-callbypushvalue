@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e79711776faeac8a8fd5e9044e4bcb7c76bc0e044ec898c31d9b84728694a765
+-- hash: 85b76df5a3a300c9fa5019a325d9bfde6ba7710186c0ef11eeed9f03d54a682b
 
 name:           cpbv
 version:        0.1.0.0
@@ -57,6 +57,7 @@ library
       LabelMap
       MonoInliner
       Name
+      Path
       SystemF
       SystemFSimplifier
       Unique

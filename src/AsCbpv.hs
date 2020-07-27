@@ -12,16 +12,17 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
 extract :: Code (AsCbpv t) a -> Code t a
-extract (C x) = x
+extract = unC
 
 data AsCbpv t
 
 instance HasCode t => HasCode (AsCbpv t) where
-  newtype Code (AsCbpv t) a = C (Code t a)
+  newtype Code (AsCbpv t) a = C {unC :: Code t a}
 
 instance HasData t => HasData (AsCbpv t) where
   newtype Data (AsCbpv t) a = D (Data t a)
@@ -49,7 +50,5 @@ instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
      in body
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
-  lambda t f = C $ lambda (SU t) $ \x ->
-    let C body = f (C (force x))
-     in body
+  lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)
   C f <*> C x = C (f <*> thunk x)

@@ -6,11 +6,14 @@
 module SystemFSimplifier (extract, Simplifier) where
 
 import Common
+import Control.Category
 import Debug.Trace
 import HasCall
 import HasCode
+import Path (Path)
+import qualified Path
 import SystemF
-import Prelude hiding ((<*>))
+import Prelude hiding ((.), (<*>))
 
 extract :: Code (Simplifier t) a -> Code t a
 extract (C _ x) = x
@@ -18,7 +21,7 @@ extract (C _ x) = x
 data Simplifier t
 
 data MaybeFn t a where
-  Fn :: (Code t a -> Code t b) -> MaybeFn t (a :-> b)
+  Fn :: (Path (->) (Code t a) (Code t b)) -> MaybeFn t (a :-> b)
   NotFn :: MaybeFn t a
 
 instance HasCode t => HasCode (Simplifier t) where
@@ -42,9 +45,8 @@ instance HasLet t => HasLet (Simplifier t) where
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' x' = case f (C NotFn x') of
-          C _ y -> y
+    let f' = Path.make extract . f . Path.make (C NotFn)
      in C (Fn f') $ lambda t f'
 
   C NotFn f <*> C _ x = C NotFn (f <*> x)
-  C (Fn f) _ <*> C _ x = C NotFn (letBe x f)
+  C (Fn f) _ <*> C _ x = C NotFn (letBe x (Path.flatten f))

@@ -4,6 +4,7 @@ module AsDup (AsDup, extract, extractData) where
 
 import Cbpv
 import Common
+import Control.Category
 import qualified Cps
 import qualified Cps
 import Global
@@ -18,10 +19,11 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
+import qualified Path
 import SystemF (SystemF)
 import qualified SystemF as F
 import qualified Unique
-import Prelude hiding ((<*>))
+import Prelude hiding ((.), (<*>))
 
 extract :: Code (AsDup s t) a -> (Code s a, Code t a)
 extract (C x y) = (x, y)
@@ -114,10 +116,10 @@ instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
 instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = F.lambda t $ \x -> case f (C x undefined) of
-        C y _ -> y
-      second = F.lambda t $ \x -> case f (C undefined x) of
-        C _ y -> y
+      first = F.lambda t (Path.make getfirst . f . Path.make (\x -> C x undefined))
+      second = F.lambda t (Path.make getsnd . f . Path.make (\x -> C undefined x))
+      getfirst (C y _) = y
+      getsnd (C _ y) = y
 
   C f f' <*> C x x' = C (f F.<*> x) (f' F.<*> x')
 

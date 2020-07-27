@@ -3,6 +3,7 @@
 module CostInliner (extract, extractData, CostInliner) where
 
 import Cbpv
+import Control.Category
 import qualified Cps
 import HasCall
 import HasCode
@@ -11,8 +12,9 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import qualified Path
 import qualified SystemF as F
-import Prelude hiding ((<*>))
+import Prelude hiding ((.), (<*>))
 
 extract :: Code (CostInliner t) a -> Code t a
 extract (C _ x) = x
@@ -69,9 +71,8 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
 instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = result
     where
-      C fcost _ = f (C 0 undefined)
-      result = C (fcost + 1) $ F.lambda t $ \x' -> case f (C 0 x') of
-        C _ y -> y
+      C fcost _ = Path.flatten f (C 0 undefined)
+      result = C (fcost + 1) $ F.lambda t (Path.make extract . f . Path.make (C 0))
   C fcost f <*> C xcost x = C (fcost + xcost + 1) (f F.<*> x)
 
 instance HasConstants t => HasConstants (CostInliner t) where
