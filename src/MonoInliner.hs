@@ -112,7 +112,7 @@ instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
           C _ y -> y
 
 instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
-  call g (S kcost k) = C kcost (Cps.call g k)
+  call g = D 0 (Cps.call g)
 
 instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost) (SystemF.pair x y)

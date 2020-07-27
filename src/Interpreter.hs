@@ -79,8 +79,8 @@ instance HasFn X where
   lambda (K (Apply h t)) f = f (V h) (K t)
 
 instance HasCall X where
-  call g (K k) = case GlobalMap.lookup g globals of
-    Just (G x) -> C (x k)
+  call g = case GlobalMap.lookup g globals of
+    Just (G x) -> V $ Thunk x
     Nothing -> error "global not found in environment"
 
 newtype G a = G (Kont a -> R)

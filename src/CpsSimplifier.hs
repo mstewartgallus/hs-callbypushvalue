@@ -87,7 +87,7 @@ instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
   lambda (S _ k) f = c $ lambda k $ \x t -> abstract (f (d x) (s t))
 
 instance HasCall t => HasCall (Simplifier t) where
-  call g (S _ k) = c $ call g k
+  call g = d $ call g
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code

@@ -66,5 +66,5 @@ instance Cps.HasFn t => HasFn (AsCps t) where
           let C _ body = f (D t x)
            in body next
 
-instance Cps.HasCall t => HasCall (AsCps t) where
-  call g@(Global t _) = C t (Cps.call g)
+instance (Cps.HasThunk t, Cps.HasCall t) => HasCall (AsCps t) where
+  call g@(Global t _) = C t (\k -> Cps.force (Cps.call g) k)

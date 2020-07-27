@@ -101,6 +101,5 @@ instance HasFn Porcelain where
     pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> ws <> body'
 
 instance HasCall Porcelain where
-  call g (S k) = C $ do
-    k' <- k
-    pure $ node $ atom "call" <> ws <> showb g <> ws <> k'
+  call g = D $ do
+    pure $ node $ atom "call" <> ws <> showb g

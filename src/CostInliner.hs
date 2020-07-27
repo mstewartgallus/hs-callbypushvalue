@@ -135,7 +135,7 @@ instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
   D xcost x <*> S kcost k = S (xcost + kcost) (x Cps.<*> k)
 
 instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
-  call g (S kcost k) = C (kcost + 1) (Cps.call g k)
+  call g = D 0 (Cps.call g)
 
 instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f =

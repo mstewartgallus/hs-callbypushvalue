@@ -138,4 +138,4 @@ instance Cps.HasFn AsText where
     k ks <> fromString " :: " <> x xs
 
 instance Cps.HasCall AsText where
-  call g (S k) = C $ \s -> fromString "call " <> showb g <> fromString " " <> k s
+  call g = D $ \_ -> fromString "call " <> showb g

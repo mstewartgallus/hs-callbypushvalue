@@ -24,8 +24,8 @@ class (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, H
 
 instance (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t) => Cps t
 
-class (HasCode t, HasStack t) => HasCall t where
-  call :: Global a -> Stack t a -> Code t 'Void
+class HasData t => HasCall t where
+  call :: Global a -> Data t ('U a)
 
 class (HasData t, HasCode t, HasStack t) => HasFn t where
   lambda :: Stack t (a ':=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
