@@ -6,6 +6,7 @@
 module SystemFSimplifier (extract, Simplifier) where
 
 import Common
+import Debug.Trace
 import HasCall
 import HasCode
 import SystemF
@@ -24,7 +25,7 @@ instance HasCode t => HasCode (Simplifier t) where
   data Code (Simplifier t) a = C (MaybeFn t a) (Code t a)
 
 instance HasCall t => HasCall (Simplifier t) where
-  call g = C NotFn (call g)
+  call g = C NotFn (trace "call " $ call g)
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant k = C NotFn (constant k)

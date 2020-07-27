@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsIntrinsified (Intrinsify, extract) where
+module AsIntrinsified (AsIntrinsified, extract) where
 
 import Cbpv
 import Common
@@ -17,49 +17,49 @@ import HasLet
 import HasTuple
 import Prelude hiding ((<*>))
 
-extract :: Cbpv t => Data (Intrinsify t) a -> Data t a
-extract (D x) = x
+extract :: Cbpv t => Code (AsIntrinsified t) a -> Code t a
+extract (C x) = x
 
-data Intrinsify t
+data AsIntrinsified t
 
-instance HasCode t => HasCode (Intrinsify t) where
-  newtype Code (Intrinsify t) a = C (Code t a)
+instance HasCode t => HasCode (AsIntrinsified t) where
+  newtype Code (AsIntrinsified t) a = C (Code t a)
 
-instance HasData t => HasData (Intrinsify t) where
-  newtype Data (Intrinsify t) a = D (Data t a)
+instance HasData t => HasData (AsIntrinsified t) where
+  newtype Data (AsIntrinsified t) a = D (Data t a)
 
-instance Cbpv t => HasCall (Intrinsify t) where
+instance Cbpv t => HasCall (AsIntrinsified t) where
   call g = C $ case GlobalMap.lookup g intrinsics of
     Nothing -> call g
     Just intrinsic -> intrinsic
 
-instance HasConstants t => HasConstants (Intrinsify t) where
+instance HasConstants t => HasConstants (AsIntrinsified t) where
   constant k = D (constant k)
 
-instance Cbpv t => HasTuple (Intrinsify t) where
+instance Cbpv t => HasTuple (AsIntrinsified t) where
   pair (D x) (D y) = D (pair x y)
   unpair (D tuple) f = C $ unpair tuple $ \x y ->
     let C result = f (D x) (D y)
      in result
 
-instance HasLet t => HasLet (Intrinsify t) where
+instance HasLet t => HasLet (AsIntrinsified t) where
   letBe (D x) f = C $ letBe x $ \x' ->
     let C body = f (D x')
      in body
 
-instance HasReturn t => HasReturn (Intrinsify t) where
+instance HasReturn t => HasReturn (AsIntrinsified t) where
   returns (D x) = C (returns x)
   letTo (C x) f = C $ letTo x $ \x' ->
     let C body = f (D x')
      in body
 
-instance HasFn t => HasFn (Intrinsify t) where
+instance HasFn t => HasFn (AsIntrinsified t) where
   C f <*> D x = C (f <*> x)
   lambda t f = C $ lambda t $ \x ->
     let C body = f (D x)
      in body
 
-instance HasThunk t => HasThunk (Intrinsify t) where
+instance HasThunk t => HasThunk (AsIntrinsified t) where
   thunk (C x) = D (thunk x)
   force (D x) = C (force x)
 

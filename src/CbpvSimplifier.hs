@@ -15,8 +15,8 @@ import HasLet
 import HasTuple
 import Prelude hiding ((<*>))
 
-extract :: Data (Simplifier t) a -> Data t a
-extract = abstractD
+extract :: Code (Simplifier t) a -> Code t a
+extract (C _ code) = code
 
 data Simplifier t
 
