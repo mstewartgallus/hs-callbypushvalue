@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Cbpv (Cbpv (..), HasReturn (..), HasCall (..), HasFn (..), HasThunk (..)) where
+module Cbpv (Cbpv, HasReturn (..), HasCall (..), HasFn (..), HasThunk (..)) where
 
 import Common
 import Global

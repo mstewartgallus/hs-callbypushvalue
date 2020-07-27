@@ -15,7 +15,7 @@ import HasStack
 import HasTuple
 
 extract :: Data (Simplifier t) a -> Data t a
-extract = abstractD
+extract (D _ x) = x
 
 data Simplifier t
 
@@ -31,10 +31,13 @@ data TermS t a where
   LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
   NothingS :: TermS t a
 
+c :: Code t a -> Code (Simplifier t) a
 c = C NothingC
 
+d :: Data t a -> Data (Simplifier t) a
 d = D NothingD
 
+s :: Stack t a -> Stack (Simplifier t) a
 s = S NothingS
 
 instance HasCode (Simplifier t) where
@@ -87,9 +90,3 @@ instance HasCall t => HasCall (Simplifier t) where
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code
-
-abstractD :: Data (Simplifier t) a -> Data t a
-abstractD (D _ x) = x
-
-abstractS :: Stack (Simplifier t) a -> Stack t a
-abstractS (S _ x) = x

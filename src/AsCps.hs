@@ -27,9 +27,6 @@ instance HasCode t => HasCode (AsCps t) where
 instance HasData t => HasData (AsCps t) where
   data Data (AsCps t) a = D (SSet a) (Data t a)
 
-instance HasStack t => HasStack (AsCps t) where
-  data Stack (AsCps t) a = S (SAlgebra a) (Stack t a)
-
 instance HasConstants t => HasConstants (AsCps t) where
   constant k = D (Constant.typeOf k) $ constant k
 
@@ -57,7 +54,7 @@ instance Cps.Cps t => HasTuple (AsCps t) where
           C _ result -> result k
 
 instance Cps.HasThunk t => HasThunk (AsCps t) where
-  force (D (SU t) thunk) = C t (Cps.force thunk)
+  force (D (SU t) th) = C t (Cps.force th)
   thunk (C t code) = D (SU t) (Cps.thunk t code)
 
 instance Cps.HasFn t => HasFn (AsCps t) where

@@ -32,6 +32,8 @@ instance HasConstants t => HasConstants (AsCbpv t) where
 
 instance HasReturn t => HasReturn (AsCbpv t) where
   returns (D k) = C (returns k)
+  letTo (C x) f = C $ letTo x $ \x' -> case f (D x') of
+    C y -> y
 
 instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))

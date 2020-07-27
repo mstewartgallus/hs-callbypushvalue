@@ -22,8 +22,10 @@ data family TermC t (a :: Algebra)
 
 data family TermD t (a :: Set)
 
+c :: Code t a -> Code (Simplifier t) a
 c = C Nothing
 
+d :: Data t a -> Data (Simplifier t) a
 d = D Nothing
 
 instance HasCode (Simplifier t) where

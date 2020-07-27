@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module SystemF (lam, SystemF (..), HasLet (..), HasTuple (..), HasFn (..)) where
+module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..)) where
 
 -- FIXME !
 import Cbpv (HasCall (..), HasReturn (..))
@@ -39,8 +39,8 @@ class HasCode t => HasFn t where
   (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
   lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a :-> b)
 
+infixl 4 <*>
+
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
 lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a :-> b)
 lam = lambda inferAlgebra
-
-infixl 4 <*>

@@ -3,17 +3,13 @@
 module CostInliner (extract, extractData, CostInliner) where
 
 import Cbpv
-import Common
 import qualified Cps
-import qualified Data.Text as T
-import Global
 import HasCode
 import HasConstants
 import HasData
 import HasLet
 import HasStack
 import HasTuple
-import Name
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
@@ -143,6 +139,3 @@ instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
      in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
           C _ y -> y
   returns (S tcost stk) (D scost c) = C (tcost + scost) (Cps.returns stk c)
-
-probe :: SAlgebra a -> Global a
-probe t = Global t $ Name (T.pack "core") (T.pack "probe")

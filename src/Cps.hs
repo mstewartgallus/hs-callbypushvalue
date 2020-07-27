@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Cps (Cps (..), HasThunk (..), HasReturn (..), HasFn (..), HasCall (..), HasLabel (..)) where
+module Cps (Cps, HasThunk (..), HasReturn (..), HasFn (..), HasCall (..), HasLabel (..)) where
 
 import Common
 import Global

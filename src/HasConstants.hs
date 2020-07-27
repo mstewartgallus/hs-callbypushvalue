@@ -1,8 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-
 module HasConstants (HasConstants (..)) where
 
-import Common
 import Constant
 import HasData
 
