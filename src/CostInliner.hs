@@ -4,10 +4,10 @@ module CostInliner (extract, extractData, CostInliner) where
 
 import qualified AsDup
 import AsDup (AsDup)
+import qualified AsInlineCost
+import AsInlineCost (AsInlineCost)
 import Cbpv
 import Control.Category
-import qualified CostInlineCost
-import CostInlineCost (CostInlineCost)
 import qualified Cps
 import HasCall
 import HasCode
@@ -33,7 +33,7 @@ instance HasLet t => HasLet (CostInliner t) where
   letBe (D x) f = result
     where
       result
-        | CostInlineCost.extractData inlineCost <= inlineThreshold = f (D x)
+        | AsInlineCost.extractData inlineCost <= inlineThreshold = f (D x)
         | otherwise = notinlined
       (inlineCost, _) = AsDup.extractData x
       notinlined = C $ letBe x $ \x' -> case f (D x') of
@@ -43,7 +43,7 @@ instance Cps.HasLabel t => Cps.HasLabel (CostInliner t) where
   label (S x) f = result
     where
       result
-        | CostInlineCost.extractStack inlineCost <= inlineThreshold = f (S x)
+        | AsInlineCost.extractStack inlineCost <= inlineThreshold = f (S x)
         | otherwise = notinlined
       (inlineCost, _) = AsDup.extractStack x
       notinlined = C $ Cps.label x $ \x' -> case f (S x') of
@@ -53,7 +53,7 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
   letBe (C x) f = result
     where
       result
-        | CostInlineCost.extract inlineCost <= inlineThreshold = f (C x)
+        | AsInlineCost.extract inlineCost <= inlineThreshold = f (C x)
         | otherwise = notinlined
       (inlineCost, _) = AsDup.extract x
       notinlined = C $ F.letBe x $ \x' -> case f (C x') of
@@ -69,13 +69,13 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  data Data (CostInliner t) a = D (Data (AsDup CostInlineCost t) a)
+  data Data (CostInliner t) a = D (Data (AsDup AsInlineCost t) a)
 
 instance HasCode t => HasCode (CostInliner t) where
-  data Code (CostInliner t) a = C {unC :: Code (AsDup CostInlineCost t) a}
+  data Code (CostInliner t) a = C {unC :: Code (AsDup AsInlineCost t) a}
 
 instance HasStack t => HasStack (CostInliner t) where
-  data Stack (CostInliner t) a = S (Stack (AsDup CostInlineCost t) a)
+  data Stack (CostInliner t) a = S (Stack (AsDup AsInlineCost t) a)
 
 instance HasCall t => HasCall (CostInliner t) where
   call g = C (call g)

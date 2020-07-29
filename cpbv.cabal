@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1b664ff7599b2aad7780a398e07504d77a910ceb1c8c9c5798087fb1e86d4c64
+-- hash: b0ed903940f6ef55e21891d4f4a3de8ae721387af11328bc9ee58810d9253b93
 
 name:           cpbv
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       AsCbpv
       AsCps
       AsDup
+      AsInlineCost
       AsIntrinsified
       AsMemoized
       AsPorcelain
@@ -40,7 +41,6 @@ library
       Common
       Constant
       Core
-      CostInlineCost
       CostInliner
       Cps
       CpsSimplifier
