@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module AsDup (AsDup, extract, extractData) where
+module AsDup (AsDup, extract, extractData, extractStack) where
 
 import Cbpv
 import Common
@@ -30,6 +30,9 @@ extract (C x y) = (x, y)
 
 extractData :: Data (AsDup s t) a -> (Data s a, Data t a)
 extractData (D x y) = (x, y)
+
+extractStack :: Stack (AsDup s t) a -> (Stack s a, Stack t a)
+extractStack (S x y) = (x, y)
 
 data AsDup s t
 
