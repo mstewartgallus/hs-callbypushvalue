@@ -69,13 +69,13 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  data Data (CostInliner t) a = D (Data (AsDup AsInlineCost t) a)
+  newtype Data (CostInliner t) a = D (Data (AsDup AsInlineCost t) a)
 
 instance HasCode t => HasCode (CostInliner t) where
-  data Code (CostInliner t) a = C {unC :: Code (AsDup AsInlineCost t) a}
+  newtype Code (CostInliner t) a = C {unC :: Code (AsDup AsInlineCost t) a}
 
 instance HasStack t => HasStack (CostInliner t) where
-  data Stack (CostInliner t) a = S (Stack (AsDup AsInlineCost t) a)
+  newtype Stack (CostInliner t) a = S (Stack (AsDup AsInlineCost t) a)
 
 instance HasCall t => HasCall (CostInliner t) where
   call g = C (call g)

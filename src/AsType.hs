@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsType (extract, AsType) where
+module AsType (extract, extractData, AsType) where
 
 import Cbpv
 import Common
