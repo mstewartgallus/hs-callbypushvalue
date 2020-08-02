@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f0396f962b4b64e989fa11600f43112d9ca908e84b0ba8c5657b044d1522625f
+-- hash: 4fc67c5eaed7da996dada9270728c8ffc9197a676f4720f5fce29c6524ccefff
 
 name:           cpbv
 version:        0.1.0.0
@@ -61,6 +61,7 @@ library
       MonoInliner
       Name
       NatTrans
+      PairF
       Path
       SystemF
       SystemFSimplifier

@@ -16,12 +16,13 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import NatTrans
 
-extract :: Code AsType a -> SAlgebra a
-extract (C x) = x
+extract :: Code AsType :~> SAlgebra
+extract = NatTrans $ \(C x) -> x
 
-extractData :: Data AsType a -> SSet a
-extractData (D x) = x
+extractData :: Data AsType :~> SSet
+extractData = NatTrans $ \(D x) -> x
 
 data AsType
 

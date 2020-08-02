@@ -13,10 +13,11 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import NatTrans
 import Prelude hiding ((<*>))
 
-extract :: Data (Simplifier t) a -> Data t a
-extract (D _ x) = x
+extract :: Data (Simplifier t) :~> Data t
+extract = NatTrans $ \(D _ x) -> x
 
 data Simplifier t
 

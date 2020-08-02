@@ -15,10 +15,11 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import NatTrans
 import Prelude hiding ((<*>))
 
-extract :: Cbpv t => Code (AsIntrinsified t) a -> Code t a
-extract (C x) = x
+extract :: Cbpv t => Code (AsIntrinsified t) :~> Code t
+extract = NatTrans $ \(C x) -> x
 
 data AsIntrinsified t
 

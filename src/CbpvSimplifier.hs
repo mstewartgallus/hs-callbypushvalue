@@ -13,10 +13,11 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import NatTrans
 import Prelude hiding ((<*>))
 
-extract :: Code (Simplifier t) a -> Code t a
-extract (C _ code) = code
+extract :: Code (Simplifier t) :~> Code t
+extract = NatTrans $ \(C _ code) -> code
 
 data Simplifier t
 

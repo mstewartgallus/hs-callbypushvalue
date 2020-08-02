@@ -16,9 +16,10 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import NatTrans
 
-extract :: Cps.Cps t => Data (AsCps t) a -> Data t a
-extract (D _ x) = x
+extract :: Cps.Cps t => Data (AsCps t) :~> Data t
+extract = NatTrans $ \(D _ x) -> x
 
 data AsCps t
 

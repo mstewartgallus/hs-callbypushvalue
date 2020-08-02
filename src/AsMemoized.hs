@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module AsMemoized (AsMemoized, extract) where
 
@@ -21,6 +22,7 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
+import NatTrans
 import qualified Path
 import SystemF (HasConstants (..), HasFn, HasTuple, SystemF)
 import qualified SystemF
@@ -28,8 +30,8 @@ import TextShow
 import qualified Unique
 import Prelude hiding ((<*>))
 
-extract :: Code (AsMemoized k) a -> Code (Box k) a
-extract (C x) = mkProgram (Unique.withStream x LabelMap.empty)
+extract :: Code (AsMemoized k) :~> Code (Box k)
+extract = NatTrans $ \(C x) -> mkProgram (Unique.withStream x LabelMap.empty)
 
 data AsMemoized (k :: * -> Constraint)
 

@@ -1,6 +1,5 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module MonoInliner (extract, extractData, MonoInliner) where
 
@@ -14,17 +13,18 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import NatTrans
 import qualified Path
 import qualified SystemF
 import Prelude hiding ((.), (<*>))
 
 data MonoInliner t
 
-extract :: Code (MonoInliner t) a -> Code t a
-extract (C _ x) = x
+extract :: Code (MonoInliner t) :~> Code t
+extract = NatTrans $ \(C _ x) -> x
 
-extractData :: Data (MonoInliner t) a -> Data t a
-extractData (D _ x) = x
+extractData :: Data (MonoInliner t) :~> Data t
+extractData = NatTrans $ \(D _ x) -> x
 
 instance HasCode t => HasCode (MonoInliner t) where
   data Code (MonoInliner t) a = C Int (Code t a)
@@ -137,5 +137,5 @@ instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
 instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where
   lambda t f =
     let C fcost _ = Path.flatten f (C 0 undefined)
-     in C fcost $ SystemF.lambda t (Path.make extract . f . Path.make (C 0))
+     in C fcost $ SystemF.lambda t (Path.make (extract #) . f . Path.make (C 0))
   C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)

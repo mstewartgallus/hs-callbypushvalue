@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module AsDup (AsDup, extract, extractData, extractStack) where
 
@@ -19,20 +20,22 @@ import Label
 import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
+import NatTrans
+import PairF
 import qualified Path
 import SystemF (SystemF)
 import qualified SystemF as F
 import qualified Unique
 import Prelude hiding ((.), (<*>))
 
-extract :: Code (AsDup s t) a -> (Code s a, Code t a)
-extract (C x y) = (x, y)
+extract :: Code (AsDup s t) :~> PairF (Code s) (Code t)
+extract = NatTrans $ \(C x y) -> PairF x y
 
-extractData :: Data (AsDup s t) a -> (Data s a, Data t a)
-extractData (D x y) = (x, y)
+extractData :: Data (AsDup s t) :~> PairF (Data s) (Data t)
+extractData = NatTrans $ \(D x y) -> PairF x y
 
-extractStack :: Stack (AsDup s t) a -> (Stack s a, Stack t a)
-extractStack (S x y) = (x, y)
+extractStack :: Stack (AsDup s t) :~> PairF (Stack s) (Stack t)
+extractStack = NatTrans $ \(S x y) -> PairF x y
 
 data AsDup s t
 

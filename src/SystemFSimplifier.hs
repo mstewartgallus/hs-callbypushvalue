@@ -10,13 +10,14 @@ import Control.Category
 import Debug.Trace
 import HasCall
 import HasCode
+import NatTrans
 import Path (Path)
 import qualified Path
 import SystemF
 import Prelude hiding ((.), (<*>))
 
-extract :: Code (Simplifier t) a -> Code t a
-extract (C _ x) = x
+extract :: Code (Simplifier t) :~> Code t
+extract = NatTrans $ \(C _ x) -> x
 
 data Simplifier t
 
@@ -45,7 +46,7 @@ instance HasLet t => HasLet (Simplifier t) where
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' = Path.make extract . f . Path.make (C NotFn)
+    let f' = Path.make (extract #) . f . Path.make (C NotFn)
      in C (Fn f') $ lambda t f'
 
   C NotFn f <*> C _ x = C NotFn (f <*> x)

@@ -12,12 +12,13 @@ import HasConstants
 import HasData
 import HasLet
 import HasTuple
+import NatTrans
 import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
-extract :: Code (AsCbpv t) a -> Code t a
-extract = unC
+extract :: Code (AsCbpv t) :~> Code t
+extract = NatTrans unC
 
 data AsCbpv t
 

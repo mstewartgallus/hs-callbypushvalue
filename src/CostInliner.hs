@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module CostInliner (extract, extractData, CostInliner) where
 
@@ -16,15 +17,19 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
+import NatTrans
+import PairF
 import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((.), (<*>))
 
-extract :: Code (CostInliner t) a -> Code t a
-extract (C x) = snd (AsDup.extract x)
+extract :: Code (CostInliner t) :~> Code t
+extract = NatTrans $ \(C x) -> case AsDup.extract # x of
+  PairF _ r -> r
 
-extractData :: Data (CostInliner t) a -> Data t a
-extractData (D x) = snd (AsDup.extractData x)
+extractData :: Data (CostInliner t) :~> Data t
+extractData = NatTrans $ \(D x) -> case AsDup.extractData # x of
+  PairF _ r -> r
 
 inlineThreshold :: Int
 inlineThreshold = 5
@@ -35,7 +40,7 @@ instance HasLet t => HasLet (CostInliner t) where
       result
         | AsInlineCost.extractData inlineCost <= inlineThreshold = f (D x)
         | otherwise = notinlined
-      (inlineCost, _) = AsDup.extractData x
+      PairF inlineCost _ = AsDup.extractData # x
       notinlined = C $ letBe x $ \x' -> case f (D x') of
         C y -> y
 
@@ -45,7 +50,7 @@ instance Cps.HasLabel t => Cps.HasLabel (CostInliner t) where
       result
         | AsInlineCost.extractStack inlineCost <= inlineThreshold = f (S x)
         | otherwise = notinlined
-      (inlineCost, _) = AsDup.extractStack x
+      PairF inlineCost _ = AsDup.extractStack # x
       notinlined = C $ Cps.label x $ \x' -> case f (S x') of
         C y -> y
 
@@ -55,7 +60,7 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
       result
         | AsInlineCost.extract inlineCost <= inlineThreshold = f (C x)
         | otherwise = notinlined
-      (inlineCost, _) = AsDup.extract x
+      PairF inlineCost _ = AsDup.extract # x
       notinlined = C $ F.letBe x $ \x' -> case f (C x') of
         C y -> y
 
