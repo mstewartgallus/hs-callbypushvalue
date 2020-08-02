@@ -28,6 +28,10 @@ instance (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) =
 
 class HasCode t => HasLet t where
   letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
+  letBe = flip whereIs
+
+  whereIs :: (Code t a -> Code t b) -> Code t a -> Code t b
+  whereIs = flip letBe
 
 class HasCode t => HasConstants t where
   constant :: Constant a -> Code t ('F a)

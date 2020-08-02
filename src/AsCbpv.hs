@@ -45,7 +45,7 @@ instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
       C r -> r
 
 instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
-  letBe (C x) f = C $ letBe (thunk x) (unC . f . C . force)
+  whereIs f = C . whereIs (unC . f . C . force) . thunk . unC
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)
