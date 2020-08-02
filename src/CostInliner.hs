@@ -35,34 +35,31 @@ inlineThreshold :: Int
 inlineThreshold = 5
 
 instance HasLet t => HasLet (CostInliner t) where
-  letBe (D x) f = result
+  letBe x f = result
     where
       result
-        | AsInlineCost.extractData inlineCost <= inlineThreshold = f (D x)
+        | AsInlineCost.extractData inlineCost <= inlineThreshold = f x
         | otherwise = notinlined
-      PairF inlineCost _ = AsDup.extractData # x
-      notinlined = C $ letBe x $ \x' -> case f (D x') of
-        C y -> y
+      PairF inlineCost _ = AsDup.extractData # unD x
+      notinlined = C $ letBe (unD x) (unC . f . D)
 
 instance Cps.HasLabel t => Cps.HasLabel (CostInliner t) where
-  label (S x) f = result
+  label x f = result
     where
       result
-        | AsInlineCost.extractStack inlineCost <= inlineThreshold = f (S x)
+        | AsInlineCost.extractStack inlineCost <= inlineThreshold = f x
         | otherwise = notinlined
-      PairF inlineCost _ = AsDup.extractStack # x
-      notinlined = C $ Cps.label x $ \x' -> case f (S x') of
-        C y -> y
+      PairF inlineCost _ = AsDup.extractStack # unS x
+      notinlined = C $ Cps.label (unS x) (unC . f . S)
 
 instance F.HasLet t => F.HasLet (CostInliner t) where
-  letBe (C x) f = result
+  letBe x f = result
     where
       result
-        | AsInlineCost.extract inlineCost <= inlineThreshold = f (C x)
+        | AsInlineCost.extract inlineCost <= inlineThreshold = f x
         | otherwise = notinlined
-      PairF inlineCost _ = AsDup.extract # x
-      notinlined = C $ F.letBe x $ \x' -> case f (C x') of
-        C y -> y
+      PairF inlineCost _ = AsDup.extract # unC x
+      notinlined = C $ F.letBe (unC x) (unC . f . C)
 
 -- | Tagless final newtype to inline letBe clauses based on a simple
 -- cost model
@@ -74,63 +71,57 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
 data CostInliner t
 
 instance HasData t => HasData (CostInliner t) where
-  newtype Data (CostInliner t) a = D (Data (AsDup AsInlineCost t) a)
+  newtype Data (CostInliner t) a = D {unD :: Data (AsDup AsInlineCost t) a}
 
 instance HasCode t => HasCode (CostInliner t) where
   newtype Code (CostInliner t) a = C {unC :: Code (AsDup AsInlineCost t) a}
 
 instance HasStack t => HasStack (CostInliner t) where
-  newtype Stack (CostInliner t) a = S (Stack (AsDup AsInlineCost t) a)
+  newtype Stack (CostInliner t) a = S {unS :: Stack (AsDup AsInlineCost t) a}
 
 instance HasCall t => HasCall (CostInliner t) where
-  call g = C (call g)
+  call = C . call
 
 instance HasReturn t => HasReturn (CostInliner t) where
-  letTo (C x) f = C $ letTo x $ \x' -> case f (D x') of
-    C y -> y
-  returns (D k) = C (returns k)
+  letTo x f = C $ letTo (unC x) (unC . f . D)
+  returns = C . returns . unD
 
 instance F.HasTuple t => F.HasTuple (CostInliner t) where
   pair (C x) (C y) = C (F.pair x y)
-  unpair (C tuple) f = C $ F.unpair tuple $ \x y -> case f (C x) (C y) of
-    C r -> r
+  unpair (C tuple) f = C $ F.unpair tuple $ \x y -> unC $ f (C x) (C y)
 
 instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = C $ F.lambda t (Path.make unC . f . Path.make C)
   C f <*> C x = C (f F.<*> x)
 
 instance HasConstants t => HasConstants (CostInliner t) where
-  constant k = D (constant k)
+  constant = D . constant
 
 instance F.HasConstants t => F.HasConstants (CostInliner t) where
-  constant k = C (F.constant k)
+  constant = C . F.constant
 
 instance HasTuple t => HasTuple (CostInliner t) where
   pair (D x) (D y) = D (pair x y)
-  unpair (D tuple) f = C $ unpair tuple $ \x y -> case f (D x) (D y) of
-    C r -> r
+  unpair (D tuple) f = C $ unpair tuple $ \x y -> unC $ f (D x) (D y)
 
 instance HasFn t => HasFn (CostInliner t) where
   C f <*> D x = C (f <*> x)
-  lambda t f = C $ lambda t $ \x' -> case f (D x') of
-    C y -> y
+  lambda t f = C $ lambda t (unC . f . D)
 
 instance HasThunk t => HasThunk (CostInliner t) where
-  force (D th) = C (force th)
-  thunk (C code) = D (thunk code)
+  force = C . force . unD
+  thunk = D . thunk . unC
 
 instance Cps.HasThunk t => Cps.HasThunk (CostInliner t) where
-  thunk t f = D $ Cps.thunk t $ \x' -> case f (S x') of
-    C y -> y
+  thunk t f = D $ Cps.thunk t (unC . f . S)
   force (D th) (S stack) = C (Cps.force th stack)
 
 instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
-  lambda (S k) f = C $ Cps.lambda k $ \x n -> case f (D x) (S n) of
-    C y -> y
+  lambda (S k) f = C $ Cps.lambda k $ \x n -> unC $ f (D x) (S n)
   D x <*> S k = S (x Cps.<*> k)
 
 instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
-  call g = D (Cps.call g)
+  call = D . Cps.call
 
 instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f = S $ Cps.letTo t $ \x' -> case f (D x') of

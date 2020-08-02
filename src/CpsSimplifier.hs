@@ -66,7 +66,7 @@ instance HasTuple t => HasTuple (Simplifier t) where
 
 instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   thunk t f =
-    let f' x = abstract (f (s x))
+    let f' = abstract . f . s
      in D (ThunkD t f') (thunk t f')
 
   force (D (ThunkD _ f) _) (S _ x) = c $ label x f

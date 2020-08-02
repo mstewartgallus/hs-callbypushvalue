@@ -26,18 +26,17 @@ instance HasCode t => HasCode (AsCbpv t) where
   newtype Code (AsCbpv t) a = C {unC :: Code t a}
 
 instance HasData t => HasData (AsCbpv t) where
-  newtype Data (AsCbpv t) a = D (Data t a)
+  newtype Data (AsCbpv t) a = D {unD :: Data t a}
 
 instance HasCall t => HasCall (AsCbpv t) where
-  call g = C (call g)
+  call = C . call
 
 instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
-  constant k = C (returns (constant k))
+  constant = C . returns . constant
 
 instance HasReturn t => HasReturn (AsCbpv t) where
-  returns (D k) = C (returns k)
-  letTo (C x) f = C $ letTo x $ \x' -> case f (D x') of
-    C y -> y
+  returns = C . returns . unD
+  letTo x f = C $ letTo (unC x) (unC . f . D)
 
 instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
@@ -46,9 +45,7 @@ instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
       C r -> r
 
 instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
-  letBe (C x) f = C $ letBe (thunk x) $ \x' ->
-    let C body = f (C (force x'))
-     in body
+  letBe (C x) f = C $ letBe (thunk x) (unC . f . C . force)
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)

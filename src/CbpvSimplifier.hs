@@ -38,13 +38,13 @@ instance HasData (Simplifier t) where
   data Data (Simplifier t) a = D (Maybe (TermD t a)) (Data t a)
 
 instance Cbpv t => HasConstants (Simplifier t) where
-  constant k = d $ constant k
+  constant = d . constant
 
 instance HasCall t => HasCall (Simplifier t) where
-  call g = c $ call g
+  call = c . call
 
 instance HasLet t => HasLet (Simplifier t) where
-  letBe (D _ x) f = c $ letBe x $ \x' -> abstract (f (d x'))
+  letBe (D _ x) f = c $ letBe x (abstract . f . d)
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair (D _ x) (D _ y) = d $ pair x y
@@ -54,14 +54,14 @@ newtype instance TermC t ('F a) = ReturnC (Data t a)
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
   returns (D _ value) = C (Just (ReturnC value)) $ returns value
-  letTo (C (Just (ReturnC x)) _) f = c $ letBe x $ \x' -> abstract (f (d x'))
-  letTo (C _ x) f = c $ letTo x $ \x' -> abstract (f (d x'))
+  letTo (C (Just (ReturnC x)) _) f = c $ letBe x (abstract . f . d)
+  letTo (C _ x) f = c $ letTo x (abstract . f . d)
 
 data instance TermC t (a ':=> b) = LambdaC (SSet a) (Data t a -> Code t b)
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' x = abstract (f (d x))
+    let f' = abstract . f . d
      in C (Just (LambdaC t f')) $ lambda t f'
 
   C (Just (LambdaC _ f)) _ <*> D _ x = c $ letBe x f
