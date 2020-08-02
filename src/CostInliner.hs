@@ -117,13 +117,12 @@ instance Cps.HasThunk t => Cps.HasThunk (CostInliner t) where
   force (D th) (S stack) = C (Cps.force th stack)
 
 instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
-  lambda (S k) f = C $ Cps.lambda k $ \x n -> unC $ f (D x) (S n)
+  lambda (S k) f = C $ Cps.lambda k (\x n -> unC $ f (D x) (S n))
   D x <*> S k = S (x Cps.<*> k)
 
 instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
   call = D . Cps.call
 
 instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
-  letTo t f = S $ Cps.letTo t $ \x' -> case f (D x') of
-    C y -> y
+  letTo t f = S $ Cps.letTo t (unC . f . D)
   returns (D c) (S stk) = C (Cps.returns c stk)
