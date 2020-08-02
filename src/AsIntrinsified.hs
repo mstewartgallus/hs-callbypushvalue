@@ -43,7 +43,7 @@ instance Cbpv t => HasTuple (AsIntrinsified t) where
     unC $ f (D x) (D y)
 
 instance HasLet t => HasLet (AsIntrinsified t) where
-  letBe x f = C $ letBe (unD x) (unC . f . D)
+  whereIs f = C . whereIs (unC . f . D) . unD
 
 instance HasReturn t => HasReturn (AsIntrinsified t) where
   returns = C . returns . unD

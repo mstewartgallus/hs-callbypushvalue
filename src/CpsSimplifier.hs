@@ -55,10 +55,10 @@ instance HasConstants t => HasConstants (Simplifier t) where
   constant = d . constant
 
 instance HasLet t => HasLet (Simplifier t) where
-  letBe (D _ x) f = c $ letBe x $ \x' -> abstract (f (d x'))
+  whereIs f = c . whereIs (abstract . f . d) . extractData
 
 instance HasLabel t => HasLabel (Simplifier t) where
-  label (S _ x) f = c $ label x $ \x' -> abstract (f (s x'))
+  label (S _ x) f = c $ label x (abstract . f . s)
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair (D _ x) (D _ y) = d $ pair x y
@@ -92,3 +92,6 @@ instance HasCall t => HasCall (Simplifier t) where
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code
+
+extractData :: Data (Simplifier t) a -> Data t a
+extractData (D _ x) = x

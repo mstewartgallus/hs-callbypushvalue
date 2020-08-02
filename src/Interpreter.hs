@@ -59,7 +59,7 @@ instance HasTuple X where
   unpair (V (x ::: y)) f = f (V x) (V y)
 
 instance HasLet X where
-  letBe x f = f x
+  whereIs = id
 
 instance HasLabel X where
   label x f = f x
