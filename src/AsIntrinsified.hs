@@ -47,7 +47,7 @@ instance HasLet t => HasLet (AsIntrinsified t) where
 
 instance HasReturn t => HasReturn (AsIntrinsified t) where
   returns = C . returns . unD
-  letTo x f = C $ letTo (unC x) (unC . f . D)
+  from f = C . from (unC . f . D) . unC
 
 instance HasFn t => HasFn (AsIntrinsified t) where
   C f <*> D x = C (f <*> x)

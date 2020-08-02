@@ -36,7 +36,7 @@ instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
 
 instance HasReturn t => HasReturn (AsCbpv t) where
   returns = C . returns . unD
-  letTo x f = C $ letTo (unC x) (unC . f . D)
+  from f = C . from (unC . f . D) . unC
 
 instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))

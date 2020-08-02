@@ -83,7 +83,7 @@ instance HasCall t => HasCall (CostInliner t) where
   call = C . call
 
 instance HasReturn t => HasReturn (CostInliner t) where
-  letTo x f = C $ letTo (unC x) (unC . f . D)
+  from f = C . from (unC . f . D) . unC
   returns = C . returns . unD
 
 instance F.HasTuple t => F.HasTuple (CostInliner t) where

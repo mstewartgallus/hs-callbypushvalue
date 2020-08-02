@@ -19,6 +19,10 @@ instance (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t,
 
 class (HasData t, HasCode t) => HasReturn t where
   letTo :: Code t ('F a) -> (Data t a -> Code t b) -> Code t b
+  letTo = flip from
+  from :: (Data t a -> Code t b) -> Code t ('F a) -> Code t b
+  from = flip letTo
+
   returns :: Data t a -> Code t ('F a)
 
 class (HasData t, HasCode t) => HasFn t where

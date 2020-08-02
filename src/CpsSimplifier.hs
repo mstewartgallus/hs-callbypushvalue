@@ -77,7 +77,7 @@ instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
   returns (D _ x) (S _ k) = c $ returns x k
 
   letTo t f =
-    let f' x = abstract (f (d x))
+    let f' = abstract . f . d
      in S (LetToS t f') (letTo t f')
 
 instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
