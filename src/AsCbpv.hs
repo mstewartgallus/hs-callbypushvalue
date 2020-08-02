@@ -41,12 +41,11 @@ instance HasReturn t => HasReturn (AsCbpv t) where
 instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
   unpair (C tuple) f = C $ letTo tuple $ \tuple' ->
-    unpair tuple' $ \x y -> case f (C (force x)) (C (force y)) of
-      C r -> r
+    unpair tuple' $ \x y -> unC $ f (C (force x)) (C (force y))
 
 instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   whereIs f = C . whereIs (unC . f . C . force) . thunk . unC
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)
-  C f <*> C x = C (f <*> thunk x)
+  (<*>) (C f) = C . (<*>) f . thunk . unC
