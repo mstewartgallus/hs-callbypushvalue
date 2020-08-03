@@ -88,7 +88,7 @@ instance HasReturn t => HasReturn (CostInliner t) where
 
 instance F.HasTuple t => F.HasTuple (CostInliner t) where
   pair (C x) (C y) = C (F.pair x y)
-  unpair (C tuple) f = C $ F.unpair tuple $ \x y -> unC $ f (C x) (C y)
+  ofPair f (C tuple) = C $ F.ofPair (\x y -> unC $ f (C x) (C y)) tuple
 
 instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = C $ F.lambda t (Path.make unC . f . Path.make C)

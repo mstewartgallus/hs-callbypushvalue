@@ -11,3 +11,4 @@ import HasData
 class (HasData t, HasCode t) => HasTuple t where
   pair :: Data t a -> Data t b -> Data t (a ':*: b)
   unpair :: Data t (a ':*: b) -> (Data t a -> Data t b -> Code t c) -> Code t c
+  ofPair :: (Data t a -> Data t b -> Code t c) -> Data t (a ':*: b) -> Code t c

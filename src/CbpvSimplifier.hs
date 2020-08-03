@@ -44,18 +44,18 @@ instance HasCall t => HasCall (Simplifier t) where
   call = c . call
 
 instance HasLet t => HasLet (Simplifier t) where
-  letBe (D _ x) f = c $ letBe x (abstract . f . d)
+  whereIs f (D _ x) = c $ whereIs (abstract . f . d) x
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair (D _ x) (D _ y) = d $ pair x y
-  unpair (D _ tuple) f = c $ unpair tuple $ \x y -> abstract (f (d x) (d y))
+  ofPair f (D _ tuple) = c $ unpair tuple (\x y -> abstract (f (d x) (d y)))
 
 newtype instance TermC t ('F a) = ReturnC (Data t a)
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
   returns (D _ value) = C (Just (ReturnC value)) $ returns value
-  letTo (C (Just (ReturnC x)) _) f = c $ letBe x (abstract . f . d)
-  letTo (C _ x) f = c $ letTo x (abstract . f . d)
+  from f (C (Just (ReturnC x)) _) = c $ whereIs (abstract . f . d) x
+  from f (C _ x) = c $ from (abstract . f . d) x
 
 data instance TermC t (a ':=> b) = LambdaC (SSet a) (Data t a -> Code t b)
 

@@ -27,24 +27,24 @@ extractData = NatTrans $ \(D x) -> x
 data AsType
 
 instance HasCode AsType where
-  newtype Code AsType a = C (SAlgebra a)
+  newtype Code AsType a = C {unC :: SAlgebra a}
 
 instance HasData AsType where
-  newtype Data AsType a = D (SSet a)
+  newtype Data AsType a = D {unD :: SSet a}
 
 instance HasConstants AsType where
-  constant k = D (Constant.typeOf k)
+  constant = D . Constant.typeOf
 
 instance HasLet AsType where
-  letBe (D t) f = f (D t)
+  whereIs = id
 
 instance HasReturn AsType where
-  returns (D t) = C (SF t)
-  letTo (C (SF t)) f = f (D t)
+  returns = C . SF . unD
+  from f (C (SF t)) = f (D t)
 
 instance HasTuple AsType where
   pair (D tx) (D ty) = D (SPair tx ty)
-  unpair (D (SPair tx ty)) f = f (D tx) (D ty)
+  ofPair f (D (SPair tx ty)) = f (D tx) (D ty)
 
 instance HasThunk AsType where
   force (D (SU t)) = C t

@@ -39,8 +39,7 @@ instance HasConstants t => HasConstants (AsIntrinsified t) where
 
 instance Cbpv t => HasTuple (AsIntrinsified t) where
   pair (D x) (D y) = D (pair x y)
-  unpair (D tuple) f = C $ unpair tuple $ \x y ->
-    unC $ f (D x) (D y)
+  ofPair f = C . ofPair (\x y -> unC $ f (D x) (D y)) . unD
 
 instance HasLet t => HasLet (AsIntrinsified t) where
   whereIs f = C . whereIs (unC . f . D) . unD

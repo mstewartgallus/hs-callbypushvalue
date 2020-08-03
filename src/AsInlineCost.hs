@@ -47,7 +47,7 @@ instance SystemF.HasConstants AsInlineCost where
 
 instance HasTuple AsInlineCost where
   pair (D xcost) (D ycost) = D (xcost + ycost + 1)
-  unpair (D tcost) f =
+  ofPair f (D tcost) =
     let C rcost = f (D 0) (D 0)
      in C (tcost + rcost + 1)
 
@@ -100,7 +100,7 @@ instance Cps.HasCall AsInlineCost where
 
 instance SystemF.HasTuple AsInlineCost where
   pair (C xcost) (C ycost) = C (xcost + ycost + 1)
-  unpair (C tcost) f =
+  ofPair f (C tcost) =
     let C rcost = f (C 0) (C 0)
      in C (tcost + rcost + 1)
 

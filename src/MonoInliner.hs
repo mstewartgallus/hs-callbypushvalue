@@ -46,13 +46,13 @@ instance SystemF.HasConstants t => SystemF.HasConstants (MonoInliner t) where
 
 instance HasTuple t => HasTuple (MonoInliner t) where
   pair (D xcost x) (D ycost y) = D (xcost + ycost) (pair x y)
-  unpair (D tcost tuple) f =
+  ofPair f (D tcost tuple) =
     let C rcost _ = f (D 0 undefined) (D 0 undefined)
      in C (tcost + rcost) $ unpair tuple $ \x y -> case f (D 0 x) (D 0 y) of
           C _ r -> r
 
 instance HasLet t => HasLet (MonoInliner t) where
-  letBe (D xcost x) f = result
+  whereIs f (D xcost x) = result
     where
       result
         | inlineCost <= 1 = inlined
@@ -75,9 +75,8 @@ instance Cps.HasLabel t => Cps.HasLabel (MonoInliner t) where
 
 instance HasReturn t => HasReturn (MonoInliner t) where
   returns (D cost k) = C cost (returns k)
-  letTo (C xcost x) f =
-    let -- fixme... figure out a better probe...
-        C fcost _ = f (D 0 undefined)
+  from f (C xcost x) =
+    let C fcost _ = f (D 0 undefined)
      in C (xcost + fcost) $ letTo x $ \x' -> case f (D 0 x') of
           C _ y -> y
 
@@ -114,17 +113,17 @@ instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
           C _ y -> y
 
 instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
-  call g = D 0 (Cps.call g)
+  call = D 0 . Cps.call
 
 instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
   pair (C xcost x) (C ycost y) = C (xcost + ycost) (SystemF.pair x y)
-  unpair (C tcost tuple) f =
+  ofPair f (C tcost tuple) =
     let C rcost _ = f (C 0 undefined) (C 0 undefined)
      in C (tcost + rcost) $ SystemF.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
           C _ r -> r
 
 instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
-  letBe (C xcost x) f = result
+  whereIs f (C xcost x) = result
     where
       result
         | inlineCost <= 1 = inlined

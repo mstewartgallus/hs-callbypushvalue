@@ -62,7 +62,7 @@ instance HasLabel t => HasLabel (Simplifier t) where
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair (D _ x) (D _ y) = d $ pair x y
-  unpair (D _ tuple) f = c $ unpair tuple $ \x y -> abstract (f (d x) (d y))
+  ofPair f (D _ tuple) = c $ ofPair (\x y -> abstract (f (d x) (d y))) tuple
 
 instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   thunk t f =

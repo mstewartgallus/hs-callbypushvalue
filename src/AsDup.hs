@@ -61,7 +61,7 @@ instance (HasConstants s, HasConstants t) => HasConstants (AsDup s t) where
   constant k = D (constant k) (constant k)
 
 instance (F.HasLet s, F.HasLet t) => F.HasLet (AsDup s t) where
-  letBe (C l r) f = C first second
+  whereIs f (C l r) = C first second
     where
       first = F.letBe l $ \x' -> case f (C x' undefined) of
         C y _ -> y
@@ -69,7 +69,7 @@ instance (F.HasLet s, F.HasLet t) => F.HasLet (AsDup s t) where
         C _ y -> y
 
 instance (HasLet s, HasLet t) => HasLet (AsDup s t) where
-  letBe (D l r) f = C first second
+  whereIs f (D l r) = C first second
     where
       first = letBe l $ \x' -> case f (D x' undefined) of
         C y _ -> y
@@ -90,7 +90,7 @@ instance (HasThunk s, HasThunk t) => HasThunk (AsDup s t) where
 
 instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
   returns (D x y) = C (returns x) (returns y)
-  letTo (C l r) f = C first second
+  from f (C l r) = C first second
     where
       first = letTo l $ \x' -> case f (D x' undefined) of
         C y _ -> y

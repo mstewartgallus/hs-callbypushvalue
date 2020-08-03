@@ -42,6 +42,12 @@ class HasCode t => HasTuple t where
     Code t (Pair a b) ->
     (Code t a -> Code t b -> Code t c) ->
     Code t c
+  unpair = flip ofPair
+  ofPair ::
+    (Code t a -> Code t b -> Code t c) ->
+    Code t (Pair a b) ->
+    Code t c
+  ofPair = flip unpair
 
 class HasCode t => HasFn t where
   (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
