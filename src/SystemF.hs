@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -11,6 +9,7 @@ module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..), HasConstan
 import Common
 import Constant
 import HasCall
+import HasCode
 import Path (Path)
 import qualified Path
 import Prelude hiding ((<*>))
@@ -23,39 +22,39 @@ import Prelude hiding ((<*>))
 -- adjoint functors.)
 --
 -- FIXME: forall and applyType are not yet implemented
-class (HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
+class (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
 
-instance (HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
+instance (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
 
-class HasLet (t :: Algebra -> *) where
-  letBe :: t a -> (t a -> t b) -> t b
+class HasCode t => HasLet t where
+  letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
   letBe = flip whereIs
 
-  whereIs :: (t a -> t b) -> t a -> t b
+  whereIs :: (Code t a -> Code t b) -> Code t a -> Code t b
   whereIs = flip letBe
 
-class HasConstants t where
-  constant :: Constant a -> t ('F a)
+class HasCode t => HasConstants t where
+  constant :: Constant a -> Code t ('F a)
 
-class HasTuple t where
-  pair :: t a -> t b -> t (Pair a b)
+class HasCode t => HasTuple t where
+  pair :: Code t a -> Code t b -> Code t (Pair a b)
   unpair ::
-    t (Pair a b) ->
-    (t a -> t b -> t c) ->
-    t c
+    Code t (Pair a b) ->
+    (Code t a -> Code t b -> Code t c) ->
+    Code t c
   unpair = flip ofPair
   ofPair ::
-    (t a -> t b -> t c) ->
-    t (Pair a b) ->
-    t c
+    (Code t a -> Code t b -> Code t c) ->
+    Code t (Pair a b) ->
+    Code t c
   ofPair = flip unpair
 
-class HasFn t where
-  (<*>) :: t (a :-> b) -> t a -> t b
-  lambda :: SAlgebra a -> Path (->) (t a) (t b) -> t (a :-> b)
+class HasCode t => HasFn t where
+  (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
+  lambda :: SAlgebra a -> Path (->) (Code t a) (Code t b) -> Code t (a :-> b)
 
 infixl 4 <*>
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
-lam :: (HasFn t, KnownAlgebra a) => (t a -> t b) -> t (a :-> b)
+lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a :-> b)
 lam f = lambda inferAlgebra (Path.make f)

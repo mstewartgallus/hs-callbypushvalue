@@ -1,6 +1,7 @@
 module HasConstants (HasConstants (..)) where
 
 import Constant
+import HasData
 
-class HasConstants dta where
-  constant :: Constant a -> dta a
+class HasData t => HasConstants t where
+  constant :: Constant a -> Data t a

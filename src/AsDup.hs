@@ -1,10 +1,7 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsDup (AsDup, Code, Data, Stack, extract, extractData, extractStack) where
+module AsDup (AsDup, extract, extractData, extractStack) where
 
 import Cbpv
 import Common
@@ -13,8 +10,11 @@ import qualified Cps
 import qualified Cps
 import Global
 import HasCall
+import HasCode
 import HasConstants
+import HasData
 import HasLet
+import HasStack
 import HasTuple
 import Label
 import LabelMap (LabelMap)
@@ -28,63 +28,39 @@ import qualified SystemF as F
 import qualified Unique
 import Prelude hiding ((.), (<*>))
 
-extract :: Code cd dta k cd' dta' k' :~> PairF cd cd'
+extract :: Code (AsDup s t) :~> PairF (Code s) (Code t)
 extract = NatTrans $ \(C x y) -> PairF x y
 
-extractData :: Data cd dta k cd' dta' k' :~> PairF dta dta'
+extractData :: Data (AsDup s t) :~> PairF (Data s) (Data t)
 extractData = NatTrans $ \(D x y) -> PairF x y
 
-extractStack :: Stack cd dta k cd' dta' k' :~> PairF k k'
+extractStack :: Stack (AsDup s t) :~> PairF (Stack s) (Stack t)
 extractStack = NatTrans $ \(S x y) -> PairF x y
 
 data AsDup s t
 
-data
-  Code
-    (cd :: Algebra -> *)
-    (dta :: Set -> *)
-    (k :: Algebra -> *)
-    (cd' :: Algebra -> *)
-    (dta' :: Set -> *)
-    (k' :: Algebra -> *)
-    a
-  = C (cd a) (cd' a)
+instance HasCode (AsDup s t) where
+  data Code (AsDup s t) a = C (Code s a) (Code t a)
 
-data
-  Data
-    (cd :: Algebra -> *)
-    (dta :: Set -> *)
-    (k :: Algebra -> *)
-    (cd' :: Algebra -> *)
-    (dta' :: Set -> *)
-    (k' :: Algebra -> *)
-    a
-  = D (dta a) (dta' a)
+instance HasData (AsDup s t) where
+  data Data (AsDup s t) a = D (Data s a) (Data t a)
 
-data
-  Stack
-    (cd :: Algebra -> *)
-    (dta :: Set -> *)
-    (k :: Algebra -> *)
-    (cd' :: Algebra -> *)
-    (dta' :: Set -> *)
-    (k' :: Algebra -> *)
-    a
-  = S (k a) (k' a)
+instance HasStack (AsDup s t) where
+  data Stack (AsDup s t) a = S (Stack s a) (Stack t a)
 
-instance (HasCall cd, HasCall cd') => HasCall (Code cd dta k cd' dta' k') where
+instance (HasCall s, HasCall t) => HasCall (AsDup s t) where
   call g = C (call g) (call g)
 
-instance (Cps.HasCall dta, Cps.HasCall dta') => Cps.HasCall (Data cd dta k cd' dta' k') where
+instance (Cps.HasCall s, Cps.HasCall t) => Cps.HasCall (AsDup s t) where
   call g = D (Cps.call g) (Cps.call g)
 
-instance (F.HasConstants cd, F.HasConstants cd') => F.HasConstants (Code cd dta k cd' dta' k') where
+instance (F.HasConstants s, F.HasConstants t) => F.HasConstants (AsDup s t) where
   constant k = C (F.constant k) (F.constant k)
 
-instance (HasConstants dta, HasConstants dta') => HasConstants (Data cd dta k cd' dta' k') where
+instance (HasConstants s, HasConstants t) => HasConstants (AsDup s t) where
   constant k = D (constant k) (constant k)
 
-instance (F.HasLet cd, F.HasLet cd') => F.HasLet (Code cd dta k cd' dta' k') where
+instance (F.HasLet s, F.HasLet t) => F.HasLet (AsDup s t) where
   whereIs f (C l r) = C first second
     where
       first = F.letBe l $ \x' -> case f (C x' undefined) of
@@ -92,7 +68,7 @@ instance (F.HasLet cd, F.HasLet cd') => F.HasLet (Code cd dta k cd' dta' k') whe
       second = F.letBe r $ \x' -> case f (C undefined x') of
         C _ y -> y
 
-instance (HasLet cd dta, HasLet cd' dta') => HasLet (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') where
+instance (HasLet s, HasLet t) => HasLet (AsDup s t) where
   whereIs f (D l r) = C first second
     where
       first = letBe l $ \x' -> case f (D x' undefined) of
@@ -100,7 +76,7 @@ instance (HasLet cd dta, HasLet cd' dta') => HasLet (Code cd dta k cd' dta' k') 
       second = letBe r $ \x' -> case f (D undefined x') of
         C _ y -> y
 
-instance (Cps.HasLabel cd k, Cps.HasLabel cd' k') => Cps.HasLabel (Code cd dta k cd' dta' k') (Stack cd dta k cd' dta' k') where
+instance (Cps.HasLabel s, Cps.HasLabel t) => Cps.HasLabel (AsDup s t) where
   label (S l r) f = C first second
     where
       first = Cps.label l $ \x' -> case f (S x' undefined) of
@@ -108,11 +84,11 @@ instance (Cps.HasLabel cd k, Cps.HasLabel cd' k') => Cps.HasLabel (Code cd dta k
       second = Cps.label r $ \x' -> case f (S undefined x') of
         C _ y -> y
 
-instance (HasThunk cd dta, HasThunk cd' dta') => HasThunk (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') where
+instance (HasThunk s, HasThunk t) => HasThunk (AsDup s t) where
   thunk (C x y) = D (thunk x) (thunk y)
   force (D x y) = C (force x) (force y)
 
-instance (HasReturn cd dta, HasReturn cd' dta') => HasReturn (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') where
+instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
   returns (D x y) = C (returns x) (returns y)
   from f (C l r) = C first second
     where
@@ -121,11 +97,11 @@ instance (HasReturn cd dta, HasReturn cd' dta') => HasReturn (Code cd dta k cd' 
       second = letTo r $ \x' -> case f (D undefined x') of
         C _ y -> y
 
-instance (F.HasTuple cd, F.HasTuple cd) => F.HasTuple (Code cd dta k cd' dta' k')
+instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t)
 
-instance (HasTuple cd dta, HasTuple cd' dta') => HasTuple (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k')
+instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t)
 
-instance (Cps.HasReturn cd dta k, Cps.HasReturn cd' dta' k') => Cps.HasReturn (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') (Stack cd dta k cd' dta' k') where
+instance (Cps.HasReturn s, Cps.HasReturn t) => Cps.HasReturn (AsDup s t) where
   returns (D x x') (S k k') = C (Cps.returns x k) (Cps.returns x' k')
   letTo t f = S first second
     where
@@ -134,7 +110,7 @@ instance (Cps.HasReturn cd dta k, Cps.HasReturn cd' dta' k') => Cps.HasReturn (C
       second = Cps.letTo t $ \x -> case f (D undefined x) of
         C _ y -> y
 
-instance (Cps.HasThunk cd dta k, Cps.HasThunk cd' dta' k') => Cps.HasThunk (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') (Stack cd dta k cd' dta' k') where
+instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
   force (D x x') (S k k') = C (Cps.force x k) (Cps.force x' k')
   thunk t f = D first second
     where
@@ -143,7 +119,7 @@ instance (Cps.HasThunk cd dta k, Cps.HasThunk cd' dta' k') => Cps.HasThunk (Code
       second = Cps.thunk t $ \x -> case f (S undefined x) of
         C _ y -> y
 
-instance (F.HasFn cd, F.HasFn cd') => F.HasFn (Code cd dta k cd' dta' k') where
+instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
   lambda t f = C first second
     where
       first = F.lambda t (Path.make getfirst . f . Path.make (\x -> C x undefined))
@@ -153,7 +129,7 @@ instance (F.HasFn cd, F.HasFn cd') => F.HasFn (Code cd dta k cd' dta' k') where
 
   C f f' <*> C x x' = C (f F.<*> x) (f' F.<*> x')
 
-instance (Cps.HasFn cd dta k, Cps.HasFn cd' dta' k') => Cps.HasFn (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') (Stack cd dta k cd' dta' k') where
+instance (Cps.HasFn s, Cps.HasFn t) => Cps.HasFn (AsDup s t) where
   lambda (S k k') f = C first second
     where
       first = Cps.lambda k $ \x n -> case f (D x undefined) (S n undefined) of
@@ -163,7 +139,7 @@ instance (Cps.HasFn cd dta k, Cps.HasFn cd' dta' k') => Cps.HasFn (Code cd dta k
 
   D f f' <*> S x x' = S (f Cps.<*> x) (f' Cps.<*> x')
 
-instance (HasFn cd dta, HasFn cd' dta') => HasFn (Code cd dta k cd' dta' k') (Data cd dta k cd' dta' k') where
+instance (HasFn s, HasFn t) => HasFn (AsDup s t) where
   lambda t f = C first second
     where
       first = lambda t $ \x -> case f (D x undefined) of

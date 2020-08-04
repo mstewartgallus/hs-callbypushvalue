@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsCbpv (Code, Data, extract) where
+module AsCbpv (extract, AsCbpv) where
 
 import Cbpv
 import Common
 import HasCall
+import HasCode
 import HasConstants
+import HasData
 import HasLet
 import HasTuple
 import NatTrans
@@ -17,31 +17,35 @@ import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
-extract :: Code cd dta :~> cd
+extract :: Code (AsCbpv t) :~> Code t
 extract = NatTrans unC
 
-newtype Code cd (dta :: Set -> *) (a :: Algebra) = C {unC :: cd a}
+data AsCbpv t
 
-newtype Data (cd :: Algebra -> *) dta (a :: Set) = D {unD :: dta a}
+instance HasCode t => HasCode (AsCbpv t) where
+  newtype Code (AsCbpv t) a = C {unC :: Code t a}
 
-instance HasCall cd => HasCall (Code cd dta) where
+instance HasData t => HasData (AsCbpv t) where
+  newtype Data (AsCbpv t) a = D {unD :: Data t a}
+
+instance HasCall t => HasCall (AsCbpv t) where
   call = C . call
 
-instance (HasReturn cd dta, HasConstants dta) => F.HasConstants (Code cd dta) where
+instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
   constant = C . returns . constant
 
-instance HasReturn cd dta => HasReturn (Code cd dta) (Data cd dta) where
+instance HasReturn t => HasReturn (AsCbpv t) where
   returns = C . returns . unD
   from f = C . from (unC . f . D) . unC
 
-instance (HasTuple cd dta, HasThunk cd dta, HasReturn cd dta) => F.HasTuple (Code cd dta) where
+instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
   unpair (C tuple) f = C $ letTo tuple $ \tuple' ->
     unpair tuple' $ \x y -> unC $ f (C (force x)) (C (force y))
 
-instance (HasLet cd dta, HasThunk cd dta) => F.HasLet (Code cd dta) where
+instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   whereIs f = C . whereIs (unC . f . C . force) . thunk . unC
 
-instance (HasThunk cd dta, HasFn cd dta) => F.HasFn (Code cd dta) where
+instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
   lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)
   (<*>) (C f) = C . (<*>) f . thunk . unC

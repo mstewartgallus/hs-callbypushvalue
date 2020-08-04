@@ -1,8 +1,7 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CostInliner (Code, Data, Stack, extract, extractData, CostInliner) where
+module CostInliner (extract, extractData, CostInliner) where
 
 import qualified AsDup
 import AsDup (AsDup)
@@ -12,8 +11,11 @@ import Cbpv
 import Control.Category
 import qualified Cps
 import HasCall
+import HasCode
 import HasConstants
+import HasData
 import HasLet
+import HasStack
 import HasTuple
 import NatTrans
 import PairF
@@ -21,18 +23,18 @@ import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((.), (<*>))
 
-extract :: Code cd dta k :~> cd
+extract :: Code (CostInliner t) :~> Code t
 extract = NatTrans $ \(C x) -> case AsDup.extract # x of
   PairF _ r -> r
 
-extractData :: Data cd dta k :~> dta
+extractData :: Data (CostInliner t) :~> Data t
 extractData = NatTrans $ \(D x) -> case AsDup.extractData # x of
   PairF _ r -> r
 
 inlineThreshold :: Int
 inlineThreshold = 5
 
-instance HasLet cd dta => HasLet (Code cd dta k) (Data cd dta k) where
+instance HasLet t => HasLet (CostInliner t) where
   letBe x f = result
     where
       result
@@ -41,7 +43,7 @@ instance HasLet cd dta => HasLet (Code cd dta k) (Data cd dta k) where
       PairF inlineCost _ = AsDup.extractData # unD x
       notinlined = C $ letBe (unD x) (unC . f . D)
 
-instance Cps.HasLabel cd k => Cps.HasLabel (Code cd dta k) (Stack cd dta k) where
+instance Cps.HasLabel t => Cps.HasLabel (CostInliner t) where
   label x f = result
     where
       result
@@ -50,7 +52,7 @@ instance Cps.HasLabel cd k => Cps.HasLabel (Code cd dta k) (Stack cd dta k) wher
       PairF inlineCost _ = AsDup.extractStack # unS x
       notinlined = C $ Cps.label (unS x) (unC . f . S)
 
-instance F.HasLet cd => F.HasLet (Code cd dta k) where
+instance F.HasLet t => F.HasLet (CostInliner t) where
   letBe x f = result
     where
       result
@@ -68,56 +70,59 @@ instance F.HasLet cd => F.HasLet (Code cd dta k) where
 -- FIXME: use an alternative to the probe function
 data CostInliner t
 
-newtype Data cd dta k a = D {unD :: AsDup.Data AsInlineCost.Code AsInlineCost.Data AsInlineCost.Stack cd dta k a}
+instance HasData t => HasData (CostInliner t) where
+  newtype Data (CostInliner t) a = D {unD :: Data (AsDup AsInlineCost t) a}
 
-newtype Code cd dta k a = C {unC :: AsDup.Code AsInlineCost.Code AsInlineCost.Data AsInlineCost.Stack cd dta k a}
+instance HasCode t => HasCode (CostInliner t) where
+  newtype Code (CostInliner t) a = C {unC :: Code (AsDup AsInlineCost t) a}
 
-newtype Stack cd dta k a = S {unS :: AsDup.Stack AsInlineCost.Code AsInlineCost.Data AsInlineCost.Stack cd dta k a}
+instance HasStack t => HasStack (CostInliner t) where
+  newtype Stack (CostInliner t) a = S {unS :: Stack (AsDup AsInlineCost t) a}
 
-instance HasCall cd => HasCall (Code cd dta k) where
+instance HasCall t => HasCall (CostInliner t) where
   call = C . call
 
-instance HasReturn cd dta => HasReturn (Code cd dta k) (Data cd dta k) where
+instance HasReturn t => HasReturn (CostInliner t) where
   from f = C . from (unC . f . D) . unC
   returns = C . returns . unD
 
-instance F.HasTuple cd => F.HasTuple (Code cd dta k) where
+instance F.HasTuple t => F.HasTuple (CostInliner t) where
   pair (C x) (C y) = C (F.pair x y)
   ofPair f (C tuple) = C $ F.ofPair (\x y -> unC $ f (C x) (C y)) tuple
 
-instance F.HasFn cd => F.HasFn (Code cd dta k) where
+instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = C $ F.lambda t (Path.make unC . f . Path.make C)
   C f <*> C x = C (f F.<*> x)
 
-instance HasConstants dta => HasConstants (Data cd dta k) where
+instance HasConstants t => HasConstants (CostInliner t) where
   constant = D . constant
 
-instance F.HasConstants cd => F.HasConstants (Code cd dta k) where
+instance F.HasConstants t => F.HasConstants (CostInliner t) where
   constant = C . F.constant
 
-instance HasTuple cd dta => HasTuple (Code cd dta k) (Data cd dta k) where
+instance HasTuple t => HasTuple (CostInliner t) where
   pair (D x) (D y) = D (pair x y)
   unpair (D tuple) f = C $ unpair tuple $ \x y -> unC $ f (D x) (D y)
 
-instance HasFn cd dta => HasFn (Code cd dta k) (Data cd dta k) where
+instance HasFn t => HasFn (CostInliner t) where
   C f <*> D x = C (f <*> x)
   lambda t f = C $ lambda t (unC . f . D)
 
-instance HasThunk cd dta => HasThunk (Code cd dta k) (Data cd dta k) where
+instance HasThunk t => HasThunk (CostInliner t) where
   force = C . force . unD
   thunk = D . thunk . unC
 
-instance Cps.HasThunk cd dta k => Cps.HasThunk (Code cd dta k) (Data cd dta k) (Stack cd dta k) where
+instance Cps.HasThunk t => Cps.HasThunk (CostInliner t) where
   thunk t f = D $ Cps.thunk t (unC . f . S)
   force (D th) (S stack) = C (Cps.force th stack)
 
-instance Cps.HasFn cd dta k => Cps.HasFn (Code cd dta k) (Data cd dta k) (Stack cd dta k) where
+instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
   lambda (S k) f = C $ Cps.lambda k (\x n -> unC $ f (D x) (S n))
   D x <*> S k = S (x Cps.<*> k)
 
-instance Cps.HasCall dta => Cps.HasCall (Data cd dta k) where
+instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
   call = D . Cps.call
 
-instance Cps.HasReturn cd dta k => Cps.HasReturn (Code cd dta k) (Data cd dta k) (Stack cd dta k) where
+instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
   letTo t f = S $ Cps.letTo t (unC . f . D)
   returns (D c) (S stk) = C (Cps.returns c stk)

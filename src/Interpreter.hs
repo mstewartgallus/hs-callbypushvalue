@@ -1,10 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Interpreter (Value (..), Kont (..), R (..)) where
+module Interpreter (evaluate, X, Value (..), Kont (..), R (..)) where
 
 import Common
 import Constant
@@ -13,9 +12,15 @@ import Cps
 import Data.Word
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
+import HasCode
 import HasConstants
+import HasData
 import HasLet
+import HasStack
 import HasTuple
+
+evaluate :: Data X a -> Value a
+evaluate (V value) = value
 
 data family Value (a :: Set) :: *
 
@@ -35,38 +40,47 @@ newtype instance Kont ('F a) = Returns (Value a -> R)
 
 data instance Kont (a ':=> b) = Apply (Value a) (Kont b)
 
-newtype Code (a :: Algebra) = C R
+data X
 
-instance HasConstants Value where
-  constant (U64Constant x) = I x
+instance HasData X where
+  newtype Data X a = V (Value a)
 
-instance HasTuple Code Value where
-  pair x y = x ::: y
-  unpair (x ::: y) f = f x y
+instance HasCode X where
+  newtype Code X a = C R
 
-instance HasLet Code Value where
+instance HasStack X where
+  newtype Stack X a = K (Kont a)
+
+instance HasConstants X where
+  constant (U64Constant x) = V (I x)
+
+instance HasTuple X where
+  pair (V x) (V y) = V (x ::: y)
+  unpair (V (x ::: y)) f = f (V x) (V y)
+
+instance HasLet X where
   whereIs = id
 
-instance HasLabel Code Kont where
+instance HasLabel X where
   label x f = f x
 
-instance HasThunk Code Value Kont where
-  thunk _ f = Thunk $ \x -> case f x of
+instance HasThunk X where
+  thunk _ f = V $ Thunk $ \x -> case f (K x) of
     C k -> k
-  force (Thunk f) x = C (f x)
+  force (V (Thunk f)) (K x) = C (f x)
 
-instance HasReturn Code Value Kont where
-  letTo _ f = Returns $ \x -> case f x of
+instance HasReturn X where
+  letTo _ f = K $ Returns $ \x -> case f (V x) of
     C k -> k
-  returns x (Returns k) = C (k x)
+  returns (V x) (K (Returns k)) = C (k x)
 
-instance HasFn Code Value Kont where
-  h <*> t = Apply h t
-  lambda (Apply h t) f = f h t
+instance HasFn X where
+  V h <*> K t = K (Apply h t)
+  lambda (K (Apply h t)) f = f (V h) (K t)
 
-instance HasCall Value where
+instance HasCall X where
   call g = case GlobalMap.lookup g globals of
-    Just (G x) -> Thunk x
+    Just (G x) -> V $ Thunk x
     Nothing -> error "global not found in environment"
 
 newtype G a = G (Kont a -> R)

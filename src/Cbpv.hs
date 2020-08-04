@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -9,28 +7,30 @@ module Cbpv (Cbpv, HasReturn (..), HasFn (..), HasThunk (..)) where
 
 import Common
 import HasCall
+import HasCode
 import HasConstants
+import HasData
 import HasLet
 import HasTuple
 
-class (HasCall cd, HasConstants dta, HasLet cd dta, HasReturn cd dta, HasThunk cd dta, HasFn cd dta, HasTuple cd dta) => Cbpv cd dta
+class (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
 
-instance (HasCall cd, HasConstants dta, HasLet cd dta, HasReturn cd dta, HasThunk cd dta, HasFn cd dta, HasTuple cd dta) => Cbpv cd dta
+instance (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
 
-class HasReturn cd dta | cd -> dta, dta -> cd where
-  letTo :: cd ('F a) -> (dta a -> cd b) -> cd b
+class (HasData t, HasCode t) => HasReturn t where
+  letTo :: Code t ('F a) -> (Data t a -> Code t b) -> Code t b
   letTo = flip from
-  from :: (dta a -> cd b) -> cd ('F a) -> cd b
+  from :: (Data t a -> Code t b) -> Code t ('F a) -> Code t b
   from = flip letTo
 
-  returns :: dta a -> cd ('F a)
+  returns :: Data t a -> Code t ('F a)
 
-class HasFn cd dta | cd -> dta, dta -> cd where
-  lambda :: SSet a -> (dta a -> cd b) -> cd (a ':=> b)
-  (<*>) :: cd (a ':=> b) -> dta a -> cd b
+class (HasData t, HasCode t) => HasFn t where
+  lambda :: SSet a -> (Data t a -> Code t b) -> Code t (a ':=> b)
+  (<*>) :: Code t (a ':=> b) -> Data t a -> Code t b
 
 infixl 4 <*>
 
-class HasThunk cd dta | cd -> dta, dta -> cd where
-  thunk :: cd a -> dta ('U a)
-  force :: dta ('U a) -> cd a
+class (HasCode t, HasData t) => HasThunk t where
+  thunk :: Code t a -> Data t ('U a)
+  force :: Data t ('U a) -> Code t a

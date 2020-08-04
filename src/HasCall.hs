@@ -1,6 +1,7 @@
 module HasCall (HasCall (..)) where
 
 import Global
+import HasCode
 
-class HasCall cd where
-  call :: Global a -> cd a
+class HasCode t => HasCall t where
+  call :: Global a -> Code t a

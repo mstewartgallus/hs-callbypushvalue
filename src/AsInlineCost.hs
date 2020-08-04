@@ -1,17 +1,16 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module AsInlineCost (Code, Data, Stack, extract, extractData, extractStack, AsInlineCost) where
+module AsInlineCost (extract, extractData, extractStack, AsInlineCost) where
 
 import Cbpv
-import Common
 import Control.Category
 import qualified Cps
 import HasCall
+import HasCode
 import HasConstants
+import HasData
 import HasLet
+import HasStack
 import HasTuple
 import qualified Path
 import qualified SystemF
@@ -19,95 +18,98 @@ import Prelude hiding ((.), (<*>))
 
 data AsInlineCost
 
-extract :: Code a -> Int
+extract :: Code AsInlineCost a -> Int
 extract (C x) = x
 
-extractData :: Data a -> Int
+extractData :: Data AsInlineCost a -> Int
 extractData (D x) = x
 
-extractStack :: Stack a -> Int
+extractStack :: Stack AsInlineCost a -> Int
 extractStack (S x) = x
 
-newtype Code (a :: Algebra) = C Int
+instance HasCode AsInlineCost where
+  newtype Code AsInlineCost a = C Int
 
-newtype Data (a :: Set) = D Int
+instance HasData AsInlineCost where
+  newtype Data AsInlineCost a = D Int
 
-newtype Stack (a :: Algebra) = S Int
+instance HasStack AsInlineCost where
+  newtype Stack AsInlineCost a = S Int
 
-instance HasCall Code where
+instance HasCall AsInlineCost where
   call _ = C 1
 
-instance HasConstants Data where
+instance HasConstants AsInlineCost where
   constant _ = D 0
 
-instance SystemF.HasConstants Code where
+instance SystemF.HasConstants AsInlineCost where
   constant _ = C 0
 
-instance HasTuple Code Data where
+instance HasTuple AsInlineCost where
   pair (D xcost) (D ycost) = D (xcost + ycost + 1)
   ofPair f (D tcost) =
     let C rcost = f (D 0) (D 0)
      in C (tcost + rcost + 1)
 
-instance HasLet Code Data where
+instance HasLet AsInlineCost where
   letBe (D xcost) f = C (xcost + fcost)
     where
       C fcost = f (D 0)
 
-instance Cps.HasLabel Code Stack where
+instance Cps.HasLabel AsInlineCost where
   label (S xcost) f = C (xcost + fcost)
     where
       C fcost = f (S 0)
 
-instance HasReturn Code Data where
+instance HasReturn AsInlineCost where
   returns (D cost) = C (cost + 1)
   letTo (C xcost) f =
     let C fcost = f (D 0)
      in C (xcost + fcost + 1)
 
-instance HasFn Code Data where
+instance HasFn AsInlineCost where
   C fcost <*> D xcost = C (fcost + xcost + 1)
   lambda _ f =
     let C fcost = f (D 0)
      in C (fcost + 1)
 
-instance HasThunk Code Data where
+instance HasThunk AsInlineCost where
   force (D cost) = C (cost + 1)
   thunk (C cost) = D (cost + 1)
 
-instance Cps.HasThunk Code Data Stack where
+instance Cps.HasThunk AsInlineCost where
   thunk _ f =
     let C fcost = f (S 0)
      in D (fcost + 1)
   force (D tcost) (S scost) = C (tcost + scost + 1)
 
-instance Cps.HasReturn Code Data Stack where
+instance Cps.HasReturn AsInlineCost where
   letTo _ f =
     let C fcost = f (D 0)
      in S fcost
   returns (D scost) (S tcost) = C (tcost + scost + 1)
 
-instance Cps.HasFn Code Data Stack where
+instance Cps.HasFn AsInlineCost where
   D xcost <*> S kcost = S (xcost + kcost + 1)
   lambda (S kcost) f =
     let C fcost = f (D 0) (S 0)
      in C (kcost + fcost + 1)
 
-instance Cps.HasCall Data where
+instance Cps.HasCall AsInlineCost where
   call _ = D 5
 
-instance SystemF.HasTuple Code where
+instance SystemF.HasTuple AsInlineCost where
   pair (C xcost) (C ycost) = C (xcost + ycost + 1)
   ofPair f (C tcost) =
     let C rcost = f (C 0) (C 0)
      in C (tcost + rcost + 1)
 
-instance SystemF.HasLet Code where
+instance SystemF.HasLet AsInlineCost where
   letBe (C xcost) f = C (xcost + fcost)
     where
       C fcost = f (C 0)
 
-instance SystemF.HasFn Code where
+instance SystemF.HasFn AsInlineCost where
   lambda t f =
     let C fcost = Path.flatten f (C 0)
      in C (fcost + 1)
