@@ -4,18 +4,13 @@
 
 module Main where
 
-import AsCbpv (AsCbpv)
 import qualified AsCbpv
 import qualified AsCps
-import AsCps (AsCps)
 import qualified AsDup
-import AsDup (AsDup)
 import AsIntrinsified (AsIntrinsified)
 import qualified AsIntrinsified
-import qualified AsMemoized
 import qualified AsPorcelain
 import AsText
-import Box (Box, mkProgram, mkValue)
 import qualified Box
 import Cbpv (Cbpv)
 import qualified Cbpv
@@ -29,13 +24,10 @@ import qualified CostInliner
 import CostInliner (CostInliner)
 import qualified Cps
 import Cps (Cps)
-import qualified CpsSimplifier
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCall
-import HasCode
-import HasData
 import qualified Interpreter
 import MonoInliner (MonoInliner)
 import qualified MonoInliner
@@ -53,7 +45,7 @@ iterCbpv = 20
 
 iterCps = 20
 
-program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
+program :: SystemF t => t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \x ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -68,30 +60,30 @@ main = do
   cbpv <- cbpvTerm optTerm
   intrinsified <- intrinsify cbpv
   optCbpv <- optimizeCbpv intrinsified
-  cps <- cpsTerm (Cbpv.thunk optCbpv)
-  optCps <- optimizeCps cps
 
-  let PairF porcelain interpreter = AsDup.extractData # optCps
+  T.putStrLn (AsText.extract optCbpv)
+  -- cps <- cpsTerm (Cbpv.thunk optCbpv)
+  -- -- optCps <- optimizeCps cps
 
-  putStrLn "\nPorcelain Output:"
-  T.putStrLn (AsPorcelain.extract porcelain)
+  -- let PairF porcelain interpreter = AsDup.extractData # cps
 
-  putStrLn "\nEvaluates to:"
-  let cpsData = Interpreter.evaluate interpreter
+  -- putStrLn "\nPorcelain Output:"
+  -- T.putStrLn (AsPorcelain.extract porcelain)
 
-  let Interpreter.Thunk k = cpsData
-  let Interpreter.Behaviour eff = k (t 4 `Interpreter.Apply` t 8 `Interpreter.Apply` (Interpreter.Returns $ \(Interpreter.I x) -> Interpreter.Behaviour $ printT x))
-  eff
+  -- putStrLn "\nEvaluates to:"
+  -- let Interpreter.Thunk k = interpreter
+  -- let Interpreter.Behaviour eff = k (t 4 `Interpreter.Apply` t 8 `Interpreter.Apply` (Interpreter.Returns $ \(Interpreter.I x) -> Interpreter.Behaviour $ printT x))
+  -- eff
 
   return ()
 
-cbpvValue :: (forall t. Cbpv t => Data t a) -> Data (Box Cbpv) a
-cbpvValue = mkValue
+type TextDupCode = AsDup.Code AsText.Code AsText.Data AsText.Stack
 
-cpsValue :: (forall t. Cps t => Data t a) -> Data (Box Cps) a
-cpsValue = mkValue
+type TextDupData = AsDup.Data AsText.Code AsText.Data AsText.Stack
 
-dupLog :: SystemF t => Code (AsDup AsText t) a -> IO (Code t a)
+type TextDupStack = AsDup.Stack AsText.Code AsText.Data AsText.Stack
+
+dupLog :: SystemF cd => TextDupCode cd dta k a -> IO (cd a)
 dupLog term = do
   let PairF text copy = AsDup.extract # term
 
@@ -100,7 +92,7 @@ dupLog term = do
 
   return copy
 
-cbpvTerm :: Cbpv t => Code (AsCbpv (AsDup AsText t)) a -> IO (Code t a)
+cbpvTerm :: Cbpv cd dta => AsCbpv.Code (TextDupCode cd dta k) (TextDupData cd dta k) a -> IO (cd a)
 cbpvTerm term = do
   let PairF text copy = (AsDup.extract . AsCbpv.extract) # term
 
@@ -109,7 +101,7 @@ cbpvTerm term = do
 
   return copy
 
-intrinsify :: Cbpv t => Code (AsIntrinsified (AsDup AsText t)) a -> IO (Code t a)
+intrinsify :: Cbpv cd dta => AsIntrinsified.Code (TextDupCode cd dta k) (TextDupData cd dta k) a -> IO (cd a)
 intrinsify term = do
   let PairF text copy = (AsDup.extract . AsIntrinsified.extract) # term
 
@@ -118,7 +110,7 @@ intrinsify term = do
 
   return copy
 
-cpsTerm :: Cps t => Data (AsCps (AsDup AsText t)) a -> IO (Data t a)
+cpsTerm :: Cbpv cd dta => AsCps.Data (TextDupCode cd dta k) (TextDupData cd dta k) (TextDupStack cd dta k) a -> IO (dta a)
 cpsTerm term = do
   let PairF text copy = (AsDup.extractData . AsCps.extract) # term
 
@@ -127,12 +119,17 @@ cpsTerm term = do
 
   return copy
 
-type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
+type InlineCode cd dta k = MonoInliner.Code (CostInliner.Code cd dta k) (CostInliner.Data cd dta k) (CostInliner.Stack cd dta k)
+
+type InlineData cd dta k = MonoInliner.Data (CostInliner.Code cd dta k) (CostInliner.Data cd dta k) (CostInliner.Stack cd dta k)
+
+type OptF cd dta k = SystemFSimplifier.Code (InlineCode cd dta k)
 
 -- fixme... loop
-optimizeTerm :: SystemF t => Code (OptF (AsDup AsText t)) a -> IO (Code t a)
+
+optimizeTerm :: SystemF cd => OptF (TextDupCode cd dta k) (TextDupData cd dta k) (TextDupStack cd dta k) a -> IO (cd a)
 optimizeTerm input =
-  let step :: SystemF t => Code (OptF t) :~> Code t
+  let step :: SystemF cd => OptF cd dta k :~> cd
       step =
         CostInliner.extract
           . MonoInliner.extract
@@ -148,12 +145,12 @@ optimizeTerm input =
 -- loop 0 term = term
 -- loop n term = loop (n - 1) (mkProgram (step (Box.interpret term)))
 
-type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
+type OptC cd dta k = CbpvSimplifier.Code (InlineCode cd dta k) (InlineData cd dta k)
 
 -- fixme... loop
-optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
+optimizeCbpv :: Cbpv cd dta => OptC (TextDupCode cd dta k) (TextDupData cd dta k) (TextDupStack cd dta k) a -> IO (cd a)
 optimizeCbpv input =
-  let step :: Cbpv t => Code (OptC t) :~> Code t
+  let step :: Cbpv cd dta => OptC cd dta k :~> cd
       step =
         CostInliner.extract
           . MonoInliner.extract
@@ -169,21 +166,21 @@ optimizeCbpv input =
 -- loop 0 term = term
 -- loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
 
-type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
+-- type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
 
-optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
-optimizeCps input =
-  let step :: Cps t => Data (OptCps t) :~> Data t
-      step =
-        CostInliner.extractData
-          . MonoInliner.extractData
-          . CpsSimplifier.extract
-   in do
-        let PairF text copy = (AsDup.extractData . step) # input
-        putStrLn "\nOptimized Continuation Passing Style:"
-        T.putStrLn (AsText.extractData text)
+-- optimizeCps :: Cps cd dta k => OptCps (AsDup.Code AsText.Code AsText.Data AsText.Stack cd dta k)  (AsDup.Data AsText.Code AsText.Data AsText.Stack cd dta k) (AsDup.Stack AsText.Code AsText.Data AsText.Stack cd dta k) a -> IO (dta a)
+-- optimizeCps input =
+--   let step :: Cps cd dta k => OptCps cd dta k :~> dta
+--       step =
+--         CostInliner.extractData
+--           . MonoInliner.extractData
+--           . CpsSimplifier.extract
+--    in do
+--         let PairF text copy = (AsDup.extractData . step) # input
+--         putStrLn "\nOptimized Continuation Passing Style:"
+--         T.putStrLn (AsText.extractData text)
 
-        return copy
+--         return copy
 
 -- loop :: Int -> Data (Box Cps) a -> Data (Box Cps) a
 -- loop 0 term = term

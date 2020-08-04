@@ -1,5 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -7,11 +10,8 @@ module Cps (Cps, HasThunk (..), HasReturn (..), HasFn (..), HasCall (..), HasLab
 
 import Common
 import Global
-import HasCode
 import HasConstants
-import HasData
 import HasLet
-import HasStack
 import HasTuple
 
 -- |
@@ -20,28 +20,28 @@ import HasTuple
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t) => Cps t
+class (HasConstants dta, HasCall dta, HasFn cd dta k, HasReturn cd dta k, HasThunk cd dta k, HasLabel cd k, HasLet cd dta, HasTuple cd dta) => Cps cd dta k
 
-instance (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t) => Cps t
+instance (HasConstants dta, HasCall dta, HasFn cd dta k, HasReturn cd dta k, HasThunk cd dta k, HasLabel cd k, HasLet cd dta, HasTuple cd dta) => Cps cd dta k
 
-class HasData t => HasCall t where
-  call :: Global a -> Data t ('U a)
+class HasCall dta where
+  call :: Global a -> dta ('U a)
 
-class (HasData t, HasCode t, HasStack t) => HasFn t where
-  lambda :: Stack t (a ':=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
-  (<*>) :: Data t a -> Stack t b -> Stack t (a ':=> b)
+class HasFn (cd :: Algebra -> *) dta k | cd -> dta, dta -> k, k -> cd where
+  lambda :: k (a ':=> b) -> (dta a -> k b -> cd c) -> cd c
+  (<*>) :: dta a -> k b -> k (a ':=> b)
 
 infixr 4 <*>
 
 -- | Decomposition of returns type into a into callcc style
-class (HasData t, HasCode t, HasStack t) => HasReturn t where
-  returns :: Data t a -> Stack t ('F a) -> Code t 'Void
-  letTo :: SSet a -> (Data t a -> Code t 'Void) -> Stack t ('F a)
+class HasReturn cd dta k | cd -> dta, dta -> k, k -> cd where
+  returns :: dta a -> k ('F a) -> cd 'Void
+  letTo :: SSet a -> (dta a -> cd 'Void) -> k ('F a)
 
 -- | Decomposition of thunks into cps style
-class (HasData t, HasCode t, HasStack t) => HasThunk t where
-  thunk :: SAlgebra a -> (Stack t a -> Code t 'Void) -> Data t ('U a)
-  force :: Data t ('U a) -> Stack t a -> Code t 'Void
+class HasThunk cd dta k | cd -> dta, dta -> k, k -> cd where
+  thunk :: SAlgebra a -> (k a -> cd 'Void) -> dta ('U a)
+  force :: dta ('U a) -> k a -> cd 'Void
 
-class (HasStack t, HasCode t) => HasLabel t where
-  label :: Stack t a -> (Stack t a -> Code t b) -> Code t b
+class HasLabel (cd :: Algebra -> *) (k :: Algebra -> *) where
+  label :: k a -> (k a -> cd b) -> cd b

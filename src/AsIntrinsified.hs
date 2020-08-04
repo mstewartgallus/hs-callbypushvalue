@@ -1,8 +1,10 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsIntrinsified (AsIntrinsified, extract) where
+module AsIntrinsified (Code, Data, AsIntrinsified, extract) where
 
 import Cbpv
 import Common
@@ -10,59 +12,55 @@ import Core
 import GlobalMap (GlobalMap)
 import qualified GlobalMap
 import HasCall
-import HasCode
 import HasConstants
-import HasData
 import HasLet
 import HasTuple
 import NatTrans
 import Prelude hiding ((<*>))
 
-extract :: Cbpv t => Code (AsIntrinsified t) :~> Code t
+extract :: Code cd dta :~> cd
 extract = NatTrans $ \(C x) -> x
 
 data AsIntrinsified t
 
-instance HasCode t => HasCode (AsIntrinsified t) where
-  newtype Code (AsIntrinsified t) a = C {unC :: Code t a}
+newtype Code (cd :: Algebra -> *) (dta :: Set -> *) a = C {unC :: cd a}
 
-instance HasData t => HasData (AsIntrinsified t) where
-  newtype Data (AsIntrinsified t) a = D {unD :: Data t a}
+newtype Data (cd :: Algebra -> *) (dta :: Set -> *) a = D {unD :: dta a}
 
-instance Cbpv t => HasCall (AsIntrinsified t) where
+instance Cbpv cd dta => HasCall (Code cd dta) where
   call g = C $ case GlobalMap.lookup g intrinsics of
     Nothing -> call g
     Just intrinsic -> intrinsic
 
-instance HasConstants t => HasConstants (AsIntrinsified t) where
+instance HasConstants dta => HasConstants (Data cd dta) where
   constant = D . constant
 
-instance Cbpv t => HasTuple (AsIntrinsified t) where
+instance HasTuple cd dta => HasTuple (Code cd dta) (Data cd dta) where
   pair (D x) (D y) = D (pair x y)
   ofPair f = C . ofPair (\x y -> unC $ f (D x) (D y)) . unD
 
-instance HasLet t => HasLet (AsIntrinsified t) where
+instance HasLet cd dta => HasLet (Code cd dta) (Data cd dta) where
   whereIs f = C . whereIs (unC . f . D) . unD
 
-instance HasReturn t => HasReturn (AsIntrinsified t) where
+instance HasReturn cd dta => HasReturn (Code cd dta) (Data cd dta) where
   returns = C . returns . unD
   from f = C . from (unC . f . D) . unC
 
-instance HasFn t => HasFn (AsIntrinsified t) where
+instance HasFn cd dta => HasFn (Code cd dta) (Data cd dta) where
   C f <*> D x = C (f <*> x)
   lambda t f = C $ lambda t (unC . f . D)
 
-instance HasThunk t => HasThunk (AsIntrinsified t) where
+instance HasThunk cd dta => HasThunk (Code cd dta) (Data cd dta) where
   thunk = D . thunk . unC
   force = C . force . unD
 
-intrinsics :: Cbpv t => GlobalMap (Code t)
+intrinsics :: Cbpv cd dta => GlobalMap cd
 intrinsics =
   GlobalMap.fromList
     [ GlobalMap.Entry plus plusIntrinsic
     ]
 
-plusIntrinsic :: Cbpv t => Code t ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
+plusIntrinsic :: Cbpv cd dta => cd ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
 plusIntrinsic = lambda inferSet $ \x' ->
   lambda inferSet $ \y' ->
     force x' `letTo` \x'' ->

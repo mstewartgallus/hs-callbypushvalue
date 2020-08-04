@@ -1,22 +1,22 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsPorcelain (Porcelain, extract) where
+module AsPorcelain (extract) where
 
 import Common
 import Constant
 import Cps
 import Data.Text
-import HasCode
 import HasConstants
-import HasData
 import HasLet
-import HasStack
 import HasTuple
 import TextShow
 import qualified Unique
 
-extract :: Data Porcelain a -> Text
+extract :: Data a -> Text
 extract (D val) = toText (Unique.run val)
 
 ws :: Builder
@@ -47,25 +47,22 @@ pAction = showb
 
 data Porcelain
 
-instance HasData Porcelain where
-  newtype Data Porcelain a = D (Unique.State Builder)
+newtype Data (a :: Set) = D (Unique.State Builder)
 
-instance HasCode Porcelain where
-  newtype Code Porcelain a = C (Unique.State Builder)
+newtype Code (a :: Algebra) = C (Unique.State Builder)
 
-instance HasStack Porcelain where
-  newtype Stack Porcelain a = S (Unique.State Builder)
+newtype Stack (a :: Algebra) = S (Unique.State Builder)
 
-instance HasConstants Porcelain where
+instance HasConstants Data where
   constant (U64Constant x) = D $ pure $ node $ atom "u64" <> ws <> showb x
 
-instance HasTuple Porcelain
+instance HasTuple Code Data
 
-instance HasLet Porcelain
+instance HasLet Code Data
 
-instance HasLabel Porcelain
+instance HasLabel Code Stack
 
-instance HasThunk Porcelain where
+instance HasThunk Code Data Stack where
   force (D th) (S k) = C $ do
     thunk' <- th
     k' <- k
@@ -76,7 +73,7 @@ instance HasThunk Porcelain where
     body' <- body
     pure $ node $ atom "thunk" <> ws <> v <> ws <> pAction t <> ws <> body'
 
-instance HasReturn Porcelain where
+instance HasReturn Code Data Stack where
   returns (D value) (S k) = C $ do
     k' <- k
     value' <- value
@@ -87,7 +84,7 @@ instance HasReturn Porcelain where
     body' <- body
     pure $ node $ atom "to" <> ws <> v <> ws <> pType t <> ws <> body'
 
-instance HasFn Porcelain where
+instance HasFn Code Data Stack where
   D h <*> S t = S $ do
     h' <- h
     t' <- t
@@ -100,6 +97,6 @@ instance HasFn Porcelain where
     body' <- body
     pure $ node $ atom "lambda" <> ws <> k' <> ws <> x <> ws <> n <> ws <> body'
 
-instance HasCall Porcelain where
+instance HasCall Data where
   call g = D $ do
     pure $ node $ atom "call" <> ws <> showb g

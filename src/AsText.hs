@@ -1,17 +1,18 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module AsText (extract, extractData, AsText) where
+module AsText (Code, Data, Stack, extract, extractData, AsText) where
 
 import Cbpv
+import Common
 import qualified Cps
 import qualified Data.Text as T
 import HasCall
-import HasCode
 import HasConstants
-import HasData
 import HasLet
-import qualified HasStack
 import HasTuple
 import qualified Path
 import qualified SystemF
@@ -20,28 +21,28 @@ import qualified Unique
 
 data AsText
 
-extract :: Code AsText a -> T.Text
+extract :: Code a -> T.Text
 extract (C x) = toText (Unique.withStream x)
 
-extractData :: Data AsText a -> T.Text
+extractData :: Data a -> T.Text
 extractData (D x) = toText (Unique.withStream x)
 
-instance HasData AsText where
-  newtype Data AsText a = D (forall s. Unique.Stream s -> Builder)
+newtype Data (a :: Set) = D (forall s. Unique.Stream s -> Builder)
 
-instance HasCode AsText where
-  newtype Code AsText a = C {unC :: forall s. Unique.Stream s -> Builder}
+newtype Code (a :: Algebra) = C {unC :: forall s. Unique.Stream s -> Builder}
 
-instance HasCall AsText where
+newtype Stack (a :: Algebra) = S (forall s. Unique.Stream s -> TextShow.Builder)
+
+instance HasCall Code where
   call g = C $ \_ -> fromString "call " <> showb g
 
-instance SystemF.HasConstants AsText where
+instance SystemF.HasConstants Code where
   constant k = C $ \_ -> showb k
 
-instance HasConstants AsText where
+instance HasConstants Data where
   constant k = D $ \_ -> showb k
 
-instance HasTuple AsText where
+instance HasTuple Code Data where
   pair (D x) (D y) = D $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys
@@ -53,7 +54,7 @@ instance HasTuple AsText where
         C body = f (D $ \_ -> x) (D $ \_ -> y)
      in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
-instance HasReturn AsText where
+instance HasReturn Code Data where
   letTo (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
         C y = f (D $ \_ -> binder)
@@ -61,7 +62,7 @@ instance HasReturn AsText where
   returns (D k) = C $ \s ->
     fromString "return " <> k s
 
-instance SystemF.HasTuple AsText where
+instance SystemF.HasTuple Code where
   pair (C x) (C y) = C $ \(Unique.Stream _ xs ys) ->
     let x' = x xs
         y' = y ys
@@ -73,13 +74,13 @@ instance SystemF.HasTuple AsText where
         C body = f (C $ \_ -> x) (C $ \_ -> y)
      in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
 
-instance SystemF.HasLet AsText where
+instance SystemF.HasLet Code where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (C $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
-instance SystemF.HasFn AsText where
+instance SystemF.HasFn Code where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = fromString "v" <> showb newId
         C y = Path.flatten f (C $ \_ -> binder)
@@ -87,40 +88,37 @@ instance SystemF.HasFn AsText where
   C f <*> C x = C $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
 
-instance HasLet AsText where
+instance HasLet Code Data where
   letBe (D x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "v" <> showb newId
         C y = f (D $ \_ -> binder)
      in x xs <> fromString " be " <> binder <> fromString ".\n" <> y ys
 
-instance Cps.HasLabel AsText where
+instance Cps.HasLabel Code Stack where
   label (S x) f = C $ \(Unique.Stream newId xs ys) ->
     let binder = fromString "l" <> showb newId
         C y = f (S $ \_ -> binder)
      in x xs <> fromString " label " <> binder <> fromString ".\n" <> y ys
 
-instance HasFn AsText where
+instance HasFn Code Data where
   C f <*> D x = C $ \(Unique.Stream _ fs xs) -> x xs <> fromString "\n" <> f fs
   lambda t f = C $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
 
-instance HasThunk AsText where
+instance HasThunk Code Data where
   thunk (C code) = D $ \s -> fromString "thunk {" <> fromText (T.replace (T.pack "\n") (T.pack "\n\t") (toText (fromString "\n" <> code s))) <> fromString "\n}"
   force (D th) = C $ \s -> fromString "! " <> th s
 
-instance HasStack.HasStack AsText where
-  data Stack AsText a = S (forall s. Unique.Stream s -> TextShow.Builder)
-
-instance Cps.HasThunk AsText where
+instance Cps.HasThunk Code Data Stack where
   thunk t f = D $ \(Unique.Stream newId _ s) ->
     let binder = fromString "l" <> showb newId
         C body = f (S $ \_ -> binder)
      in fromString "thunk " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> body s
   force (D f) (S x) = C $ \(Unique.Stream _ fs xs) -> fromString "! " <> f fs <> fromString " " <> x xs
 
-instance Cps.HasReturn AsText where
+instance Cps.HasReturn Code Data Stack where
   letTo t f = S $ \(Unique.Stream newId _ s) ->
     let binder = fromString "v" <> showb newId
         C body = f (D $ \_ -> binder)
@@ -129,7 +127,7 @@ instance Cps.HasReturn AsText where
   returns (D x) (S k) = C $ \(Unique.Stream _ ks xs) ->
     fromString "return " <> x xs <> fromString " " <> k ks
 
-instance Cps.HasFn AsText where
+instance Cps.HasFn Code Data Stack where
   lambda (S k) f = C $ \(Unique.Stream h ks (Unique.Stream t _ s)) ->
     let binder = fromString "v" <> showb h
         lbl = fromString "l" <> showb t
@@ -138,5 +136,5 @@ instance Cps.HasFn AsText where
   D x <*> S k = S $ \(Unique.Stream _ ks xs) ->
     x xs <> fromString " :: " <> k ks
 
-instance Cps.HasCall AsText where
+instance Cps.HasCall Data where
   call g = D $ \_ -> fromString "call " <> showb g

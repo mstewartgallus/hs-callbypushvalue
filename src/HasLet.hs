@@ -1,11 +1,16 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module HasLet (HasLet (..)) where
 
-import HasCode
-import HasData
+import Common
 
-class (HasData t, HasCode t) => HasLet t where
-  whereIs :: (Data t a -> Code t b) -> Data t a -> Code t b
+class HasLet (cd :: Algebra -> *) (dta :: Set -> *) | cd -> dta, dta -> cd where
+  whereIs :: (dta a -> cd b) -> dta a -> cd b
   whereIs = flip letBe
 
-  letBe :: Data t a -> (Data t a -> Code t b) -> Code t b
+  letBe :: dta a -> (dta a -> cd b) -> cd b
   letBe = flip whereIs
