@@ -11,8 +11,6 @@ import Debug.Trace
 import HasCall
 import HasCode
 import NatTrans
-import Path (Path)
-import qualified Path
 import SystemF
 import Prelude hiding ((.), (<*>))
 
@@ -22,7 +20,7 @@ extract = NatTrans $ \(C _ x) -> x
 data Simplifier t
 
 data MaybeFn t a where
-  Fn :: (Path (->) (Code t a) (Code t b)) -> MaybeFn t (a :-> b)
+  Fn :: (Code t a -> Code t b) -> MaybeFn t (a :-> b)
   NotFn :: MaybeFn t a
 
 instance HasCode t => HasCode (Simplifier t) where
@@ -46,8 +44,8 @@ instance HasLet t => HasLet (Simplifier t) where
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' = Path.make (extract #) . f . Path.make (C NotFn)
+    let f' = (extract #) . f . (C NotFn)
      in C (Fn f') $ lambda t f'
 
   C NotFn f <*> C _ x = C NotFn (f <*> x)
-  C (Fn f) _ <*> C _ x = C NotFn (whereIs (Path.flatten f) x)
+  C (Fn f) _ <*> C _ x = C NotFn (whereIs f x)

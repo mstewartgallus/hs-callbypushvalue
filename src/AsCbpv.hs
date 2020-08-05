@@ -14,7 +14,6 @@ import HasData
 import HasLet
 import HasTuple
 import NatTrans
-import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
@@ -45,5 +44,5 @@ instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   whereIs f = C . whereIs (unC . f . C . force) . thunk . unC
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
-  lambda t f = C $ lambda (SU t) (unC . Path.flatten f . C . force)
+  lambda t f = C $ lambda (SU t) (unC . f . C . force)
   (<*>) (C f) = C . (<*>) f . thunk . unC

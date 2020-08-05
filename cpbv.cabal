@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a307a153449b25bbd2b87b93291c3604359973806db2db49fb8c4ba2fe084917
+-- hash: ae439d41f22cd3a78356550d45653c2c62af106d3aad59fd1722587fdb31a960
 
 name:           cpbv
 version:        0.1.0.0
@@ -63,7 +63,6 @@ library
       Name
       NatTrans
       PairF
-      Path
       SystemF
       SystemFSimplifier
       Unique

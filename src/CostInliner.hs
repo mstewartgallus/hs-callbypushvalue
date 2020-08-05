@@ -21,7 +21,6 @@ import HasStack
 import HasTuple
 import NatTrans
 import PairF
-import qualified Path
 import qualified SystemF as F
 import Prelude hiding ((.), (<*>))
 
@@ -80,6 +79,7 @@ newtype CostInliner t = CostInliner (AsDup AsInlineCost t)
       HasTuple,
       F.HasConstants,
       F.HasTuple,
+      F.HasFn,
       Cps.HasCall,
       Cps.HasReturn,
       Cps.HasFn,
@@ -94,7 +94,3 @@ instance HasCode t => HasCode (CostInliner t) where
 
 instance HasStack t => HasStack (CostInliner t) where
   newtype Stack (CostInliner t) a = S {unS :: Stack (AsDup AsInlineCost t) a}
-
-instance F.HasFn t => F.HasFn (CostInliner t) where
-  lambda t f = C $ F.lambda t (Path.make unC . f . Path.make C)
-  C f <*> C x = C (f F.<*> x)

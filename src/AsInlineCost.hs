@@ -12,7 +12,6 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
-import qualified Path
 import qualified SystemF
 import Prelude hiding ((.), (<*>))
 
@@ -111,6 +110,6 @@ instance SystemF.HasLet AsInlineCost where
 
 instance SystemF.HasFn AsInlineCost where
   lambda t f =
-    let C fcost = Path.flatten f (C 0)
+    let C fcost = f (C 0)
      in C (fcost + 1)
   C fcost <*> C xcost = C (fcost + xcost + 1)

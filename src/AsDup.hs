@@ -22,7 +22,6 @@ import qualified LabelMap
 import Name
 import NatTrans
 import PairF
-import qualified Path
 import SystemF (SystemF)
 import qualified SystemF as F
 import qualified Unique
@@ -122,8 +121,8 @@ instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
 instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = F.lambda t (Path.make getfirst . f . Path.make (\x -> C x undefined))
-      second = F.lambda t (Path.make getsnd . f . Path.make (\x -> C undefined x))
+      first = F.lambda t (getfirst . f . (\x -> C x undefined))
+      second = F.lambda t (getsnd . f . (\x -> C undefined x))
       getfirst (C y _) = y
       getsnd (C _ y) = y
 

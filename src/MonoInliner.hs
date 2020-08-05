@@ -14,7 +14,6 @@ import HasLet
 import HasStack
 import HasTuple
 import NatTrans
-import qualified Path
 import qualified SystemF
 import Prelude hiding ((.), (<*>))
 
@@ -135,6 +134,6 @@ instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
 
 instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where
   lambda t f =
-    let C fcost _ = Path.flatten f (C 0 undefined)
-     in C fcost $ SystemF.lambda t (Path.make (extract #) . f . Path.make (C 0))
+    let C fcost _ = f (C 0 undefined)
+     in C fcost $ SystemF.lambda t ((extract #) . f . (C 0))
   C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)

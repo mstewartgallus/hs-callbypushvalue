@@ -23,7 +23,6 @@ import LabelMap (LabelMap)
 import qualified LabelMap
 import Name
 import NatTrans
-import qualified Path
 import SystemF (HasConstants (..), HasFn, HasTuple, SystemF)
 import qualified SystemF
 import TextShow
@@ -66,11 +65,11 @@ instance HasTuple (AsMemoized SystemF)
 instance HasFn (AsMemoized SystemF) where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = Label t newId
-        y = unC $ Path.flatten f $ C $ \_ -> \env -> case LabelMap.lookup binder env of
+        y = unC $ f $ C $ \_ -> \env -> case LabelMap.lookup binder env of
           Just x -> x
         y' = y ys
      in \env ->
-          SystemF.lambda t $ Path.make $ \val -> y' (LabelMap.insert binder val env)
+          SystemF.lambda t $ \val -> y' (LabelMap.insert binder val env)
 
   C f <*> C x = C $ \(Unique.Stream _ fs xs) ->
     let f' = f fs

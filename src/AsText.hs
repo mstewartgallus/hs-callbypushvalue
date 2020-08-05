@@ -13,7 +13,6 @@ import HasData
 import HasLet
 import qualified HasStack
 import HasTuple
-import qualified Path
 import qualified SystemF
 import TextShow
 import qualified Unique
@@ -82,7 +81,7 @@ instance SystemF.HasLet AsText where
 instance SystemF.HasFn AsText where
   lambda t f = C $ \(Unique.Stream newId _ ys) ->
     let binder = fromString "v" <> showb newId
-        C y = Path.flatten f (C $ \_ -> binder)
+        C y = f (C $ \_ -> binder)
      in fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> y ys
   C f <*> C x = C $ \(Unique.Stream _ fs xs) ->
     fromString "(" <> f fs <> fromString " " <> x xs <> fromString ")"
