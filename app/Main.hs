@@ -6,6 +6,8 @@ module Main where
 
 import AsCbpv (AsCbpv)
 import qualified AsCbpv
+import qualified AsCompose
+import AsCompose ((:.:))
 import qualified AsCps
 import AsCps (AsCps)
 import qualified AsDup
@@ -100,34 +102,34 @@ dupLog term = do
 
   return copy
 
-cbpvTerm :: Cbpv t => Code (AsCbpv (AsDup AsText t)) a -> IO (Code t a)
+cbpvTerm :: Cbpv t => Code ((AsCbpv :.: AsDup AsText) t) a -> IO (Code t a)
 cbpvTerm term = do
-  let PairF text copy = (AsDup.extract . AsCbpv.extract) # term
+  let PairF text copy = (AsDup.extract . AsCbpv.extract . AsCompose.extract) # term
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract text)
 
   return copy
 
-intrinsify :: Cbpv t => Code (AsIntrinsified (AsDup AsText t)) a -> IO (Code t a)
+intrinsify :: Cbpv t => Code ((AsIntrinsified :.: AsDup AsText) t) a -> IO (Code t a)
 intrinsify term = do
-  let PairF text copy = (AsDup.extract . AsIntrinsified.extract) # term
+  let PairF text copy = (AsDup.extract . AsIntrinsified.extract . AsCompose.extract) # term
 
   putStrLn "\nIntrinsified:"
   T.putStrLn (AsText.extract text)
 
   return copy
 
-cpsTerm :: Cps t => Data (AsCps (AsDup AsText t)) a -> IO (Data t a)
+cpsTerm :: Cps t => Data ((AsCps :.: AsDup AsText) t) a -> IO (Data t a)
 cpsTerm term = do
-  let PairF text copy = (AsDup.extractData . AsCps.extract) # term
+  let PairF text copy = (AsDup.extractData . AsCps.extract . AsCompose.extractData) # term
 
   putStrLn "\nContinuation Passing Style:"
   T.putStrLn (AsText.extractData text)
 
   return copy
 
-type OptF t = SystemFSimplifier.Simplifier (MonoInliner (CostInliner t))
+type OptF = SystemFSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeTerm :: SystemF t => Code (OptF (AsDup AsText t)) a -> IO (Code t a)
@@ -136,7 +138,9 @@ optimizeTerm input =
       step =
         CostInliner.extract
           . MonoInliner.extract
+          . AsCompose.extract
           . SystemFSimplifier.extract
+          . AsCompose.extract
    in do
         let PairF text copy = (AsDup.extract . step) # input
         putStrLn "\nOptimized Term:"
@@ -148,7 +152,7 @@ optimizeTerm input =
 -- loop 0 term = term
 -- loop n term = loop (n - 1) (mkProgram (step (Box.interpret term)))
 
-type OptC t = CbpvSimplifier.Simplifier (MonoInliner (CostInliner t))
+type OptC = CbpvSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
@@ -157,7 +161,9 @@ optimizeCbpv input =
       step =
         CostInliner.extract
           . MonoInliner.extract
+          . AsCompose.extract
           . CbpvSimplifier.extract
+          . AsCompose.extract
    in do
         let PairF text copy = (AsDup.extract . step) # input
         putStrLn "\nOptimized Call By Push Value:"
@@ -169,7 +175,7 @@ optimizeCbpv input =
 -- loop 0 term = term
 -- loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
 
-type OptCps t = CpsSimplifier.Simplifier (MonoInliner (CostInliner t))
+type OptCps = CpsSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
 optimizeCps input =
@@ -177,7 +183,9 @@ optimizeCps input =
       step =
         CostInliner.extractData
           . MonoInliner.extractData
+          . AsCompose.extractData
           . CpsSimplifier.extract
+          . AsCompose.extractData
    in do
         let PairF text copy = (AsDup.extractData . step) # input
         putStrLn "\nOptimized Continuation Passing Style:"
