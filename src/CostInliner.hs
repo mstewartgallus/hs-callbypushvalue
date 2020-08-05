@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -68,7 +70,21 @@ instance F.HasLet t => F.HasLet (CostInliner t) where
 -- arbitrary and will need tuning
 --
 -- FIXME: use an alternative to the probe function
-data CostInliner t
+newtype CostInliner t = CostInliner (AsDup AsInlineCost t)
+  deriving
+    ( HasCall,
+      HasConstants,
+      HasReturn,
+      HasThunk,
+      HasFn,
+      HasTuple,
+      F.HasConstants,
+      F.HasTuple,
+      Cps.HasCall,
+      Cps.HasReturn,
+      Cps.HasFn,
+      Cps.HasThunk
+    )
 
 instance HasData t => HasData (CostInliner t) where
   newtype Data (CostInliner t) a = D {unD :: Data (AsDup AsInlineCost t) a}
@@ -79,50 +95,6 @@ instance HasCode t => HasCode (CostInliner t) where
 instance HasStack t => HasStack (CostInliner t) where
   newtype Stack (CostInliner t) a = S {unS :: Stack (AsDup AsInlineCost t) a}
 
-instance HasCall t => HasCall (CostInliner t) where
-  call = C . call
-
-instance HasReturn t => HasReturn (CostInliner t) where
-  from f = C . from (unC . f . D) . unC
-  returns = C . returns . unD
-
-instance F.HasTuple t => F.HasTuple (CostInliner t) where
-  pair (C x) (C y) = C (F.pair x y)
-  ofPair f (C tuple) = C $ F.ofPair (\x y -> unC $ f (C x) (C y)) tuple
-
 instance F.HasFn t => F.HasFn (CostInliner t) where
   lambda t f = C $ F.lambda t (Path.make unC . f . Path.make C)
   C f <*> C x = C (f F.<*> x)
-
-instance HasConstants t => HasConstants (CostInliner t) where
-  constant = D . constant
-
-instance F.HasConstants t => F.HasConstants (CostInliner t) where
-  constant = C . F.constant
-
-instance HasTuple t => HasTuple (CostInliner t) where
-  pair (D x) (D y) = D (pair x y)
-  unpair (D tuple) f = C $ unpair tuple $ \x y -> unC $ f (D x) (D y)
-
-instance HasFn t => HasFn (CostInliner t) where
-  C f <*> D x = C (f <*> x)
-  lambda t f = C $ lambda t (unC . f . D)
-
-instance HasThunk t => HasThunk (CostInliner t) where
-  force = C . force . unD
-  thunk = D . thunk . unC
-
-instance Cps.HasThunk t => Cps.HasThunk (CostInliner t) where
-  thunk t f = D $ Cps.thunk t (unC . f . S)
-  force (D th) (S stack) = C (Cps.force th stack)
-
-instance Cps.HasFn t => Cps.HasFn (CostInliner t) where
-  lambda (S k) f = C $ Cps.lambda k (\x n -> unC $ f (D x) (S n))
-  D x <*> S k = S (x Cps.<*> k)
-
-instance Cps.HasCall t => Cps.HasCall (CostInliner t) where
-  call = D . Cps.call
-
-instance Cps.HasReturn t => Cps.HasReturn (CostInliner t) where
-  letTo t f = S $ Cps.letTo t (unC . f . D)
-  returns (D c) (S stk) = C (Cps.returns c stk)

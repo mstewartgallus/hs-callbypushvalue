@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -20,16 +21,13 @@ import Prelude hiding ((<*>))
 extract :: Code (AsCbpv t) :~> Code t
 extract = NatTrans unC
 
-data AsCbpv t
+newtype AsCbpv t = AsCbpv t deriving (HasCall)
 
 instance HasCode t => HasCode (AsCbpv t) where
   newtype Code (AsCbpv t) a = C {unC :: Code t a}
 
 instance HasData t => HasData (AsCbpv t) where
   newtype Data (AsCbpv t) a = D {unD :: Data t a}
-
-instance HasCall t => HasCall (AsCbpv t) where
-  call = C . call
 
 instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
   constant = C . returns . constant

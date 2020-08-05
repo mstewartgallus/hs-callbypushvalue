@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -21,7 +22,7 @@ import Prelude hiding ((<*>))
 extract :: Cbpv t => Code (AsIntrinsified t) :~> Code t
 extract = NatTrans $ \(C x) -> x
 
-data AsIntrinsified t
+newtype AsIntrinsified t = AsIntrinsified t deriving (HasConstants, HasTuple, HasLet, HasReturn, HasFn, HasThunk)
 
 instance HasCode t => HasCode (AsIntrinsified t) where
   newtype Code (AsIntrinsified t) a = C {unC :: Code t a}
@@ -33,28 +34,6 @@ instance Cbpv t => HasCall (AsIntrinsified t) where
   call g = C $ case GlobalMap.lookup g intrinsics of
     Nothing -> call g
     Just intrinsic -> intrinsic
-
-instance HasConstants t => HasConstants (AsIntrinsified t) where
-  constant = D . constant
-
-instance Cbpv t => HasTuple (AsIntrinsified t) where
-  pair (D x) (D y) = D (pair x y)
-  ofPair f = C . ofPair (\x y -> unC $ f (D x) (D y)) . unD
-
-instance HasLet t => HasLet (AsIntrinsified t) where
-  whereIs f = C . whereIs (unC . f . D) . unD
-
-instance HasReturn t => HasReturn (AsIntrinsified t) where
-  returns = C . returns . unD
-  from f = C . from (unC . f . D) . unC
-
-instance HasFn t => HasFn (AsIntrinsified t) where
-  C f <*> D x = C (f <*> x)
-  lambda t f = C $ lambda t (unC . f . D)
-
-instance HasThunk t => HasThunk (AsIntrinsified t) where
-  thunk = D . thunk . unC
-  force = C . force . unD
 
 intrinsics :: Cbpv t => GlobalMap (Code t)
 intrinsics =
