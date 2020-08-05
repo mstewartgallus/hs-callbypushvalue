@@ -17,7 +17,7 @@ import NatTrans
 import Prelude hiding ((<*>))
 
 extract :: Code (Simplifier t) :~> Code t
-extract = NatTrans $ \(C _ code) -> code
+extract = NatTrans abstract
 
 data Simplifier t
 
@@ -78,6 +78,3 @@ instance HasThunk t => HasThunk (Simplifier t) where
 
 abstract :: Code (Simplifier t) a -> Code t a
 abstract (C _ code) = code
-
-abstractD :: Data (Simplifier t) a -> Data t a
-abstractD (D _ x) = x

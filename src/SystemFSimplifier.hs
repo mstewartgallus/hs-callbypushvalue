@@ -7,7 +7,6 @@ module SystemFSimplifier (extract, Simplifier) where
 
 import Common
 import Control.Category
-import Debug.Trace
 import HasCall
 import HasCode
 import NatTrans

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
@@ -14,11 +13,8 @@ import qualified AsDup
 import AsDup (AsDup)
 import AsIntrinsified (AsIntrinsified)
 import qualified AsIntrinsified
-import qualified AsMemoized
 import qualified AsPorcelain
 import AsText
-import Box (Box, mkProgram, mkValue)
-import qualified Box
 import Cbpv (Cbpv)
 import qualified Cbpv
 import Cbpv (HasThunk (..))
@@ -87,12 +83,6 @@ main = do
 
   return ()
 
-cbpvValue :: (forall t. Cbpv t => Data t a) -> Data (Box Cbpv) a
-cbpvValue = mkValue
-
-cpsValue :: (forall t. Cps t => Data t a) -> Data (Box Cps) a
-cpsValue = mkValue
-
 dupLog :: SystemF t => Code (AsDup AsText t) a -> IO (Code t a)
 dupLog term = do
   let PairF text copy = AsDup.extract # term
@@ -148,10 +138,6 @@ optimizeTerm input =
 
         return copy
 
--- loop :: Int -> Code (Box SystemF) a -> Code (Box SystemF) a
--- loop 0 term = term
--- loop n term = loop (n - 1) (mkProgram (step (Box.interpret term)))
-
 type OptC = CbpvSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
@@ -171,10 +157,6 @@ optimizeCbpv input =
 
         return copy
 
--- loop :: Int -> Data (Box Cbpv) a -> Data (Box Cbpv) a
--- loop 0 term = term
--- loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
-
 type OptCps = CpsSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
@@ -192,10 +174,6 @@ optimizeCps input =
         T.putStrLn (AsText.extractData text)
 
         return copy
-
--- loop :: Int -> Data (Box Cps) a -> Data (Box Cps) a
--- loop 0 term = term
--- loop n term = loop (n - 1) (mkValue (step (Box.interpretValue term)))
 
 t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

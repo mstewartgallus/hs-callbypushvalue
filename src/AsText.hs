@@ -29,7 +29,7 @@ instance HasData AsText where
   newtype Data AsText a = D (forall s. Unique.Stream s -> Builder)
 
 instance HasCode AsText where
-  newtype Code AsText a = C {unC :: forall s. Unique.Stream s -> Builder}
+  newtype Code AsText a = C (forall s. Unique.Stream s -> Builder)
 
 instance HasCall AsText where
   call g = C $ \_ -> fromString "call " <> showb g

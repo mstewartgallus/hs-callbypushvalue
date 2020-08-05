@@ -56,7 +56,7 @@ instance HasConstants X where
 
 instance HasTuple X where
   pair (V x) (V y) = V (x ::: y)
-  unpair (V (x ::: y)) f = f (V x) (V y)
+  ofPair f (V (x ::: y)) = f (V x) (V y)
 
 instance HasLet X where
   whereIs = id

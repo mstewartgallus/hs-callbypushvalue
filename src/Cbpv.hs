@@ -1,7 +1,6 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Cbpv (Cbpv, HasReturn (..), HasFn (..), HasThunk (..)) where
 
@@ -13,9 +12,7 @@ import HasData
 import HasLet
 import HasTuple
 
-class (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
-
-instance (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t) => Cbpv t
+type Cbpv t = (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t)
 
 class (HasData t, HasCode t) => HasReturn t where
   letTo :: Code t ('F a) -> (Data t a -> Code t b) -> Code t b

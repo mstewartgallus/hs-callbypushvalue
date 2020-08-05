@@ -3,7 +3,6 @@
 module AsInlineCost (extract, extractData, extractStack, AsInlineCost) where
 
 import Cbpv
-import Control.Category
 import qualified Cps
 import HasCall
 import HasCode
@@ -13,27 +12,26 @@ import HasLet
 import HasStack
 import HasTuple
 import qualified SystemF
-import Prelude hiding ((.), (<*>))
 
 data AsInlineCost
 
 extract :: Code AsInlineCost a -> Int
-extract (C x) = x
+extract = unC
 
 extractData :: Data AsInlineCost a -> Int
-extractData (D x) = x
+extractData = unD
 
 extractStack :: Stack AsInlineCost a -> Int
-extractStack (S x) = x
+extractStack = unS
 
 instance HasCode AsInlineCost where
-  newtype Code AsInlineCost a = C Int
+  newtype Code AsInlineCost a = C {unC :: Int}
 
 instance HasData AsInlineCost where
-  newtype Data AsInlineCost a = D Int
+  newtype Data AsInlineCost a = D {unD :: Int}
 
 instance HasStack AsInlineCost where
-  newtype Stack AsInlineCost a = S Int
+  newtype Stack AsInlineCost a = S {unS :: Int}
 
 instance HasCall AsInlineCost where
   call _ = C 1
@@ -109,7 +107,7 @@ instance SystemF.HasLet AsInlineCost where
       C fcost = f (C 0)
 
 instance SystemF.HasFn AsInlineCost where
-  lambda t f =
+  lambda _ f =
     let C fcost = f (C 0)
      in C (fcost + 1)
   C fcost <*> C xcost = C (fcost + xcost + 1)

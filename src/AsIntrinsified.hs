@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsIntrinsified (AsIntrinsified, extract) where
+module AsIntrinsified (AsIntrinsified, extract, Code (..), Data (..)) where
 
 import Cbpv
 import Common
@@ -20,7 +20,7 @@ import NatTrans
 import Prelude hiding ((<*>))
 
 extract :: Cbpv t => Code (AsIntrinsified t) :~> Code t
-extract = NatTrans $ \(C x) -> x
+extract = NatTrans unC
 
 newtype AsIntrinsified t = AsIntrinsified t deriving (HasConstants, HasTuple, HasLet, HasReturn, HasFn, HasThunk)
 

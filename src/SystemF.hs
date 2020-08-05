@@ -1,8 +1,7 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
 
@@ -20,9 +19,7 @@ import Prelude hiding ((<*>))
 -- adjoint functors.)
 --
 -- FIXME: forall and applyType are not yet implemented
-class (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
-
-instance (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t) => SystemF t
+type SystemF t = (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t)
 
 class HasCode t => HasLet t where
   letBe :: Code t a -> (Code t a -> Code t b) -> Code t b

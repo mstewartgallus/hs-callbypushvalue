@@ -1,7 +1,6 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Cps (Cps, HasThunk (..), HasReturn (..), HasFn (..), HasCall (..), HasLabel (..)) where
 
@@ -20,9 +19,7 @@ import HasTuple
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-class (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t) => Cps t
-
-instance (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t) => Cps t
+type Cps t = (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t)
 
 class HasData t => HasCall t where
   call :: Global a -> Data t ('U a)

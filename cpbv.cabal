@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ae439d41f22cd3a78356550d45653c2c62af106d3aad59fd1722587fdb31a960
+-- hash: 85de154eb861e09ea0742f410ac166bed0170feaf52dfbe99fdab43a748771c6
 
 name:           cpbv
 version:        0.1.0.0
@@ -33,12 +33,8 @@ library
       AsDup
       AsInlineCost
       AsIntrinsified
-      AsMemoized
-      AsMonoCost
       AsPorcelain
       AsText
-      AsType
-      Box
       Cbpv
       CbpvSimplifier
       Common
