@@ -16,7 +16,6 @@ import qualified AsIntrinsified
 import qualified AsPorcelain
 import AsText
 import Cbpv (Cbpv)
-import qualified Cbpv
 import Cbpv (HasThunk (..))
 import qualified CbpvSimplifier
 import Common
@@ -25,10 +24,8 @@ import Control.Category
 import qualified Core
 import qualified CostInliner
 import CostInliner (CostInliner)
-import qualified Cps
 import Cps (Cps)
 import qualified CpsSimplifier
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCall
@@ -45,14 +42,17 @@ import qualified SystemFSimplifier
 import TextShow
 import Prelude hiding ((.), id)
 
+iterTerm :: Int
 iterTerm = 20
 
+iterCbpv :: Int
 iterCbpv = 20
 
+iterCps :: Int
 iterCps = 20
 
-program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
-program = F.lam $ \x ->
+program :: SystemF t => Code t ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
+program = F.lam $ \_ ->
   F.lam $ \y ->
     ( F.lam $ \z ->
         call Core.plus F.<*> z F.<*> y
@@ -175,5 +175,5 @@ optimizeCps input =
 
         return copy
 
-t :: Word64 -> Interpreter.Value (U (F U64))
+t :: Word64 -> Interpreter.Value ('U ('F 'U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

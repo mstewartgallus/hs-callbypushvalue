@@ -4,11 +4,8 @@
 module AsDup (AsDup, extract, extractData, extractStack) where
 
 import Cbpv
-import Common
 import Control.Category
 import qualified Cps
-import qualified Cps
-import Global
 import HasCall
 import HasCode
 import HasConstants
@@ -16,15 +13,9 @@ import HasData
 import HasLet
 import HasStack
 import HasTuple
-import Label
-import LabelMap (LabelMap)
-import qualified LabelMap
-import Name
 import NatTrans
 import PairF
-import SystemF (SystemF)
 import qualified SystemF as F
-import qualified Unique
 import Prelude hiding ((.), (<*>))
 
 extract :: Code (AsDup s t) :~> PairF (Code s) (Code t)
@@ -96,9 +87,23 @@ instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
       second = letTo r $ \x' -> case f (D undefined x') of
         C _ y -> y
 
-instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t)
+instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t) where
+  pair (C x x') (C y y') = C (F.pair x y) (F.pair x' y')
+  unpair (C t t') f = C first second
+    where
+      first = F.unpair t $ \x y -> case f (C x undefined) (C y undefined) of
+        C r _ -> r
+      second = F.unpair t' $ \x y -> case f (C undefined x) (C undefined y) of
+        C _ r -> r
 
-instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t)
+instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t) where
+  pair (D x x') (D y y') = D (pair x y) (pair x' y')
+  unpair (D t t') f = C first second
+    where
+      first = unpair t $ \x y -> case f (D x undefined) (D y undefined) of
+        C r _ -> r
+      second = unpair t' $ \x y -> case f (D undefined x) (D undefined y) of
+        C _ r -> r
 
 instance (Cps.HasReturn s, Cps.HasReturn t) => Cps.HasReturn (AsDup s t) where
   returns (D x x') (S k k') = C (Cps.returns x k) (Cps.returns x' k')

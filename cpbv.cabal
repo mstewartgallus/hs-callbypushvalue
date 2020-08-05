@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 85de154eb861e09ea0742f410ac166bed0170feaf52dfbe99fdab43a748771c6
+-- hash: 979b24c4229d350f7eaf4e77793809690dee5533d153100f9ae235169a86e3c5
 
 name:           cpbv
 version:        0.1.0.0
@@ -53,8 +53,6 @@ library
       HasStack
       HasTuple
       Interpreter
-      Label
-      LabelMap
       MonoInliner
       Name
       NatTrans
@@ -62,8 +60,6 @@ library
       SystemF
       SystemFSimplifier
       Unique
-      Variable
-      VarMap
   other-modules:
       Paths_cpbv
   hs-source-dirs:
