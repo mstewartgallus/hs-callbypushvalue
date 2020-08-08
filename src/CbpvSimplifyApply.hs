@@ -22,17 +22,17 @@ extract = NatTrans cout
 
 data Simplifier t
 
-data CtxC t (a :: Algebra) (b :: Algebra) where
-  ApplyCtxC :: HasFn t => Data t a -> CtxC t (a :=> b) b
-  IdCtxC :: CtxC t a a
+data Ctx t a b where
+  ApplyCtx :: HasFn t => Data t a -> Ctx t (a :=> b) b
+  IdCtx :: Ctx t a a
 
 cin :: Code t a -> Code (Simplifier t) a
 cin code = C $ \ctx -> case ctx of
-  ApplyCtxC x -> code <*> x
-  IdCtxC -> code
+  ApplyCtx x -> code <*> x
+  IdCtx -> code
 
 cout :: Code (Simplifier t) a -> Code t a
-cout (C f) = f IdCtxC
+cout (C f) = f IdCtx
 
 din :: Data t a -> Data (Simplifier t) a
 din = D
@@ -44,12 +44,12 @@ instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
     let f' = cout . f . din
      in C $ \ctx -> case ctx of
-          IdCtxC -> lambda t f'
-          ApplyCtxC x -> whereIs f' x
-  (<*>) (C f) = cin . f . ApplyCtxC . dout
+          IdCtx -> lambda t f'
+          ApplyCtx x -> whereIs f' x
+  (<*>) (C f) = cin . f . ApplyCtx . dout
 
 instance HasCode (Simplifier t) where
-  newtype Code (Simplifier t) a = C (forall b. CtxC t a b -> Code t b)
+  newtype Code (Simplifier t) a = C (forall b. Ctx t a b -> Code t b)
 
 instance HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (Data t a)
@@ -61,13 +61,17 @@ instance HasCall t => HasCall (Simplifier t) where
   call = cin . call
 
 instance HasLet t => HasLet (Simplifier t) where
-  whereIs f = cin . whereIs (cout . f . din) . dout
+  whereIs f (D x) = C $ \ctx -> letBe x $ \x' ->
+    case f (din x') of
+      C y -> y ctx
 
 instance HasTuple t => HasTuple (Simplifier t)
 
 instance HasReturn t => HasReturn (Simplifier t) where
   returns = cin . returns . dout
-  from f = cin . from (cout . f . din) . cout
+  from f x = C $ \ctx -> letTo (cout x) $ \x' ->
+    case f (din x') of
+      C y -> y ctx
 
 instance HasThunk t => HasThunk (Simplifier t) where
   force = cin . force . dout
