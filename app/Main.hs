@@ -17,7 +17,8 @@ import qualified AsPorcelain
 import AsText
 import Cbpv (Cbpv)
 import Cbpv (HasThunk (..))
-import qualified CbpvSimplifier
+import qualified CbpvSimplifyApply
+import qualified CbpvSimplifyReturn
 import Common
 import qualified Constant
 import Control.Category
@@ -138,7 +139,7 @@ optimizeTerm input =
 
         return copy
 
-type OptC = CbpvSimplifier.Simplifier :.: MonoInliner :.: CostInliner
+type OptC = CbpvSimplifyApply.Simplifier :.: CbpvSimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
@@ -148,7 +149,9 @@ optimizeCbpv input =
         CostInliner.extract
           . MonoInliner.extract
           . AsCompose.extract
-          . CbpvSimplifier.extract
+          . CbpvSimplifyReturn.extract
+          . AsCompose.extract
+          . CbpvSimplifyApply.extract
           . AsCompose.extract
    in do
         let PairF text copy = (AsDup.extract . step) # input

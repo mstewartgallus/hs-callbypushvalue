@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CbpvSimplifier (Simplifier, extract) where
+module CbpvSimplifyReturn (Simplifier, extract) where
 
 import Cbpv
 import Common
@@ -23,34 +23,37 @@ extract = NatTrans cout
 data Simplifier t
 
 data CtxC t (a :: Algebra) (b :: Algebra) where
-  ApplyCtxC :: HasFn t => Data t a -> CtxC t (a :=> b) b
   LetToCtxC :: HasReturn t => (Data t a -> Code t b) -> CtxC t (F a) b
   IdCtxC :: CtxC t a a
-
-data CtxD t (a :: Set) (b :: Set) where
-  IdCtxD :: CtxD t a a
 
 cin :: Code t a -> Code (Simplifier t) a
 cin code = C $ \ctx -> case ctx of
   LetToCtxC f -> from f code
-  ApplyCtxC x -> code <*> x
   IdCtxC -> code
 
 cout :: Code (Simplifier t) a -> Code t a
 cout (C f) = f IdCtxC
 
 din :: Data t a -> Data (Simplifier t) a
-din val = D $ \ctx -> case ctx of
-  IdCtxD -> val
+din = D
 
 dout :: Data (Simplifier t) a -> Data t a
-dout (D f) = f IdCtxD
+dout (D x) = x
+
+instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
+  returns x =
+    let x' = dout x
+     in C $ \ctx -> case ctx of
+          IdCtxC -> returns x'
+          LetToCtxC f -> whereIs f x'
+
+  from f (C x) = cin $ x $ LetToCtxC (cout . f . din)
 
 instance HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (forall b. CtxC t a b -> Code t b)
 
 instance HasData (Simplifier t) where
-  newtype Data (Simplifier t) a = D (forall b. CtxD t a b -> Data t b)
+  newtype Data (Simplifier t) a = D (Data t a)
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant = din . constant
@@ -63,23 +66,11 @@ instance HasLet t => HasLet (Simplifier t) where
 
 instance HasTuple t => HasTuple (Simplifier t)
 
-instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns x =
-    let x' = dout x
-     in C $ \ctx -> case ctx of
-          IdCtxC -> returns x'
-          LetToCtxC f -> whereIs f x'
-
-  from f (C x) = cin $ x $ LetToCtxC (cout . f . din)
-
-instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
+instance HasFn t => HasFn (Simplifier t) where
   lambda t f =
     let f' = cout . f . din
-     in C $ \ctx -> case ctx of
-          IdCtxC -> lambda t f'
-          ApplyCtxC x -> whereIs f' x
-
-  C f <*> x = cin $ f $ ApplyCtxC $ dout x
+     in cin $ lambda t f'
+  f <*> x = cin $ (cout f <*> dout x)
 
 instance HasThunk t => HasThunk (Simplifier t) where
   force = cin . force . dout
