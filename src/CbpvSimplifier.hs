@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -17,62 +18,69 @@ import NatTrans
 import Prelude hiding ((<*>))
 
 extract :: Code (Simplifier t) :~> Code t
-extract = NatTrans abstract
+extract = NatTrans cout
 
 data Simplifier t
 
-data family TermC t (a :: Algebra)
+data CtxC t (a :: Algebra) (b :: Algebra) where
+  ApplyCtxC :: HasFn t => Data t a -> CtxC t (a :=> b) b
+  LetToCtxC :: HasReturn t => (Data t a -> Code t b) -> CtxC t (F a) b
+  IdCtxC :: CtxC t a a
 
-data family TermD t (a :: Set)
+data CtxD t (a :: Set) (b :: Set) where
+  IdCtxD :: CtxD t a a
 
-c :: Code t a -> Code (Simplifier t) a
-c = C Nothing
+cin :: Code t a -> Code (Simplifier t) a
+cin code = C $ \ctx -> case ctx of
+  LetToCtxC f -> from f code
+  ApplyCtxC x -> code <*> x
+  IdCtxC -> code
 
-d :: Data t a -> Data (Simplifier t) a
-d = D Nothing
+cout :: Code (Simplifier t) a -> Code t a
+cout (C f) = f IdCtxC
+
+din :: Data t a -> Data (Simplifier t) a
+din val = D $ \ctx -> case ctx of
+  IdCtxD -> val
+
+dout :: Data (Simplifier t) a -> Data t a
+dout (D f) = f IdCtxD
 
 instance HasCode (Simplifier t) where
-  data Code (Simplifier t) a = C (Maybe (TermC t a)) (Code t a)
+  newtype Code (Simplifier t) a = C (forall b. CtxC t a b -> Code t b)
 
 instance HasData (Simplifier t) where
-  data Data (Simplifier t) a = D (Maybe (TermD t a)) (Data t a)
+  newtype Data (Simplifier t) a = D (forall b. CtxD t a b -> Data t b)
 
 instance Cbpv t => HasConstants (Simplifier t) where
-  constant = d . constant
+  constant = din . constant
 
 instance HasCall t => HasCall (Simplifier t) where
-  call = c . call
+  call = cin . call
 
 instance HasLet t => HasLet (Simplifier t) where
-  whereIs f (D _ x) = c $ whereIs (abstract . f . d) x
+  whereIs f = cin . whereIs (cout . f . din) . dout
 
 instance HasTuple t => HasTuple (Simplifier t)
 
-newtype instance TermC t ('F a) = ReturnC (Data t a)
-
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns (D _ value) = C (Just (ReturnC value)) $ returns value
-  from f (C (Just (ReturnC x)) _) = c $ whereIs (abstract . f . d) x
-  from f (C _ x) = c $ from (abstract . f . d) x
+  returns x =
+    let x' = dout x
+     in C $ \ctx -> case ctx of
+          IdCtxC -> returns x'
+          LetToCtxC f -> whereIs f x'
 
-data instance TermC t (a ':=> b) = LambdaC (SSet a) (Data t a -> Code t b)
+  from f (C x) = cin $ x $ LetToCtxC (cout . f . din)
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' = abstract . f . d
-     in C (Just (LambdaC t f')) $ lambda t f'
+    let f' = cout . f . din
+     in C $ \ctx -> case ctx of
+          IdCtxC -> lambda t f'
+          ApplyCtxC x -> whereIs f' x
 
-  C (Just (LambdaC _ f)) _ <*> D _ x = c $ letBe x f
-  C _ f <*> D _ x = c $ f <*> x
-
-newtype instance TermD t ('U a) = ThunkD (Code t a)
+  C f <*> x = cin $ f $ ApplyCtxC $ dout x
 
 instance HasThunk t => HasThunk (Simplifier t) where
-  force (D (Just (ThunkD code)) _) = c code
-  force (D _ th) = c (force th)
-
-  -- fixme .. pass in thunk info somehow?
-  thunk (C _ code) = D (Just (ThunkD code)) (thunk code)
-
-abstract :: Code (Simplifier t) a -> Code t a
-abstract (C _ code) = code
+  force = cin . force . dout
+  thunk = din . thunk . cout
