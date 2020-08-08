@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CpsSimplifier (Simplifier, extract) where
+module CpsSimplifyForce (Simplifier, extract) where
 
 import Common
 import Cps
@@ -17,14 +17,13 @@ import NatTrans
 import Prelude hiding ((<*>))
 
 extract :: Data (Simplifier t) :~> Data t
-extract = NatTrans dout
+extract = NatTrans $ \(D _ x) -> x
 
 data Simplifier t
 
-data TermS t a where
-  ApplyS :: Data t a -> Stack t b -> TermS t (a ':=> b)
-  LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
-  NothingS :: TermS t a
+data TermD t a where
+  ThunkD :: SAlgebra a -> (Stack t a -> Code t 'Void) -> TermD t ('U a)
+  NothingD :: TermD t a
 
 cin :: Code t a -> Code (Simplifier t) a
 cin = C
@@ -33,25 +32,33 @@ cout :: Code (Simplifier t) a -> Code t a
 cout (C x) = x
 
 din :: Data t a -> Data (Simplifier t) a
-din = D
+din = D NothingD
 
 dout :: Data (Simplifier t) a -> Data t a
-dout (D x) = x
+dout (D _ x) = x
 
 kin :: Stack t a -> Stack (Simplifier t) a
-kin = S NothingS
+kin = S
 
 sout :: Stack (Simplifier t) a -> Stack t a
-sout (S _ x) = x
+sout (S x) = x
+
+instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
+  thunk t f =
+    let f' = cout . f . kin
+     in D (ThunkD t f') (thunk t f')
+
+  force (D (ThunkD _ f) _) x = cin $ label (sout x) f
+  force x k = cin $ force (dout x) (sout k)
 
 instance HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (Code t a)
 
 instance HasData (Simplifier t) where
-  newtype Data (Simplifier t) a = D (Data t a)
+  data Data (Simplifier t) a = D (TermD t a) (Data t a)
 
 instance HasStack (Simplifier t) where
-  data Stack (Simplifier t) a = S (TermS t a) (Stack t a)
+  newtype Stack (Simplifier t) a = S (Stack t a)
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = din . constant
@@ -64,26 +71,13 @@ instance HasLabel t => HasLabel (Simplifier t) where
 
 instance HasTuple t => HasTuple (Simplifier t)
 
-instance HasThunk t => HasThunk (Simplifier t) where
-  thunk t f = din (thunk t f')
-    where
-      f' = cout . f . kin
-  force x k = cin $ force (dout x) (sout k)
-
-instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns x (S (LetToS _ f) _) = cin $ letBe (dout x) f
+instance HasReturn t => HasReturn (Simplifier t) where
   returns x k = cin $ returns (dout x) (sout k)
+  letTo t f = kin (letTo t (cout . f . din))
 
-  letTo t f =
-    let f' = cout . f . din
-     in S (LetToS t f') (letTo t f')
-
-instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
-  D x <*> S _ k = S (ApplyS x k) (x <*> k)
-  lambda (S (ApplyS x t) _) f = cin $ label t $ \t' ->
-    letBe x $ \x' ->
-      cout (f (din x') (kin t'))
-  lambda (S _ k) f = cin $ lambda k $ \x t -> cout (f (din x) (kin t))
+instance HasFn t => HasFn (Simplifier t) where
+  x <*> k = kin (dout x <*> sout k)
+  lambda k f = cin $ lambda (sout k) $ \x t -> cout (f (din x) (kin t))
 
 instance HasCall t => HasCall (Simplifier t) where
   call = din . call

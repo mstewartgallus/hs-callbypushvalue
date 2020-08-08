@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9d4b4fde3562f1f06ee782fdddc321a900aeaf33611250363fab70be5cb49084
+-- hash: deb39b8f5dd078f2c487f62771f4453a5abcfb6ccd34fcae47af5be36700ff87
 
 name:           cpbv
 version:        0.1.0.0
@@ -45,6 +45,7 @@ library
       CostInliner
       Cps
       CpsSimplifier
+      CpsSimplifyForce
       Global
       GlobalMap
       HasCall

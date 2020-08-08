@@ -28,6 +28,7 @@ import qualified CostInliner
 import CostInliner (CostInliner)
 import Cps (Cps)
 import qualified CpsSimplifier
+import qualified CpsSimplifyForce
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCall
@@ -163,7 +164,7 @@ optimizeCbpv input =
 
         return copy
 
-type OptCps = CpsSimplifier.Simplifier :.: MonoInliner :.: CostInliner
+type OptCps = CpsSimplifyForce.Simplifier :.: CpsSimplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
 optimizeCps input =
@@ -173,6 +174,8 @@ optimizeCps input =
           . MonoInliner.extractData
           . AsCompose.extractData
           . CpsSimplifier.extract
+          . AsCompose.extractData
+          . CpsSimplifyForce.extract
           . AsCompose.extractData
    in do
         let PairF text copy = (AsDup.extractData . step) # input
