@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CbpvSimplifyReturn (Simplifier, extract) where
+module CbpvSimplifyThunk (Simplifier, extract) where
 
 import Cbpv
 import Common
@@ -22,38 +22,39 @@ extract = NatTrans cout
 
 data Simplifier t
 
-data CtxC t (a :: Algebra) (b :: Algebra) where
-  LetToCtxC :: HasReturn t => (Data t a -> Code t b) -> CtxC t (F a) b
-  IdCtxC :: CtxC t a a
+data Ctx t a b where
+  ForceCtx :: HasThunk t => Ctx t (U a) (Code t a)
+  IdCtx :: Ctx t a (Data t a)
 
 cin :: Code t a -> Code (Simplifier t) a
-cin code = C $ \ctx -> case ctx of
-  LetToCtxC f -> from f code
-  IdCtxC -> code
+cin = C
 
 cout :: Code (Simplifier t) a -> Code t a
-cout (C f) = f IdCtxC
+cout (C x) = x
 
 din :: Data t a -> Data (Simplifier t) a
-din = D
+din val = D $ \ctx -> case ctx of
+  ForceCtx -> force val
+  IdCtx -> val
 
 dout :: Data (Simplifier t) a -> Data t a
-dout (D x) = x
+dout (D x) = x IdCtx
 
-instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns x =
-    let x' = dout x
-     in C $ \ctx -> case ctx of
-          IdCtxC -> returns x'
-          LetToCtxC f -> whereIs f x'
+instance HasThunk t => HasThunk (Simplifier t) where
+  force (D x) = cin $ x $ ForceCtx
+  thunk (C x) = D $ \ctx -> case ctx of
+    IdCtx -> thunk x
+    ForceCtx -> x
 
-  from f (C x) = cin $ x $ LetToCtxC (cout . f . din)
+instance HasReturn t => HasReturn (Simplifier t) where
+  returns = cin . returns . dout
+  from f = cin . from (cout . f . din) . cout
 
 instance HasCode (Simplifier t) where
-  newtype Code (Simplifier t) a = C (forall b. CtxC t a b -> Code t b)
+  newtype Code (Simplifier t) a = C (Code t a)
 
 instance HasData (Simplifier t) where
-  newtype Data (Simplifier t) a = D (Data t a)
+  newtype Data (Simplifier t) a = D (forall b. Ctx t a b -> b)
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant = din . constant
@@ -69,7 +70,3 @@ instance HasTuple t => HasTuple (Simplifier t)
 instance HasFn t => HasFn (Simplifier t) where
   lambda t f = cin $ lambda t (cout . f . din)
   f <*> x = cin $ (cout f <*> dout x)
-
-instance HasThunk t => HasThunk (Simplifier t) where
-  force = cin . force . dout
-  thunk = din . thunk . cout
