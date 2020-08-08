@@ -32,21 +32,18 @@ class HasCode t => HasConstants t where
   constant :: Constant a -> Code t ('F a)
 
 class HasCode t => HasTuple t where
-  pair :: Code t a -> Code t b -> Code t (Pair a b)
-  unpair ::
-    Code t (Pair a b) ->
-    (Code t a -> Code t b -> Code t c) ->
-    Code t c
-  unpair = flip ofPair
-  ofPair ::
-    (Code t a -> Code t b -> Code t c) ->
-    Code t (Pair a b) ->
-    Code t c
-  ofPair = flip unpair
+  -- | factorizer from category theory
+  pair :: (Code t a -> Code t b) -> (Code t a -> Code t c) -> (Code t a -> Code t (Pair b c))
+
+  first :: Code t (Pair a b) -> Code t a
+  second :: Code t (Pair a b) -> Code t b
 
 class HasCode t => HasFn t where
   (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
   lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a :-> b)
+
+  uncurry :: (Code t a -> Code t (b :-> c)) -> (Code t (Pair a b) -> Code t c)
+  curry :: (Code t (Pair a b) -> Code t c) -> (Code t a -> Code t (b :-> c))
 
 infixl 4 <*>
 

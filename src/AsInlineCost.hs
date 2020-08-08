@@ -42,11 +42,7 @@ instance HasConstants AsInlineCost where
 instance SystemF.HasConstants AsInlineCost where
   constant _ = C 0
 
-instance HasTuple AsInlineCost where
-  pair (D xcost) (D ycost) = D (xcost + ycost + 1)
-  ofPair f (D tcost) =
-    let C rcost = f (D 0) (D 0)
-     in C (tcost + rcost + 1)
+instance HasTuple AsInlineCost
 
 instance HasLet AsInlineCost where
   letBe (D xcost) f = C (xcost + fcost)
@@ -96,10 +92,9 @@ instance Cps.HasCall AsInlineCost where
   call _ = D 5
 
 instance SystemF.HasTuple AsInlineCost where
-  pair (C xcost) (C ycost) = C (xcost + ycost + 1)
-  ofPair f (C tcost) =
-    let C rcost = f (C 0) (C 0)
-     in C (tcost + rcost + 1)
+  pair f g (C x) = C (unC (f (C 0)) + unC (g (C 0)) + x)
+  first (C tcost) = C (tcost + 1)
+  second (C tcost) = C (tcost + 1)
 
 instance SystemF.HasLet AsInlineCost where
   letBe (C xcost) f = C (xcost + fcost)

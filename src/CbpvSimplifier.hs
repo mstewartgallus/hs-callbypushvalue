@@ -46,9 +46,7 @@ instance HasCall t => HasCall (Simplifier t) where
 instance HasLet t => HasLet (Simplifier t) where
   whereIs f (D _ x) = c $ whereIs (abstract . f . d) x
 
-instance HasTuple t => HasTuple (Simplifier t) where
-  pair (D _ x) (D _ y) = d $ pair x y
-  ofPair f (D _ tuple) = c $ unpair tuple (\x y -> abstract (f (d x) (d y)))
+instance HasTuple t => HasTuple (Simplifier t)
 
 newtype instance TermC t ('F a) = ReturnC (Data t a)
 

@@ -60,9 +60,7 @@ instance HasLet t => HasLet (Simplifier t) where
 instance HasLabel t => HasLabel (Simplifier t) where
   label (S _ x) f = c $ label x (abstract . f . s)
 
-instance HasTuple t => HasTuple (Simplifier t) where
-  pair (D _ x) (D _ y) = d $ pair x y
-  ofPair f (D _ tuple) = c $ ofPair (\x y -> abstract (f (d x) (d y))) tuple
+instance HasTuple t => HasTuple (Simplifier t)
 
 instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   thunk t f =

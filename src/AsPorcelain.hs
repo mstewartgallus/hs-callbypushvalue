@@ -66,18 +66,7 @@ instance HasStack Porcelain where
 instance HasConstants Porcelain where
   constant (U64Constant x) = D $ pure $ node [atom "u64", showb x]
 
-instance HasTuple Porcelain where
-  pair (D x) (D y) = D $ do
-    x' <- x
-    y' <- y
-    pure $ node [atom "pair", x', y']
-  unpair (D t) f = C $ do
-    t' <- t
-    x <- fresh
-    y <- fresh
-    let C body = f (D $ pure x) (D $ pure y)
-    body' <- body
-    pure $ node [atom "unpair", t', x, y, body']
+instance HasTuple Porcelain
 
 instance HasLet Porcelain where
   letBe (D x) f = C $ do

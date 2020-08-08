@@ -88,22 +88,52 @@ instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
         C _ y -> y
 
 instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t) where
-  pair (C x x') (C y y') = C (F.pair x y) (F.pair x' y')
-  unpair (C t t') f = C first second
+  pair f g (C t t') = C first second
     where
-      first = F.unpair t $ \x y -> case f (C x undefined) (C y undefined) of
-        C r _ -> r
-      second = F.unpair t' $ \x y -> case f (C undefined x) (C undefined y) of
-        C _ r -> r
+      first =
+        F.pair
+          ( \x -> case f (C x undefined) of
+              C r _ -> r
+          )
+          ( \x -> case g (C x undefined) of
+              C r _ -> r
+          )
+          t
+      second =
+        F.pair
+          ( \x -> case f (C undefined x) of
+              C _ r -> r
+          )
+          ( \x -> case g (C undefined x) of
+              C _ r -> r
+          )
+          t'
+  first (C t t') = C (F.first t) (F.first t')
+  second (C t t') = C (F.second t) (F.second t')
 
 instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t) where
-  pair (D x x') (D y y') = D (pair x y) (pair x' y')
-  unpair (D t t') f = C first second
+  pair f g (D t t') = D first second
     where
-      first = unpair t $ \x y -> case f (D x undefined) (D y undefined) of
-        C r _ -> r
-      second = unpair t' $ \x y -> case f (D undefined x) (D undefined y) of
-        C _ r -> r
+      first =
+        pair
+          ( \x -> case f (D x undefined) of
+              D r _ -> r
+          )
+          ( \x -> case g (D x undefined) of
+              D r _ -> r
+          )
+          t
+      second =
+        pair
+          ( \x -> case f (D undefined x) of
+              D _ r -> r
+          )
+          ( \x -> case g (D undefined x) of
+              D _ r -> r
+          )
+          t'
+  first (D t t') = D (first t) (first t')
+  second (D t t') = D (second t) (second t')
 
 instance (Cps.HasReturn s, Cps.HasReturn t) => Cps.HasReturn (AsDup s t) where
   returns (D x x') (S k k') = C (Cps.returns x k) (Cps.returns x' k')

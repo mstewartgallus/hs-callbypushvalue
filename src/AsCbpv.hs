@@ -35,9 +35,12 @@ instance HasReturn t => HasReturn (AsCbpv t) where
   returns = C . returns . unD
   from f = C . from (unC . f . D) . unC
 
-instance (HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
-  pair (C x) (C y) = C $ returns (pair (thunk x) (thunk y))
-  ofPair f = C . from (ofPair (\x y -> unC $ f (C (force x)) (C (force y)))) . unC
+instance (HasLet t, HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
+  pair f g (C x) =
+    C $ letBe (thunk x) $
+      returns . pair (thunk . unC . f . C . force) (thunk . unC . g . C . force)
+  first = C . from (force . first) . unC
+  second = C . from (force . second) . unC
 
 instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   whereIs f = C . whereIs (unC . f . C . force) . thunk . unC

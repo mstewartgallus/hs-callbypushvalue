@@ -43,12 +43,7 @@ instance HasConstants t => HasConstants (MonoInliner t) where
 instance SystemF.HasConstants t => SystemF.HasConstants (MonoInliner t) where
   constant k = C 0 (SystemF.constant k)
 
-instance HasTuple t => HasTuple (MonoInliner t) where
-  pair (D xcost x) (D ycost y) = D (xcost + ycost) (pair x y)
-  ofPair f (D tcost tuple) =
-    let C rcost _ = f (D 0 undefined) (D 0 undefined)
-     in C (tcost + rcost) $ unpair tuple $ \x y -> case f (D 0 x) (D 0 y) of
-          C _ r -> r
+instance HasTuple t => HasTuple (MonoInliner t)
 
 instance HasLet t => HasLet (MonoInliner t) where
   whereIs f (D xcost x) = result
@@ -115,11 +110,12 @@ instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
   call = D 0 . Cps.call
 
 instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
-  pair (C xcost x) (C ycost y) = C (xcost + ycost) (SystemF.pair x y)
-  ofPair f (C tcost tuple) =
-    let C rcost _ = f (C 0 undefined) (C 0 undefined)
-     in C (tcost + rcost) $ SystemF.unpair tuple $ \x y -> case f (C 0 x) (C 0 y) of
-          C _ r -> r
+  pair f g (C xcost x) =
+    let C fcost _ = f (C 0 undefined)
+        C gcost _ = g (C 0 undefined)
+     in C (fcost + gcost + xcost) $ SystemF.pair ((extract #) . f . C 0) ((extract #) . g . C 0) x
+  first (C tcost tuple) = C tcost $ SystemF.first tuple
+  second (C tcost tuple) = C tcost $ SystemF.second tuple
 
 instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
   whereIs f (C xcost x) = result

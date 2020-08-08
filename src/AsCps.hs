@@ -48,12 +48,7 @@ instance Cps.Cps t => HasReturn (AsCps t) where
           case f (D t val) of
             C _ f' -> f' k
 
-instance Cps.Cps t => HasTuple (AsCps t) where
-  pair (D tx x) (D ty y) = D (SPair tx ty) (pair x y)
-  unpair (D (SPair tx ty) tuple) f =
-    let C t _ = f (D tx undefined) (D ty undefined)
-     in C t $ \k -> unpair tuple $ \x y -> case f (D tx x) (D ty y) of
-          C _ result -> result k
+instance Cps.Cps t => HasTuple (AsCps t)
 
 instance Cps.HasThunk t => HasThunk (AsCps t) where
   force (D (SU t) th) = C t (Cps.force th)

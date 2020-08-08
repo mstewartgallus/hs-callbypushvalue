@@ -43,7 +43,7 @@ data instance Kont (a ':=> b) = Apply (Value a) (Kont b)
 data X
 
 instance HasData X where
-  newtype Data X a = V (Value a)
+  newtype Data X a = V {unV :: Value a}
 
 instance HasCode X where
   newtype Code X a = C R
@@ -55,8 +55,9 @@ instance HasConstants X where
   constant (U64Constant x) = V (I x)
 
 instance HasTuple X where
-  pair (V x) (V y) = V (x ::: y)
-  ofPair f (V (x ::: y)) = f (V x) (V y)
+  pair f g x = V (unV (f x) ::: unV (g x))
+  first (V (x ::: _)) = V x
+  second (V (_ ::: y)) = V y
 
 instance HasLet X where
   whereIs = id

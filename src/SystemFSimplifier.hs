@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -14,37 +15,44 @@ import SystemF
 import Prelude hiding ((.), (<*>))
 
 extract :: Code (Simplifier t) :~> Code t
-extract = NatTrans $ \(C _ x) -> x
+extract = NatTrans $ \(C x) -> x IdCtx
 
 data Simplifier t
 
-data MaybeFn t a where
-  Fn :: (Code t a -> Code t b) -> MaybeFn t (a :-> b)
-  NotFn :: MaybeFn t a
+data Ctx t a b where
+  ApplyCtx :: HasFn t => Code t a -> Ctx t (a :-> b) b
+  IdCtx :: Ctx t a a
 
 instance HasCode t => HasCode (Simplifier t) where
-  data Code (Simplifier t) a = C (MaybeFn t a) (Code t a)
+  newtype Code (Simplifier t) a = C (forall b. Ctx t a b -> Code t b)
+
+into :: Code t a -> Code (Simplifier t) a
+into val = C $ \ctx -> case ctx of
+  ApplyCtx x -> val <*> x
+  IdCtx -> val
+
+out :: Code (Simplifier t) a -> Code t a
+out (C f) = f IdCtx
 
 instance HasCall t => HasCall (Simplifier t) where
-  call = C NotFn . call
+  call = into . call
 
 instance HasConstants t => HasConstants (Simplifier t) where
-  constant = C NotFn . constant
+  constant = into . constant
 
 instance HasTuple t => HasTuple (Simplifier t) where
-  pair (C _ x) (C _ y) = C NotFn (pair x y)
-  ofPair f (C _ tuple) = C NotFn $ unpair tuple $ \x y ->
-    case f (C NotFn x) (C NotFn y) of
-      C _ r -> r
+  pair f g = into . pair (out . f . into) (out . g . into) . out
+  first = into . first . out
+  second = into . second . out
 
 instance HasLet t => HasLet (Simplifier t) where
-  whereIs f (C _ x) = C NotFn $ letBe x $ \x' -> case f (C NotFn x') of
-    C _ y -> y
+  whereIs f = into . whereIs (out . f . into) . out
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
   lambda t f =
-    let f' = (extract #) . f . (C NotFn)
-     in C (Fn f') $ lambda t f'
+    let f' = out . f . into
+     in C $ \ctx -> case ctx of
+          ApplyCtx x -> whereIs f' x
+          IdCtx -> lambda t f'
 
-  C NotFn f <*> C _ x = C NotFn (f <*> x)
-  C (Fn f) _ <*> C _ x = C NotFn (whereIs f x)
+  C f <*> x = into $ f (ApplyCtx (out x))

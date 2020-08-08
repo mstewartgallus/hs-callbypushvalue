@@ -41,16 +41,8 @@ instance HasConstants AsText where
   constant k = D $ \_ -> showb k
 
 instance HasTuple AsText where
-  pair (D x) (D y) = D $ \(Unique.Stream _ xs ys) ->
-    let x' = x xs
-        y' = y ys
-     in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
-
-  unpair (D tuple) f = C $ \(Unique.Stream xId ts (Unique.Stream yId _ bodys)) ->
-    let x = fromString "v" <> showb xId
-        y = fromString "v" <> showb yId
-        C body = f (D $ \_ -> x) (D $ \_ -> y)
-     in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
+  first (D tuple) = D $ \ts -> tuple ts <> fromString ".1"
+  second (D tuple) = D $ \ts -> tuple ts <> fromString ".2"
 
 instance HasReturn AsText where
   letTo (C x) f = C $ \(Unique.Stream newId xs ys) ->
@@ -61,16 +53,13 @@ instance HasReturn AsText where
     fromString "return " <> k s
 
 instance SystemF.HasTuple AsText where
-  pair (C x) (C y) = C $ \(Unique.Stream _ xs ys) ->
-    let x' = x xs
-        y' = y ys
-     in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
+  -- pair (C x) (C y) = C $ \(Unique.Stream _ xs ys) ->
+  --   let x' = x xs
+  --       y' = y ys
+  --    in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
 
-  unpair (C tuple) f = C $ \(Unique.Stream xId ts (Unique.Stream yId _ bodys)) ->
-    let x = fromString "l" <> showb xId
-        y = fromString "l" <> showb yId
-        C body = f (C $ \_ -> x) (C $ \_ -> y)
-     in tuple ts <> fromString " unpair (" <> x <> fromString ", " <> y <> fromString ")\n" <> body bodys
+  first (C tuple) = C $ \ts -> tuple ts <> fromString ".1"
+  second (C tuple) = C $ \ts -> tuple ts <> fromString ".2"
 
 instance SystemF.HasLet AsText where
   letBe (C x) f = C $ \(Unique.Stream newId xs ys) ->
