@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 82503bf9784dac2d994b945e63dd260e0b7a601c23cbfec1058a079e77ff6bcf
+-- hash: 9d4b4fde3562f1f06ee782fdddc321a900aeaf33611250363fab70be5cb49084
 
 name:           cpbv
 version:        0.1.0.0
@@ -39,7 +39,6 @@ library
       CbpvSimplifyApply
       CbpvSimplifyForce
       CbpvSimplifyReturn
-      CbpvSimplifyThunk
       Common
       Constant
       Core
@@ -60,6 +59,7 @@ library
       Name
       NatTrans
       PairF
+      Path
       SystemF
       SystemFSimplifier
       Unique

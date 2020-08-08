@@ -20,7 +20,6 @@ import Cbpv (HasThunk (..))
 import qualified CbpvSimplifyApply
 import qualified CbpvSimplifyForce
 import qualified CbpvSimplifyReturn
-import qualified CbpvSimplifyThunk
 import Common
 import qualified Constant
 import Control.Category
@@ -141,7 +140,7 @@ optimizeTerm input =
 
         return copy
 
-type OptC = CbpvSimplifyForce.Simplifier :.: CbpvSimplifyThunk.Simplifier :.: CbpvSimplifyApply.Simplifier :.: CbpvSimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
+type OptC = CbpvSimplifyForce.Simplifier :.: CbpvSimplifyApply.Simplifier :.: CbpvSimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
@@ -154,8 +153,6 @@ optimizeCbpv input =
           . CbpvSimplifyReturn.extract
           . AsCompose.extract
           . CbpvSimplifyApply.extract
-          . AsCompose.extract
-          . CbpvSimplifyThunk.extract
           . AsCompose.extract
           . CbpvSimplifyForce.extract
           . AsCompose.extract
