@@ -33,14 +33,23 @@ data TermS t a where
   LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
   NothingS :: TermS t a
 
-c :: Code t a -> Code (Simplifier t) a
-c = C NothingC
+cin :: Code t a -> Code (Simplifier t) a
+cin = C NothingC
 
-d :: Data t a -> Data (Simplifier t) a
-d = D NothingD
+cout :: Code (Simplifier t) a -> Code t a
+cout (C _ x) = x
 
-s :: Stack t a -> Stack (Simplifier t) a
-s = S NothingS
+din :: Data t a -> Data (Simplifier t) a
+din = D NothingD
+
+dout :: Data (Simplifier t) a -> Data t a
+dout (D _ x) = x
+
+kin :: Stack t a -> Stack (Simplifier t) a
+kin = S NothingS
+
+sout :: Stack (Simplifier t) a -> Stack t a
+sout (S _ x) = x
 
 instance HasCode (Simplifier t) where
   data Code (Simplifier t) a = C (TermC t a) (Code t a)
@@ -52,44 +61,38 @@ instance HasStack (Simplifier t) where
   data Stack (Simplifier t) a = S (TermS t a) (Stack t a)
 
 instance HasConstants t => HasConstants (Simplifier t) where
-  constant = d . constant
+  constant = din . constant
 
 instance HasLet t => HasLet (Simplifier t) where
-  whereIs f = c . whereIs (abstract . f . d) . extractData
+  whereIs f = cin . whereIs (cout . f . din) . dout
 
 instance HasLabel t => HasLabel (Simplifier t) where
-  label (S _ x) f = c $ label x (abstract . f . s)
+  label x f = cin $ label (sout x) (cout . f . kin)
 
 instance HasTuple t => HasTuple (Simplifier t)
 
 instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   thunk t f =
-    let f' = abstract . f . s
+    let f' = cout . f . kin
      in D (ThunkD t f') (thunk t f')
 
-  force (D (ThunkD _ f) _) (S _ x) = c $ label x f
-  force (D _ x) (S _ k) = c $ force x k
+  force (D (ThunkD _ f) _) x = cin $ label (sout x) f
+  force x k = cin $ force (dout x) (sout k)
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns (D _ x) (S (LetToS _ f) _) = c $ letBe x f
-  returns (D _ x) (S _ k) = c $ returns x k
+  returns x (S (LetToS _ f) _) = cin $ letBe (dout x) f
+  returns x k = cin $ returns (dout x) (sout k)
 
   letTo t f =
-    let f' = abstract . f . d
+    let f' = cout . f . din
      in S (LetToS t f') (letTo t f')
 
 instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
   D _ x <*> S _ k = S (ApplyS x k) (x <*> k)
-  lambda (S (ApplyS x t) _) f = c $ label t $ \t' ->
+  lambda (S (ApplyS x t) _) f = cin $ label t $ \t' ->
     letBe x $ \x' ->
-      abstract (f (d x') (s t'))
-  lambda (S _ k) f = c $ lambda k $ \x t -> abstract (f (d x) (s t))
+      cout (f (din x') (kin t'))
+  lambda (S _ k) f = cin $ lambda k $ \x t -> cout (f (din x) (kin t))
 
 instance HasCall t => HasCall (Simplifier t) where
-  call g = d $ call g
-
-abstract :: Code (Simplifier t) a -> Code t a
-abstract (C _ code) = code
-
-extractData :: Data (Simplifier t) a -> Data t a
-extractData (D _ x) = x
+  call = din . call
