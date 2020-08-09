@@ -61,7 +61,10 @@ instance HasLet t => HasLet (Simplifier t) where
 instance HasLabel t => HasLabel (Simplifier t) where
   label x f = cin $ label (sout x) (cout . f . kin)
 
-instance HasTuple t => HasTuple (Simplifier t)
+instance HasTuple t => HasTuple (Simplifier t) where
+  pair f g = din . pair (dout . f . din) (dout . g . din) . dout
+  first = din . first . dout
+  second = din . second . dout
 
 instance HasThunk t => HasThunk (Simplifier t) where
   thunk t f = din $ thunk t (cout . f . kin)

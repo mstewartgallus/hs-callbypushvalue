@@ -31,10 +31,14 @@ data Ctx t a b where
 flatten :: Path (Ctx t) a b -> a -> b
 flatten x = case x of
   Id -> id
-  ThunkCtx :.: (ForceCtx :.: g) -> flatten g
-  ForceCtx :.: (ThunkCtx :.: g) -> flatten g
-  ThunkCtx :.: g -> thunk . flatten g
-  ForceCtx :.: g -> force . flatten g
+  ThunkCtx :.: ForceCtx :.: g -> flatten g
+  ForceCtx :.: ThunkCtx :.: g -> flatten g
+  ctx :.: g -> eval ctx . flatten g
+
+eval :: Ctx t a b -> a -> b
+eval ctx = case ctx of
+  ThunkCtx -> thunk
+  ForceCtx -> force
 
 cin :: Code t a -> Code (Simplifier t) a
 cin code = C $ \ctx -> flatten ctx code

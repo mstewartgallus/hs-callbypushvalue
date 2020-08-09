@@ -23,7 +23,7 @@ extract = NatTrans cout
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: HasFn t => Data t a -> Ctx t (a :=> b) b
+  ApplyCtx :: HasFn t => Data t a -> Ctx t (a ':=> b) b
   IdCtx :: Ctx t a a
 
 cin :: Code t a -> Code (Simplifier t) a
@@ -65,7 +65,10 @@ instance HasLet t => HasLet (Simplifier t) where
     case f (din x') of
       C y -> y ctx
 
-instance HasTuple t => HasTuple (Simplifier t)
+instance HasTuple t => HasTuple (Simplifier t) where
+  pair f g = din . pair (dout . f . din) (dout . g . din) . dout
+  first = din . first . dout
+  second = din . second . dout
 
 instance HasReturn t => HasReturn (Simplifier t) where
   returns = cin . returns . dout

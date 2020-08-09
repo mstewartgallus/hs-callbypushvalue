@@ -10,6 +10,8 @@ data Path cat a b where
   Id :: Path cat a a
   (:.:) :: cat b c -> Path cat a b -> Path cat a c
 
+infixr 0 :.:
+
 instance Category (Path cat) where
   id = Id
   Id . g = g
