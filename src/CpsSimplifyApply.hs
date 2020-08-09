@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CpsSimplifier (Simplifier, extract) where
+module CpsSimplifyApply (Simplifier, extract) where
 
 import Common
 import Cps
@@ -23,7 +23,6 @@ data Simplifier t
 
 data TermS t a where
   ApplyS :: Data t a -> Stack t b -> TermS t (a ':=> b)
-  LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
   NothingS :: TermS t a
 
 cin :: Code t a -> Code (Simplifier t) a
@@ -65,18 +64,12 @@ instance HasLabel t => HasLabel (Simplifier t) where
 instance HasTuple t => HasTuple (Simplifier t)
 
 instance HasThunk t => HasThunk (Simplifier t) where
-  thunk t f = din (thunk t f')
-    where
-      f' = cout . f . kin
+  thunk t f = din $ thunk t (cout . f . kin)
   force x k = cin $ force (dout x) (sout k)
 
 instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
-  returns x (S (LetToS _ f) _) = cin $ letBe (dout x) f
   returns x k = cin $ returns (dout x) (sout k)
-
-  letTo t f =
-    let f' = cout . f . din
-     in S (LetToS t f') (letTo t f')
+  letTo t f = kin $ letTo t (cout . f . din)
 
 instance (HasFn t, HasLet t, HasLabel t) => HasFn (Simplifier t) where
   D x <*> S _ k = S (ApplyS x k) (x <*> k)
