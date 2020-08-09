@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -22,7 +21,7 @@ extract = NatTrans dout
 data Simplifier t
 
 data TermS t a where
-  LetToS :: SSet a -> (Data t a -> Code t 'Void) -> TermS t ('F a)
+  LetToS :: SSet a -> (Data t a -> Code t Void) -> TermS t (F a)
   NothingS :: TermS t a
 
 cin :: Code t a -> Code (Simplifier t) a

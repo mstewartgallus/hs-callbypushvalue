@@ -1,5 +1,4 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -29,7 +28,7 @@ class HasCode t => HasLet t where
   whereIs = flip letBe
 
 class HasCode t => HasConstants t where
-  constant :: Constant a -> Code t ('F a)
+  constant :: Constant a -> Code t (F a)
 
 class HasCode t => HasTuple t where
   -- | factorizer from category theory

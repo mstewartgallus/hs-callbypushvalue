@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -23,7 +22,7 @@ extract = NatTrans cout
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: HasFn t => Data t a -> Ctx t (a ':=> b) b
+  ApplyCtx :: HasFn t => Data t a -> Ctx t (a :=> b) b
   IdCtx :: Ctx t a a
 
 cin :: Code t a -> Code (Simplifier t) a

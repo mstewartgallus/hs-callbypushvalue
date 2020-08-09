@@ -2,17 +2,56 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Common (equalAlg, equalSet, (:->), Pair, SSet (..), SAlgebra (..), Set (..), Algebra (..), inferSet, inferAlgebra, KnownSet (..), KnownAlgebra (..)) where
+module Common
+  ( equalAlg,
+    equalSet,
+    (:->),
+    Pair,
+    Unit,
+    U,
+    (:*:),
+    U64,
+    Void,
+    F,
+    (:=>),
+    Algebra,
+    Set,
+    SSet (..),
+    SAlgebra (..),
+    inferSet,
+    inferAlgebra,
+    KnownSet (..),
+    KnownAlgebra (..),
+  )
+where
 
 import Data.Proxy
 import Data.Typeable
 import TextShow
 
-data Set = Unit | U Algebra | Set :*: Set | U64
+type Unit = 'Unit
+
+type U = 'U
+
+type (:*:) = '(:*:)
+
+type U64 = 'U64
+
+type Void = 'Void
+
+type F = 'F
+
+type (:=>) = '(:=>)
+
+type Set = SetU
+
+type Algebra = AlgebraU
+
+data SetU = Unit | U AlgebraU | SetU :*: SetU | U64
 
 infixr 0 :*:
 
-data Algebra = Void | F Set | Set :=> Algebra
+data AlgebraU = Void | F SetU | SetU :=> AlgebraU
 
 infixr 9 :=>
 
@@ -63,6 +102,7 @@ data SAlgebra a where
 infixr 9 `SFn`
 
 -- Then define the call by name sugarings
+-- FIXME factor out !
 type a :-> b = 'U a ':=> b
 
 infixr 9 :->

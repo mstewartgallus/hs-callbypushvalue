@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -24,7 +23,7 @@ extract = NatTrans $ \(D _ x) -> x
 data AsCps t
 
 instance HasCode t => HasCode (AsCps t) where
-  data Code (AsCps t) a = C (SAlgebra a) (Stack t a -> Code t 'Void)
+  data Code (AsCps t) a = C (SAlgebra a) (Stack t a -> Code t Void)
 
 instance HasData t => HasData (AsCps t) where
   data Data (AsCps t) a = D (SSet a) (Data t a)

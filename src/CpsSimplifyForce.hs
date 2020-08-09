@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -22,7 +21,7 @@ extract = NatTrans $ \(D _ x) -> x
 data Simplifier t
 
 data TermD t a where
-  ThunkD :: SAlgebra a -> (Stack t a -> Code t 'Void) -> TermD t ('U a)
+  ThunkD :: SAlgebra a -> (Stack t a -> Code t Void) -> TermD t (U a)
   NothingD :: TermD t a
 
 cin :: Code t a -> Code (Simplifier t) a

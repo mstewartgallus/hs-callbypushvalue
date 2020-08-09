@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
@@ -55,7 +54,7 @@ iterCbpv = 20
 iterCps :: Int
 iterCps = 20
 
-program :: SystemF t => Code t ('F 'U64 :-> 'F 'U64 :-> 'F 'U64)
+program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
 program = F.lam $ \_ ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -187,5 +186,5 @@ optimizeCps input =
 
         return copy
 
-t :: Word64 -> Interpreter.Value ('U ('F 'U64))
+t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)
