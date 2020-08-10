@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import TextShow
 import qualified Unique
@@ -75,6 +76,10 @@ instance HasLet Porcelain where
     let C body = f (D $ pure v)
     body' <- body
     pure $ node [atom "be", x', body']
+
+instance HasTerminal Porcelain where
+  terminal = D $ do
+    pure $ atom "terminal"
 
 instance HasLabel Porcelain where
   label (S x) f = C $ do

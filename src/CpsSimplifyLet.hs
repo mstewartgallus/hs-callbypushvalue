@@ -11,6 +11,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import Prelude hiding ((<*>))
@@ -53,6 +54,9 @@ instance HasStack (Simplifier t) where
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = din . constant
+
+instance HasTerminal t => HasTerminal (Simplifier t) where
+  terminal = din terminal
 
 instance HasLet t => HasLet (Simplifier t) where
   whereIs f = cin . whereIs (cout . f . din) . dout

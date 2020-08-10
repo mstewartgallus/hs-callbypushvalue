@@ -11,6 +11,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import Prelude hiding ((<*>))
@@ -56,6 +57,9 @@ instance HasConstants t => HasConstants (Simplifier t) where
 
 instance HasLet t => HasLet (Simplifier t) where
   whereIs f = cin . whereIs (cout . f . din) . dout
+
+instance HasTerminal t => HasTerminal (Simplifier t) where
+  terminal = din terminal
 
 instance HasLabel t => HasLabel (Simplifier t) where
   label x f = cin $ label (sout x) (cout . f . kin)

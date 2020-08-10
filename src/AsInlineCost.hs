@@ -10,6 +10,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import qualified SystemF
 
@@ -41,6 +42,9 @@ instance HasConstants AsInlineCost where
 
 instance SystemF.HasConstants AsInlineCost where
   constant _ = C 0
+
+instance HasTerminal AsInlineCost where
+  terminal = D 0
 
 instance HasTuple AsInlineCost
 

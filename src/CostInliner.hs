@@ -18,6 +18,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import PairF
@@ -77,6 +78,7 @@ newtype CostInliner t = CostInliner (AsDup AsInlineCost t)
       HasThunk,
       HasFn,
       HasTuple,
+      HasTerminal,
       F.HasConstants,
       F.HasTuple,
       F.HasFn,

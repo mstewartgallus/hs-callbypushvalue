@@ -10,6 +10,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 
 -- |
@@ -18,7 +19,7 @@ import HasTuple
 -- Push Value is similar to the λμ ̃μ calculus.
 --
 -- https://www.reddit.com/r/haskell/comments/hp1mao/i_found_a_neat_duality_for_cps_with_call_by_push/fxn046g/?context=3
-type Cps t = (HasConstants t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t)
+type Cps t = (HasConstants t, HasTerminal t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t)
 
 class HasData t => HasCall t where
   call :: Global a -> Data t (U a)

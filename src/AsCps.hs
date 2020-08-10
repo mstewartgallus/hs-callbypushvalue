@@ -14,6 +14,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 
@@ -30,6 +31,9 @@ instance HasData t => HasData (AsCps t) where
 
 instance HasConstants t => HasConstants (AsCps t) where
   constant k = D (Constant.typeOf k) $ constant k
+
+instance HasTerminal t => HasTerminal (AsCps t) where
+  terminal = D SUnit terminal
 
 instance HasLet t => HasLet (AsCps t) where
   letBe (D t x) f =

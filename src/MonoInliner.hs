@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import qualified SystemF
@@ -36,6 +37,9 @@ instance HasStack t => HasStack (MonoInliner t) where
 
 instance HasCall t => HasCall (MonoInliner t) where
   call g = C 0 (call g)
+
+instance HasTerminal t => HasTerminal (MonoInliner t) where
+  terminal = D 0 terminal
 
 instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = D 0 (constant k)

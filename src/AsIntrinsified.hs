@@ -15,6 +15,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasTerminal
 import HasTuple
 import NatTrans
 import Prelude hiding ((<*>))
@@ -22,7 +23,7 @@ import Prelude hiding ((<*>))
 extract :: Cbpv t => Code (AsIntrinsified t) :~> Code t
 extract = NatTrans unC
 
-newtype AsIntrinsified t = AsIntrinsified t deriving (HasConstants, HasTuple, HasLet, HasReturn, HasFn, HasThunk)
+newtype AsIntrinsified t = AsIntrinsified t deriving (HasConstants, HasTuple, HasTerminal, HasLet, HasReturn, HasFn, HasThunk)
 
 instance HasCode t => HasCode (AsIntrinsified t) where
   newtype Code (AsIntrinsified t) a = C {unC :: Code t a}

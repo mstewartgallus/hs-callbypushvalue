@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import PairF
@@ -37,6 +38,9 @@ instance HasData (AsDup s t) where
 
 instance HasStack (AsDup s t) where
   data Stack (AsDup s t) a = S (Stack s a) (Stack t a)
+
+instance (HasTerminal s, HasTerminal t) => HasTerminal (AsDup s t) where
+  terminal = D terminal terminal
 
 instance (HasCall s, HasCall t) => HasCall (AsDup s t) where
   call g = C (call g) (call g)

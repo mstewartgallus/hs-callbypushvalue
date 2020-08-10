@@ -17,6 +17,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 
 evaluate :: Data X a -> Value a
@@ -53,6 +54,9 @@ instance HasStack X where
 
 instance HasConstants X where
   constant (U64Constant x) = V (I x)
+
+instance HasTerminal X where
+  terminal = V Coin
 
 instance HasTuple X where
   pair f g x = V (unV (f x) ::: unV (g x))

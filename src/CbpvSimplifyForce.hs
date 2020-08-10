@@ -13,6 +13,7 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasTerminal
 import HasTuple
 import NatTrans
 import Path
@@ -67,6 +68,9 @@ instance HasData (Simplifier t) where
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant = din . constant
+
+instance HasTerminal t => HasTerminal (Simplifier t) where
+  terminal = din terminal
 
 instance HasCall t => HasCall (Simplifier t) where
   call = cin . call

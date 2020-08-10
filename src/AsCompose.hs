@@ -13,6 +13,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerminal
 import HasTuple
 import NatTrans
 import qualified SystemF as F
@@ -44,6 +45,7 @@ newtype AsCompose f g x = AsCompose (f (g x))
       HasThunk,
       HasReturn,
       HasTuple,
+      HasTerminal,
       Cps.HasLabel,
       Cps.HasThunk,
       Cps.HasReturn,

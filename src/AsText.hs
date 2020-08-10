@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import qualified HasStack
+import HasTerminal
 import HasTuple
 import qualified SystemF
 import TextShow
@@ -32,13 +33,16 @@ instance HasCode AsText where
   newtype Code AsText a = C (forall s. Unique.Stream s -> Builder)
 
 instance HasCall AsText where
-  call g = C $ \_ -> fromString "call " <> showb g
+  call g = C $ const $ fromString "call " <> showb g
 
 instance SystemF.HasConstants AsText where
-  constant k = C $ \_ -> showb k
+  constant k = C $ const $ showb k
 
 instance HasConstants AsText where
-  constant k = D $ \_ -> showb k
+  constant k = D $ const $ showb k
+
+instance HasTerminal AsText where
+  terminal = D $ const $ fromString "{}"
 
 instance HasTuple AsText where
   first (D tuple) = D $ \ts -> tuple ts <> fromString ".1"

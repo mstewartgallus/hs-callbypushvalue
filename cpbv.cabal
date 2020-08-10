@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dca18fa45cc5644eda5c957a0f26827af2db68057c3c9b4286b347116e0f5536
+-- hash: f0cf3670c9a805b0e58123ec5d4959ca57a453145ac6fce89b882664c968a311
 
 name:           cpbv
 version:        0.1.0.0
@@ -55,6 +55,7 @@ library
       HasData
       HasLet
       HasStack
+      HasTerminal
       HasTuple
       Interpreter
       MonoInliner

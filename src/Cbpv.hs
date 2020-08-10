@@ -9,9 +9,10 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasTerminal
 import HasTuple
 
-type Cbpv t = (HasCall t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t)
+type Cbpv t = (HasCall t, HasTerminal t, HasConstants t, HasLet t, HasReturn t, HasThunk t, HasFn t, HasTuple t)
 
 class (HasData t, HasCode t) => HasReturn t where
   letTo :: Code t (F a) -> (Data t a -> Code t b) -> Code t b
