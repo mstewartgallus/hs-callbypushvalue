@@ -48,8 +48,8 @@ instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
     let f' = cout . f . kin
      in D (ThunkD t f') (thunk t f')
 
-  force (D (ThunkD _ f) _) x = cin $ label (sout x) f
-  force x k = cin $ force (dout x) (sout k)
+  force (D (ThunkD _ f) _) = cin . whereLabel f . sout
+  force x = cin . force (dout x) . sout
 
 instance HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (Code t a)
@@ -70,7 +70,7 @@ instance HasLet t => HasLet (Simplifier t) where
   whereIs f = cin . whereIs (cout . f . din) . dout
 
 instance HasLabel t => HasLabel (Simplifier t) where
-  label x f = cin $ label (sout x) (cout . f . kin)
+  whereLabel f = cin . whereLabel (cout . f . kin) . sout
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair f g = din . pair (dout . f . din) (dout . g . din) . dout

@@ -28,161 +28,133 @@ extractData = NatTrans $ \(D x y) -> PairF x y
 extractStack :: Stack (AsDup s t) :~> PairF (Stack s) (Stack t)
 extractStack = NatTrans $ \(S x y) -> PairF x y
 
+factorizeC :: (c -> Code s a) -> (c -> Code t a) -> c -> Code (AsDup s t) a
+factorizeC f g x = C (f x) (g x)
+
+factorizeD :: (c -> Data s a) -> (c -> Data t a) -> c -> Data (AsDup s t) a
+factorizeD f g x = D (f x) (g x)
+
 data AsDup s t
 
 instance HasCode (AsDup s t) where
-  data Code (AsDup s t) a = C (Code s a) (Code t a)
+  data Code (AsDup s t) a = C {fstC :: Code s a, sndC :: Code t a}
 
 instance HasData (AsDup s t) where
-  data Data (AsDup s t) a = D (Data s a) (Data t a)
+  data Data (AsDup s t) a = D {fstD :: Data s a, sndD :: Data t a}
 
 instance HasStack (AsDup s t) where
-  data Stack (AsDup s t) a = S (Stack s a) (Stack t a)
+  data Stack (AsDup s t) a = S {fstS :: Stack s a, sndS :: Stack t a}
 
 instance (HasTerminal s, HasTerminal t) => HasTerminal (AsDup s t) where
   terminal = D terminal terminal
 
 instance (HasCall s, HasCall t) => HasCall (AsDup s t) where
-  call g = C (call g) (call g)
+  call = factorizeC call call
 
 instance (Cps.HasCall s, Cps.HasCall t) => Cps.HasCall (AsDup s t) where
-  call g = D (Cps.call g) (Cps.call g)
+  call = factorizeD Cps.call Cps.call
 
 instance (F.HasConstants s, F.HasConstants t) => F.HasConstants (AsDup s t) where
-  constant k = C (F.constant k) (F.constant k)
+  constant = factorizeC F.constant F.constant
 
 instance (HasConstants s, HasConstants t) => HasConstants (AsDup s t) where
-  constant k = D (constant k) (constant k)
+  constant = factorizeD constant constant
 
 instance (F.HasLet s, F.HasLet t) => F.HasLet (AsDup s t) where
-  whereIs f (C l r) = C first second
+  whereIs f = factorizeC first second
     where
-      first = F.letBe l $ \x' -> case f (C x' undefined) of
-        C y _ -> y
-      second = F.letBe r $ \x' -> case f (C undefined x') of
-        C _ y -> y
+      first (C l r) = F.whereIs (\x' -> fstC $ f (C x' r)) l
+      second (C l r) = F.whereIs (\x' -> sndC $ f (C l x')) r
 
 instance (HasLet s, HasLet t) => HasLet (AsDup s t) where
-  whereIs f (D l r) = C first second
+  whereIs f = factorizeC first second
     where
-      first = letBe l $ \x' -> case f (D x' undefined) of
-        C y _ -> y
-      second = letBe r $ \x' -> case f (D undefined x') of
-        C _ y -> y
+      first (D l r) = whereIs (\x' -> fstC $ f (D x' r)) l
+      second (D l r) = whereIs (\x' -> sndC $ f (D l x')) r
 
 instance (Cps.HasLabel s, Cps.HasLabel t) => Cps.HasLabel (AsDup s t) where
-  label (S l r) f = C first second
+  whereLabel f = factorizeC first second
     where
-      first = Cps.label l $ \x' -> case f (S x' undefined) of
-        C y _ -> y
-      second = Cps.label r $ \x' -> case f (S undefined x') of
-        C _ y -> y
+      first (S l r) = Cps.whereLabel (\x' -> fstC $ f (S x' r)) l
+      second (S l r) = Cps.whereLabel (\x' -> sndC $ f (S l x')) r
 
 instance (HasThunk s, HasThunk t) => HasThunk (AsDup s t) where
-  thunk (C x y) = D (thunk x) (thunk y)
-  force (D x y) = C (force x) (force y)
+  thunk = factorizeD (thunk . fstC) (thunk . sndC)
+  force = factorizeC (force . fstD) (force . sndD)
 
 instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
-  returns (D x y) = C (returns x) (returns y)
-  from f (C l r) = C first second
+  returns = factorizeC (returns . fstD) (returns . sndD)
+  from f = factorizeC first second
     where
-      first = letTo l $ \x' -> case f (D x' undefined) of
-        C y _ -> y
-      second = letTo r $ \x' -> case f (D undefined x') of
-        C _ y -> y
+      first = from (\x' -> fstC $ f (D x' undefined)) . fstC
+      second = from (\x' -> sndC $ f (D undefined x')) . sndC
 
 instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t) where
-  pair f g (C t t') = C first second
+  pair f g = factorizeC first second
     where
-      first =
+      first (C l r) =
         F.pair
-          ( \x -> case f (C x undefined) of
-              C r _ -> r
-          )
-          ( \x -> case g (C x undefined) of
-              C r _ -> r
-          )
-          t
-      second =
+          (\x -> fstC $ f (C x r))
+          (\x -> fstC $ g (C x r))
+          l
+      second (C l r) =
         F.pair
-          ( \x -> case f (C undefined x) of
-              C _ r -> r
-          )
-          ( \x -> case g (C undefined x) of
-              C _ r -> r
-          )
-          t'
-  first (C t t') = C (F.first t) (F.first t')
-  second (C t t') = C (F.second t) (F.second t')
+          (\x -> sndC $ f (C l x))
+          (\x -> sndC $ g (C l x))
+          r
+  first = factorizeC (F.first . fstC) (F.first . sndC)
+  second = factorizeC (F.second . fstC) (F.second . sndC)
 
 instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t) where
-  pair f g (D t t') = D first second
+  pair f g = factorizeD first second
     where
-      first =
+      first (D l r) =
         pair
-          ( \x -> case f (D x undefined) of
-              D r _ -> r
-          )
-          ( \x -> case g (D x undefined) of
-              D r _ -> r
-          )
-          t
-      second =
+          (\x -> fstD $ f (D x r))
+          (\x -> fstD $ g (D x r))
+          l
+      second (D l r) =
         pair
-          ( \x -> case f (D undefined x) of
-              D _ r -> r
-          )
-          ( \x -> case g (D undefined x) of
-              D _ r -> r
-          )
-          t'
-  first (D t t') = D (first t) (first t')
-  second (D t t') = D (second t) (second t')
+          (\x -> sndD $ f (D l x))
+          (\x -> sndD $ g (D l x))
+          r
+  first = factorizeD (first . fstD) (first . sndD)
+  second = factorizeD (second . fstD) (second . sndD)
 
 instance (Cps.HasReturn s, Cps.HasReturn t) => Cps.HasReturn (AsDup s t) where
   returns (D x x') (S k k') = C (Cps.returns x k) (Cps.returns x' k')
   letTo t f = S first second
     where
-      first = Cps.letTo t $ \x -> case f (D x undefined) of
-        C y _ -> y
-      second = Cps.letTo t $ \x -> case f (D undefined x) of
-        C _ y -> y
+      first = Cps.letTo t $ \x -> fstC $ f (D x undefined)
+      second = Cps.letTo t $ \x -> sndC $ f (D undefined x)
 
 instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
   force (D x x') (S k k') = C (Cps.force x k) (Cps.force x' k')
   thunk t f = D first second
     where
-      first = Cps.thunk t $ \x -> case f (S x undefined) of
-        C y _ -> y
-      second = Cps.thunk t $ \x -> case f (S undefined x) of
-        C _ y -> y
+      first = Cps.thunk t $ \x -> fstC $ f (S x undefined)
+      second = Cps.thunk t $ \x -> sndC $ f (S undefined x)
 
 instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = F.lambda t (getfirst . f . (\x -> C x undefined))
-      second = F.lambda t (getsnd . f . (\x -> C undefined x))
-      getfirst (C y _) = y
-      getsnd (C _ y) = y
+      first = F.lambda t (fstC . f . (\x -> C x undefined))
+      second = F.lambda t (sndC . f . (\x -> C undefined x))
 
   C f f' <*> C x x' = C (f F.<*> x) (f' F.<*> x')
 
 instance (Cps.HasFn s, Cps.HasFn t) => Cps.HasFn (AsDup s t) where
   lambda (S k k') f = C first second
     where
-      first = Cps.lambda k $ \x n -> case f (D x undefined) (S n undefined) of
-        C y _ -> y
-      second = Cps.lambda k' $ \x n -> case f (D undefined x) (S undefined n) of
-        C _ y -> y
+      first = Cps.lambda k $ \x n -> fstC $ f (D x undefined) (S n undefined)
+      second = Cps.lambda k' $ \x n -> sndC $ f (D undefined x) (S undefined n)
 
   D f f' <*> S x x' = S (f Cps.<*> x) (f' Cps.<*> x')
 
 instance (HasFn s, HasFn t) => HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = lambda t $ \x -> case f (D x undefined) of
-        C y _ -> y
-      second = lambda t $ \x -> case f (D undefined x) of
-        C _ y -> y
+      first = lambda t (\x -> fstC $ f (D x undefined))
+      second = lambda t (\x -> sndC $ f (D undefined x))
 
   C f f' <*> D x x' = C (f <*> x) (f' <*> x')

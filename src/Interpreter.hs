@@ -67,7 +67,7 @@ instance HasLet X where
   whereIs = id
 
 instance HasLabel X where
-  label x f = f x
+  whereLabel = id
 
 instance HasThunk X where
   thunk _ f = V $ Thunk $ \x -> case f (K x) of

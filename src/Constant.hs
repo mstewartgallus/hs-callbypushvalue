@@ -10,7 +10,7 @@ data Constant a where
   U64Constant :: Word64 -> Constant U64
 
 instance Eq (Constant a) where
-  (U64Constant x) == (U64Constant y) = x == y
+  U64Constant x == U64Constant y = x == y
 
 instance TextShow (Constant a) where
   showb (U64Constant n) = showb n

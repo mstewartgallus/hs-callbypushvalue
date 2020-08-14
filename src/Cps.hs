@@ -42,3 +42,6 @@ class (HasData t, HasCode t, HasStack t) => HasThunk t where
 
 class (HasStack t, HasCode t) => HasLabel t where
   label :: Stack t a -> (Stack t a -> Code t b) -> Code t b
+  label = flip whereLabel
+  whereLabel :: (Stack t a -> Code t b) -> Stack t a -> Code t b
+  whereLabel = flip label

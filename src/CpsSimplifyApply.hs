@@ -62,7 +62,7 @@ instance HasTerminal t => HasTerminal (Simplifier t) where
   terminal = din terminal
 
 instance HasLabel t => HasLabel (Simplifier t) where
-  label x f = cin $ label (sout x) (cout . f . kin)
+  whereLabel f = cin . whereLabel (cout . f . kin) . sout
 
 instance HasTuple t => HasTuple (Simplifier t) where
   pair f g = din . pair (dout . f . din) (dout . g . din) . dout
