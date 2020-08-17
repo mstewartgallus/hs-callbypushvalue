@@ -38,14 +38,14 @@ class HasCode t => HasTuple t where
   second :: Code t (Pair a b) -> Code t b
 
 class HasCode t => HasFn t where
-  (<*>) :: Code t (a :-> b) -> Code t a -> Code t b
-  lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a :-> b)
+  (<*>) :: Code t (a --> b) -> Code t a -> Code t b
+  lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a --> b)
 
-  uncurry :: (Code t a -> Code t (b :-> c)) -> (Code t (Pair a b) -> Code t c)
-  curry :: (Code t (Pair a b) -> Code t c) -> (Code t a -> Code t (b :-> c))
+  uncurry :: (Code t a -> Code t (b --> c)) -> (Code t (Pair a b) -> Code t c)
+  curry :: (Code t (Pair a b) -> Code t c) -> (Code t a -> Code t (b --> c))
 
 infixl 4 <*>
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
-lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a :-> b)
+lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a --> b)
 lam = lambda inferAlgebra

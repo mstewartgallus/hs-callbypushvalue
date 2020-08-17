@@ -25,8 +25,8 @@ extract = NatTrans cout
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: (HasLet t, HasFn t) => Data t a -> Ctx t (Code t (a :=> b)) (Code t b)
-  LambdaCtx :: HasFn t => SSet a -> (Data t a -> Code t b) -> Ctx t (Data t Unit) (Code t (a :=> b))
+  ApplyCtx :: (HasLet t, HasFn t) => Data t a -> Ctx t (Code t (a ~> b)) (Code t b)
+  LambdaCtx :: HasFn t => SSet a -> (Data t a -> Code t b) -> Ctx t (Data t Unit) (Code t (a ~> b))
 
 cin :: Code t a -> Code (Simplifier t) a
 cin code = C code Id

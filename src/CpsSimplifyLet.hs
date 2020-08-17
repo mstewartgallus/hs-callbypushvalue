@@ -47,7 +47,7 @@ instance HasCode t => HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (Code t a)
   probeCode t = C (probeCode t)
 
-instance HasData t =>HasData (Simplifier t) where
+instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (Data t a)
   probeData t = D (probeData t)
 

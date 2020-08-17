@@ -42,7 +42,7 @@ intrinsics =
     [ GlobalMap.Entry plus plusIntrinsic
     ]
 
-plusIntrinsic :: Cbpv t => Code t (F U64 :-> F U64 :-> F U64)
+plusIntrinsic :: Cbpv t => Code t (F U64 --> F U64 --> F U64)
 plusIntrinsic = lambda inferSet $ \x' ->
   lambda inferSet $ \y' ->
     force x' `letTo` \x'' ->

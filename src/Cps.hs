@@ -25,8 +25,8 @@ class HasData t => HasCall t where
   call :: Global a -> Data t (U a)
 
 class (HasData t, HasCode t, HasStack t) => HasFn t where
-  lambda :: Stack t (a :=> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
-  (<*>) :: Data t a -> Stack t b -> Stack t (a :=> b)
+  lambda :: Stack t (a ~> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c
+  (<*>) :: Data t a -> Stack t b -> Stack t (a ~> b)
 
 infixr 4 <*>
 

@@ -19,7 +19,7 @@ extract = NatTrans $ \(C x) -> x IdCtx
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: HasFn t => Code t a -> Ctx t (a :-> b) b
+  ApplyCtx :: HasFn t => Code t a -> Ctx t (a --> b) b
   IdCtx :: Ctx t a a
 
 instance HasCode t => HasCode (Simplifier t) where

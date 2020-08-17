@@ -54,7 +54,7 @@ iterCbpv = 20
 iterCps :: Int
 iterCps = 20
 
-program :: SystemF t => Code t (F U64 :-> F U64 :-> F U64)
+program :: SystemF t => Code t (F U64 --> F U64 --> F U64)
 program = F.lam $ \_ ->
   F.lam $ \y ->
     ( F.lam $ \z ->

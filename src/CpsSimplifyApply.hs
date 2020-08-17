@@ -22,7 +22,7 @@ extract = NatTrans dout
 data Simplifier t
 
 data TermS t a where
-  ApplyS :: Data t a -> Stack t b -> TermS t (a :=> b)
+  ApplyS :: Data t a -> Stack t b -> TermS t (a ~> b)
   NothingS :: TermS t a
 
 cin :: Code t a -> Code (Simplifier t) a
@@ -53,7 +53,7 @@ instance HasData t => HasData (Simplifier t) where
 
 instance HasStack t => HasStack (Simplifier t) where
   data Stack (Simplifier t) a = S (TermS t a) (Stack t a)
-  probeStack = kin  . probeStack
+  probeStack = kin . probeStack
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = din . constant

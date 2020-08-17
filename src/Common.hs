@@ -1,19 +1,20 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NoStarIsType #-}
 
 module Common
   ( equalAlg,
     equalSet,
-    (:->),
+    type (-->),
     Pair,
     Unit,
     U,
-    (:*:),
+    type (*),
     U64,
     Void,
     F,
-    (:=>),
+    type (~>),
     Algebra,
     Set,
     SSet (..),
@@ -33,7 +34,9 @@ type Unit = 'Unit
 
 type U = 'U
 
-type (:*:) = '(:*:)
+type (*) = '(:*:)
+
+infixr 0 *
 
 type U64 = 'U64
 
@@ -41,7 +44,9 @@ type Void = 'Void
 
 type F = 'F
 
-type (:=>) = '(:=>)
+type (~>) = '(:~>)
+
+infixr 9 ~>
 
 type Set = SetU
 
@@ -49,11 +54,7 @@ type Algebra = AlgebraU
 
 data SetU = Unit | U AlgebraU | SetU :*: SetU | U64
 
-infixr 0 :*:
-
-data AlgebraU = Void | F SetU | SetU :=> AlgebraU
-
-infixr 9 :=>
+data AlgebraU = Void | F SetU | SetU :~> AlgebraU
 
 inferSet :: KnownSet a => SSet a
 inferSet = reifySet Proxy
@@ -85,7 +86,7 @@ instance KnownAlgebra 'Void where
 instance KnownSet a => KnownAlgebra ('F a) where
   reifyAlgebra Proxy = SF (reifySet Proxy)
 
-instance (KnownSet x, KnownAlgebra y) => KnownAlgebra (x ':=> y) where
+instance (KnownSet x, KnownAlgebra y) => KnownAlgebra (x ':~> y) where
   reifyAlgebra Proxy = SFn (reifySet Proxy) (reifyAlgebra Proxy)
 
 data SSet a where
@@ -97,17 +98,17 @@ data SSet a where
 data SAlgebra a where
   SVoid :: SAlgebra 'Void
   SF :: SSet a -> SAlgebra ('F a)
-  SFn :: SSet a -> SAlgebra b -> SAlgebra (a ':=> b)
+  SFn :: SSet a -> SAlgebra b -> SAlgebra (a ~> b)
 
 infixr 9 `SFn`
 
 -- Then define the call by name sugarings
 -- FIXME factor out !
-type a :-> b = 'U a ':=> b
+type a --> b = 'U a ~> b
 
-infixr 9 :->
+infixr 9 -->
 
-type Pair a b = 'F ('U a ':*: 'U b)
+type Pair a b = F (U a * U b)
 
 equalSet :: SSet a -> SSet b -> Maybe (a :~: b)
 equalSet SU64 SU64 = Just Refl

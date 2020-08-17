@@ -2,6 +2,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NoStarIsType #-}
 
 module Interpreter (evaluate, X, Value (..), Kont (..), R (..)) where
 
@@ -23,7 +24,7 @@ import HasTuple
 evaluate :: Data X a -> Value a
 evaluate (V value) = value
 
-data family Value (a :: Set) :: *
+data family Value (a :: Set)
 
 data instance Value Unit = Coin
 
@@ -31,15 +32,15 @@ newtype instance Value U64 = I Word64
 
 newtype instance Value (U a) = Thunk (Kont a -> R)
 
-data instance Value (a :*: b) = Value a ::: Value b
+data instance Value (a * b) = Value a ::: Value b
 
 newtype R = Behaviour (IO ())
 
-data family Kont (a :: Algebra) :: *
+data family Kont (a :: Algebra)
 
 newtype instance Kont (F a) = Returns (Value a -> R)
 
-data instance Kont (a :=> b) = Apply (Value a) (Kont b)
+data instance Kont (a ~> b) = Apply (Value a) (Kont b)
 
 data X
 
@@ -101,10 +102,10 @@ globals =
 
 infixr 0 `Apply`
 
-strictPlusImpl :: G (U64 :=> U64 :=> F U64)
+strictPlusImpl :: G (U64 ~> U64 ~> F U64)
 strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
 
-minusImpl :: G (U (F U64) :=> U (F U64) :=> F U64)
+minusImpl :: G (U (F U64) ~> U (F U64) ~> F U64)
 minusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
   x $ Returns $ \(I x') ->
     y $ Returns $ \(I y') ->
