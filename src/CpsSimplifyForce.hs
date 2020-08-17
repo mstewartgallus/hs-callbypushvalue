@@ -51,14 +51,17 @@ instance (HasLabel t, HasThunk t) => HasThunk (Simplifier t) where
   force (D (ThunkD _ f) _) = cin . whereLabel f . sout
   force x = cin . force (dout x) . sout
 
-instance HasCode (Simplifier t) where
+instance HasCode t => HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (Code t a)
+  probeCode = cin . probeCode
 
-instance HasData (Simplifier t) where
+instance HasData t => HasData (Simplifier t) where
   data Data (Simplifier t) a = D (TermD t a) (Data t a)
+  probeData = din . probeData
 
-instance HasStack (Simplifier t) where
+instance HasStack t => HasStack (Simplifier t) where
   newtype Stack (Simplifier t) a = S (Stack t a)
+  probeStack = kin . probeStack
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = din . constant

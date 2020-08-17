@@ -7,3 +7,4 @@ import Common
 
 class HasCode t where
   data Code t :: Algebra -> *
+  probeCode :: SAlgebra a -> Code t a

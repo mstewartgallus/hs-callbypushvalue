@@ -45,9 +45,11 @@ data X
 
 instance HasData X where
   newtype Data X a = V {unV :: Value a}
+  probeData _ = undefined
 
 instance HasCode X where
   newtype Code X a = C R
+  probeCode _ = undefined
 
 instance HasStack X where
   newtype Stack X a = K (Kont a)

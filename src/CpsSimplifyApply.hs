@@ -43,14 +43,17 @@ kin = S NothingS
 sout :: Stack (Simplifier t) a -> Stack t a
 sout (S _ x) = x
 
-instance HasCode (Simplifier t) where
+instance HasCode t => HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (Code t a)
+  probeCode = cin . probeCode
 
-instance HasData (Simplifier t) where
+instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (Data t a)
+  probeData = din . probeData
 
-instance HasStack (Simplifier t) where
+instance HasStack t => HasStack (Simplifier t) where
   data Stack (Simplifier t) a = S (TermS t a) (Stack t a)
+  probeStack = kin  . probeStack
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = din . constant

@@ -51,11 +51,13 @@ instance (HasLet t, HasReturn t) => HasReturn (Simplifier t) where
   returns (D x) = C $ \ctx -> x (ctx . (ReturnCtx :.: Id))
   from f (C x) = C $ \ctx -> x (ctx . (LetToCtx (cout . f . din) :.: Id))
 
-instance HasCode (Simplifier t) where
+instance HasCode t => HasCode (Simplifier t) where
   newtype Code (Simplifier t) a = C (forall b. Path (Ctx t) (Code t a) b -> b)
+  probeCode = cin . probeCode
 
-instance HasData (Simplifier t) where
+instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (forall b. Path (Ctx t) (Data t a) b -> b)
+  probeData = din . probeData
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant = din . constant

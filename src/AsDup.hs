@@ -125,21 +125,21 @@ instance (Cps.HasReturn s, Cps.HasReturn t) => Cps.HasReturn (AsDup s t) where
   returns (D x x') (S k k') = C (Cps.returns x k) (Cps.returns x' k')
   letTo t f = S first second
     where
-      first = Cps.letTo t $ \x -> fstC $ f (D x undefined)
-      second = Cps.letTo t $ \x -> sndC $ f (D undefined x)
+      first = Cps.letTo t $ \x -> fstC $ f (D x (probeData t))
+      second = Cps.letTo t $ \x -> sndC $ f (D (probeData t) x)
 
 instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
   force (D x x') (S k k') = C (Cps.force x k) (Cps.force x' k')
   thunk t f = D first second
     where
-      first = Cps.thunk t $ \x -> fstC $ f (S x undefined)
-      second = Cps.thunk t $ \x -> sndC $ f (S undefined x)
+      first = Cps.thunk t $ \x -> fstC $ f (S x (probeStack t))
+      second = Cps.thunk t $ \x -> sndC $ f (S (probeStack t) x)
 
 instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = F.lambda t (fstC . f . (\x -> C x undefined))
-      second = F.lambda t (sndC . f . (\x -> C undefined x))
+      first = F.lambda t (fstC . f . (\x -> C x (probeCode t)))
+      second = F.lambda t (sndC . f . (\x -> C (probeCode t) x))
 
   C f f' <*> C x x' = C (f F.<*> x) (f' F.<*> x')
 
@@ -154,7 +154,7 @@ instance (Cps.HasFn s, Cps.HasFn t) => Cps.HasFn (AsDup s t) where
 instance (HasFn s, HasFn t) => HasFn (AsDup s t) where
   lambda t f = C first second
     where
-      first = lambda t (\x -> fstC $ f (D x undefined))
-      second = lambda t (\x -> sndC $ f (D undefined x))
+      first = lambda t (\x -> fstC $ f (D x (probeData t)))
+      second = lambda t (\x -> sndC $ f (D (probeData t) x))
 
   C f f' <*> D x x' = C (f <*> x) (f' <*> x')

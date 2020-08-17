@@ -58,11 +58,13 @@ instance (HasLet t, HasFn t, HasTerminal t) => HasFn (Simplifier t) where
 instance HasTerminal t => HasTerminal (Simplifier t) where
   terminal = din terminal
 
-instance HasCode (Simplifier t) where
+instance HasCode t => HasCode (Simplifier t) where
   data Code (Simplifier t) a = forall b. C b (Path (Ctx t) b (Code t a))
+  probeCode = cin . probeCode
 
-instance HasData (Simplifier t) where
+instance HasData t => HasData (Simplifier t) where
   newtype Data (Simplifier t) a = D (Data t a)
+  probeData = din . probeData
 
 instance Cbpv t => HasConstants (Simplifier t) where
   constant = din . constant

@@ -7,3 +7,4 @@ import Common
 
 class HasData t where
   data Data t :: Set -> *
+  probeData :: SSet a -> Data t a
