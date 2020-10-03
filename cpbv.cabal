@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d10614181a2e5ac8d73b76e4b268d7b47e3a78c54267328374f783895cfcf14d
+-- hash: 83d9a32893ef9a68d7f81006dc573efdb06298e93f57a69a810e296dd9513649
 
 name:           cpbv
 version:        0.1.0.0
@@ -35,6 +35,7 @@ library
       AsPorcelain
       AsText
       Cbpv
+      Cbpv.Simplify
       Cbpv.SimplifyApply
       Cbpv.SimplifyForce
       Cbpv.SimplifyReturn
@@ -70,8 +71,7 @@ library
   hs-source-dirs:
       src
   build-depends:
-      atomic-primops >=0.8 && <0.9
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , containers >=0.6 && <0.7
     , mtl >=2.2 && <3
     , text >=1.2 && <2
@@ -86,8 +86,7 @@ executable cpbv-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      atomic-primops >=0.8 && <0.9
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , containers >=0.6 && <0.7
     , cpbv
     , mtl >=2.2 && <3
@@ -104,8 +103,7 @@ test-suite cpbv-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      atomic-primops >=0.8 && <0.9
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , containers >=0.6 && <0.7
     , cpbv
     , mtl >=2.2 && <3

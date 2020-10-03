@@ -15,9 +15,7 @@ import qualified AsIntrinsified
 import qualified AsPorcelain
 import AsText
 import Cbpv (Cbpv, HasThunk (..))
-import qualified Cbpv.SimplifyApply
-import qualified Cbpv.SimplifyForce
-import qualified Cbpv.SimplifyReturn
+import qualified Cbpv.Simplify
 import Common
 import qualified Constant
 import Control.Category
@@ -140,28 +138,14 @@ optimizeTerm input =
 
         return copy
 
-type OptC = Cbpv.SimplifyForce.Simplifier :.: Cbpv.SimplifyApply.Simplifier :.: Cbpv.SimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
-
 -- fixme... loop
-optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
-optimizeCbpv input =
-  let step :: Cbpv t => Code (OptC t) :~> Code t
-      step =
-        CostInliner.extract
-          . MonoInliner.extract
-          . AsCompose.extract
-          . Cbpv.SimplifyReturn.extract
-          . AsCompose.extract
-          . Cbpv.SimplifyApply.extract
-          . AsCompose.extract
-          . Cbpv.SimplifyForce.extract
-          . AsCompose.extract
-   in do
-        let PairF text copy = (AsDup.extract . step) # input
-        putStrLn "\nOptimized Call By Push Value:"
-        T.putStrLn (AsText.extract text)
+optimizeCbpv :: Cbpv t => Code (Cbpv.Simplify.Simplifier (AsDup AsText t)) a -> IO (Code t a)
+optimizeCbpv input = do
+  let PairF text copy = (AsDup.extract . Cbpv.Simplify.extract) # input
+  putStrLn "\nOptimized Call By Push Value:"
+  T.putStrLn (AsText.extract text)
 
-        return copy
+  return copy
 
 type OptCps = Cps.SimplifyLet.Simplifier :.: Cps.SimplifyForce.Simplifier :.: Cps.SimplifyApply.Simplifier :.: MonoInliner :.: CostInliner
 
