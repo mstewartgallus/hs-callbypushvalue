@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d692619d383e1136edfa481b94f088aec6f4cf807efc469d12c7a5f0a9b8d306
+-- hash: d10614181a2e5ac8d73b76e4b268d7b47e3a78c54267328374f783895cfcf14d
 
 name:           cpbv
 version:        0.1.0.0
@@ -31,7 +31,6 @@ library
       AsCompose
       AsCps
       AsDup
-      AsInlineCost
       AsIntrinsified
       AsPorcelain
       AsText
