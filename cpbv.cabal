@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 83d9a32893ef9a68d7f81006dc573efdb06298e93f57a69a810e296dd9513649
+-- hash: 9ffa5b5eb8dfc4a7cb5e376b1a7e95ae5a13c96031becdb6b0377a642f6eb68b
 
 name:           cpbv
 version:        0.1.0.0
@@ -64,6 +64,7 @@ library
       PairF
       Path
       SystemF
+      SystemF.AsOptimized
       SystemF.Simplifier
       Unique
   other-modules:

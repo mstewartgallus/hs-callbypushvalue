@@ -38,7 +38,7 @@ import NatTrans
 import PairF
 import SystemF (SystemF)
 import qualified SystemF as F
-import qualified SystemF.Simplifier
+import qualified SystemF.AsOptimized
 import TextShow
 import Prelude hiding (id, (.))
 
@@ -119,24 +119,14 @@ cpsTerm term = do
 
   return copy
 
-type OptF = SystemF.Simplifier.Simplifier :.: MonoInliner :.: CostInliner
-
 -- fixme... loop
-optimizeTerm :: SystemF t => Code (OptF (AsDup AsText t)) a -> IO (Code t a)
-optimizeTerm input =
-  let step :: SystemF t => Code (OptF t) :~> Code t
-      step =
-        CostInliner.extract
-          . MonoInliner.extract
-          . AsCompose.extract
-          . SystemF.Simplifier.extract
-          . AsCompose.extract
-   in do
-        let PairF text copy = (AsDup.extract . step) # input
-        putStrLn "\nOptimized Term:"
-        T.putStrLn (AsText.extract text)
+optimizeTerm :: SystemF t => Code (SystemF.AsOptimized.Simplifier (AsDup AsText t)) a -> IO (Code t a)
+optimizeTerm input = do
+  let PairF text copy = (AsDup.extract . SystemF.AsOptimized.extract) # input
+  putStrLn "\nOptimized Term:"
+  T.putStrLn (AsText.extract text)
 
-        return copy
+  return copy
 
 -- fixme... loop
 optimizeCbpv :: Cbpv t => Code (Cbpv.Simplify.Simplifier (AsDup AsText t)) a -> IO (Code t a)
