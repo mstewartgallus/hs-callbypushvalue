@@ -37,8 +37,9 @@ instance HasReturn t => HasReturn (AsCbpv t) where
 
 instance (HasLet t, HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair f g (C x) =
-    C $ letBe (thunk x) $
-      returns . pair (thunk . unC . f . C . force) (thunk . unC . g . C . force)
+    C $
+      letBe (thunk x) $
+        returns . pair (thunk . unC . f . C . force) (thunk . unC . g . C . force)
   first = C . from (force . first) . unC
   second = C . from (force . second) . unC
 

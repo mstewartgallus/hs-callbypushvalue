@@ -5,7 +5,7 @@
 module NatTrans ((:~>) (..), (|*|), (#)) where
 
 import Control.Category
-import Prelude hiding ((.), id)
+import Prelude hiding (id, (.))
 
 newtype f :~> g = NatTrans (forall x. f x -> g x)
 

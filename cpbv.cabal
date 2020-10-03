@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f0cf3670c9a805b0e58123ec5d4959ca57a453145ac6fce89b882664c968a311
+-- hash: d692619d383e1136edfa481b94f088aec6f4cf807efc469d12c7a5f0a9b8d306
 
 name:           cpbv
 version:        0.1.0.0
@@ -36,17 +36,17 @@ library
       AsPorcelain
       AsText
       Cbpv
-      CbpvSimplifyApply
-      CbpvSimplifyForce
-      CbpvSimplifyReturn
+      Cbpv.SimplifyApply
+      Cbpv.SimplifyForce
+      Cbpv.SimplifyReturn
       Common
       Constant
       Core
       CostInliner
       Cps
-      CpsSimplifyApply
-      CpsSimplifyForce
-      CpsSimplifyLet
+      Cps.SimplifyApply
+      Cps.SimplifyForce
+      Cps.SimplifyLet
       Global
       GlobalMap
       HasCall
@@ -64,7 +64,7 @@ library
       PairF
       Path
       SystemF
-      SystemFSimplifier
+      SystemF.Simplifier
       Unique
   other-modules:
       Paths_cpbv

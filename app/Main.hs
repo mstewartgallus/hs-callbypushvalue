@@ -4,31 +4,30 @@ module Main where
 
 import AsCbpv (AsCbpv)
 import qualified AsCbpv
-import qualified AsCompose
 import AsCompose ((:.:))
-import qualified AsCps
+import qualified AsCompose
 import AsCps (AsCps)
-import qualified AsDup
+import qualified AsCps
 import AsDup (AsDup)
+import qualified AsDup
 import AsIntrinsified (AsIntrinsified)
 import qualified AsIntrinsified
 import qualified AsPorcelain
 import AsText
-import Cbpv (Cbpv)
-import Cbpv (HasThunk (..))
-import qualified CbpvSimplifyApply
-import qualified CbpvSimplifyForce
-import qualified CbpvSimplifyReturn
+import Cbpv (Cbpv, HasThunk (..))
+import qualified Cbpv.SimplifyApply
+import qualified Cbpv.SimplifyForce
+import qualified Cbpv.SimplifyReturn
 import Common
 import qualified Constant
 import Control.Category
 import qualified Core
-import qualified CostInliner
 import CostInliner (CostInliner)
+import qualified CostInliner
 import Cps (Cps)
-import qualified CpsSimplifyApply
-import qualified CpsSimplifyForce
-import qualified CpsSimplifyLet
+import qualified Cps.SimplifyApply
+import qualified Cps.SimplifyForce
+import qualified Cps.SimplifyLet
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCall
@@ -41,9 +40,9 @@ import NatTrans
 import PairF
 import SystemF (SystemF)
 import qualified SystemF as F
-import qualified SystemFSimplifier
+import qualified SystemF.Simplifier
 import TextShow
-import Prelude hiding ((.), id)
+import Prelude hiding (id, (.))
 
 iterTerm :: Int
 iterTerm = 20
@@ -122,7 +121,7 @@ cpsTerm term = do
 
   return copy
 
-type OptF = SystemFSimplifier.Simplifier :.: MonoInliner :.: CostInliner
+type OptF = SystemF.Simplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeTerm :: SystemF t => Code (OptF (AsDup AsText t)) a -> IO (Code t a)
@@ -132,7 +131,7 @@ optimizeTerm input =
         CostInliner.extract
           . MonoInliner.extract
           . AsCompose.extract
-          . SystemFSimplifier.extract
+          . SystemF.Simplifier.extract
           . AsCompose.extract
    in do
         let PairF text copy = (AsDup.extract . step) # input
@@ -141,7 +140,7 @@ optimizeTerm input =
 
         return copy
 
-type OptC = CbpvSimplifyForce.Simplifier :.: CbpvSimplifyApply.Simplifier :.: CbpvSimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
+type OptC = Cbpv.SimplifyForce.Simplifier :.: Cbpv.SimplifyApply.Simplifier :.: Cbpv.SimplifyReturn.Simplifier :.: MonoInliner :.: CostInliner
 
 -- fixme... loop
 optimizeCbpv :: Cbpv t => Code (OptC (AsDup AsText t)) a -> IO (Code t a)
@@ -151,11 +150,11 @@ optimizeCbpv input =
         CostInliner.extract
           . MonoInliner.extract
           . AsCompose.extract
-          . CbpvSimplifyReturn.extract
+          . Cbpv.SimplifyReturn.extract
           . AsCompose.extract
-          . CbpvSimplifyApply.extract
+          . Cbpv.SimplifyApply.extract
           . AsCompose.extract
-          . CbpvSimplifyForce.extract
+          . Cbpv.SimplifyForce.extract
           . AsCompose.extract
    in do
         let PairF text copy = (AsDup.extract . step) # input
@@ -164,7 +163,7 @@ optimizeCbpv input =
 
         return copy
 
-type OptCps = CpsSimplifyLet.Simplifier :.: CpsSimplifyForce.Simplifier :.: CpsSimplifyApply.Simplifier :.: MonoInliner :.: CostInliner
+type OptCps = Cps.SimplifyLet.Simplifier :.: Cps.SimplifyForce.Simplifier :.: Cps.SimplifyApply.Simplifier :.: MonoInliner :.: CostInliner
 
 optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
 optimizeCps input =
@@ -173,11 +172,11 @@ optimizeCps input =
         CostInliner.extractData
           . MonoInliner.extractData
           . AsCompose.extractData
-          . CpsSimplifyApply.extract
+          . Cps.SimplifyApply.extract
           . AsCompose.extractData
-          . CpsSimplifyForce.extract
+          . Cps.SimplifyForce.extract
           . AsCompose.extractData
-          . CpsSimplifyLet.extract
+          . Cps.SimplifyLet.extract
           . AsCompose.extractData
    in do
         let PairF text copy = (AsDup.extractData . step) # input

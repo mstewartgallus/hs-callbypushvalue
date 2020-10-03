@@ -56,8 +56,9 @@ instance HasLet t => HasLet (MonoInliner t) where
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
       inlined@(C inlineCost _) = f (D 1 x)
-      notinlined = C (xcost + fcost) $ letBe x $ \x' -> case f (D 0 x') of
-        C _ y -> y
+      notinlined = C (xcost + fcost) $
+        letBe x $ \x' -> case f (D 0 x') of
+          C _ y -> y
       C fcost _ = f (D 0 x)
 
 instance Cps.HasLabel t => Cps.HasLabel (MonoInliner t) where
@@ -67,23 +68,26 @@ instance Cps.HasLabel t => Cps.HasLabel (MonoInliner t) where
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
       inlined@(C inlineCost _) = f (S 1 x)
-      notinlined = C (xcost + fcost) $ Cps.label x $ \x' -> case f (S 0 x') of
-        C _ y -> y
+      notinlined = C (xcost + fcost) $
+        Cps.label x $ \x' -> case f (S 0 x') of
+          C _ y -> y
       C fcost _ = f (S 0 x)
 
 instance HasReturn t => HasReturn (MonoInliner t) where
   returns (D cost k) = C cost (returns k)
   from f (C xcost x) =
     let C fcost _ = f (D 0 undefined)
-     in C (xcost + fcost) $ letTo x $ \x' -> case f (D 0 x') of
-          C _ y -> y
+     in C (xcost + fcost) $
+          letTo x $ \x' -> case f (D 0 x') of
+            C _ y -> y
 
 instance HasFn t => HasFn (MonoInliner t) where
   C fcost f <*> D xcost x = C (fcost + xcost) (f <*> x)
   lambda t f =
     let C fcost _ = f (D 0 undefined)
-     in C fcost $ lambda t $ \x' -> case f (D 0 x') of
-          C _ y -> y
+     in C fcost $
+          lambda t $ \x' -> case f (D 0 x') of
+            C _ y -> y
 
 instance HasThunk t => HasThunk (MonoInliner t) where
   force (D cost th) = C cost (force th)
@@ -92,23 +96,26 @@ instance HasThunk t => HasThunk (MonoInliner t) where
 instance Cps.HasThunk t => Cps.HasThunk (MonoInliner t) where
   thunk t f =
     let C fcost _ = f (S 0 undefined)
-     in D fcost $ Cps.thunk t $ \x' -> case f (S 0 x') of
-          C _ y -> y
+     in D fcost $
+          Cps.thunk t $ \x' -> case f (S 0 x') of
+            C _ y -> y
   force (D tcost th) (S scost stack) = C (tcost + scost) (Cps.force th stack)
 
 instance Cps.HasReturn t => Cps.HasReturn (MonoInliner t) where
   letTo t f =
     let C fcost _ = f (D 0 undefined)
-     in S fcost $ Cps.letTo t $ \x' -> case f (D 0 x') of
-          C _ y -> y
+     in S fcost $
+          Cps.letTo t $ \x' -> case f (D 0 x') of
+            C _ y -> y
   returns (D scost c) (S tcost stk) = C (tcost + scost) (Cps.returns c stk)
 
 instance Cps.HasFn t => Cps.HasFn (MonoInliner t) where
   D xcost x <*> S kcost k = S (xcost + kcost) (x Cps.<*> k)
   lambda (S kcost k) f =
     let C fcost _ = f (D 0 undefined) (S 0 undefined)
-     in C (kcost + fcost) $ Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
-          C _ y -> y
+     in C (kcost + fcost) $
+          Cps.lambda k $ \x n -> case f (D 0 x) (S 0 n) of
+            C _ y -> y
 
 instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
   call = D 0 . Cps.call
@@ -128,8 +135,9 @@ instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
       inlined@(C inlineCost _) = f (C 1 x)
-      notinlined = C (xcost + fcost) $ SystemF.letBe x $ \x' -> case f (C 0 x') of
-        C _ y -> y
+      notinlined = C (xcost + fcost) $
+        SystemF.letBe x $ \x' -> case f (C 0 x') of
+          C _ y -> y
       C fcost _ = f (C 0 x)
 
 instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where

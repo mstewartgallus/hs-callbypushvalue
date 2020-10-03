@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module CbpvSimplifyApply (Simplifier, extract) where
+module Cbpv.SimplifyApply (Simplifier, extract) where
 
 import Cbpv
 import Common

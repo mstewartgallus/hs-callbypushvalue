@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemFSimplifier (extract, Simplifier) where
+module SystemF.Simplifier (extract, Simplifier) where
 
 import Common
 import Control.Category

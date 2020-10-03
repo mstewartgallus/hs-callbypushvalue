@@ -73,13 +73,15 @@ instance HasLabel X where
   whereLabel = id
 
 instance HasThunk X where
-  thunk _ f = V $ Thunk $ \x -> case f (K x) of
-    C k -> k
+  thunk _ f = V $
+    Thunk $ \x -> case f (K x) of
+      C k -> k
   force (V (Thunk f)) (K x) = C (f x)
 
 instance HasReturn X where
-  letTo _ f = K $ Returns $ \x -> case f (V x) of
-    C k -> k
+  letTo _ f = K $
+    Returns $ \x -> case f (V x) of
+      C k -> k
   returns (V x) (K (Returns k)) = C (k x)
 
 instance HasFn X where
@@ -107,6 +109,8 @@ strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
 
 minusImpl :: G (U (F U64) ~> U (F U64) ~> F U64)
 minusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
-  x $ Returns $ \(I x') ->
-    y $ Returns $ \(I y') ->
-      k (I (x' - y'))
+  x $
+    Returns $ \(I x') ->
+      y $
+        Returns $ \(I y') ->
+          k (I (x' - y'))

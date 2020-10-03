@@ -5,10 +5,10 @@
 
 module CostInliner (extract, extractData, CostInliner) where
 
-import qualified AsDup
 import AsDup (AsDup)
-import qualified AsInlineCost
+import qualified AsDup
 import AsInlineCost (AsInlineCost)
+import qualified AsInlineCost
 import Cbpv
 import Control.Category
 import qualified Cps

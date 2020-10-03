@@ -6,7 +6,7 @@
 module Unique (Unique, run, uniqueId, withStream, State, Stream (..)) where
 
 import Data.Atomics.Counter
-import GHC.Exts ((+#), Int (I#), Int#)
+import GHC.Exts (Int (I#), Int#, (+#))
 import System.IO.Unsafe
 import TextShow
 
