@@ -20,20 +20,14 @@ import Common
 import qualified Constant
 import Control.Category
 import qualified Core
-import CostInliner (CostInliner)
-import qualified CostInliner
 import Cps (Cps)
-import qualified Cps.SimplifyApply
-import qualified Cps.SimplifyForce
-import qualified Cps.SimplifyLet
+import qualified Cps.AsOptimized
 import qualified Data.Text.IO as T
 import Data.Word
 import HasCall
 import HasCode
 import HasData
 import qualified Interpreter
-import MonoInliner (MonoInliner)
-import qualified MonoInliner
 import NatTrans
 import PairF
 import SystemF (SystemF)
@@ -137,27 +131,13 @@ optimizeCbpv input = do
 
   return copy
 
-type OptCps = Cps.SimplifyLet.Simplifier :.: Cps.SimplifyForce.Simplifier :.: Cps.SimplifyApply.Simplifier :.: MonoInliner :.: CostInliner
+optimizeCps :: Cps t => Data (Cps.AsOptimized.Simplifier (AsDup AsText t)) a -> IO (Data t a)
+optimizeCps input = do
+  let PairF text copy = (AsDup.extractData . Cps.AsOptimized.extract) # input
+  putStrLn "\nOptimized Continuation Passing Style:"
+  T.putStrLn (AsText.extractData text)
 
-optimizeCps :: Cps t => Data (OptCps (AsDup AsText t)) a -> IO (Data t a)
-optimizeCps input =
-  let step :: Cps t => Data (OptCps t) :~> Data t
-      step =
-        CostInliner.extractData
-          . MonoInliner.extractData
-          . AsCompose.extractData
-          . Cps.SimplifyApply.extract
-          . AsCompose.extractData
-          . Cps.SimplifyForce.extract
-          . AsCompose.extractData
-          . Cps.SimplifyLet.extract
-          . AsCompose.extractData
-   in do
-        let PairF text copy = (AsDup.extractData . step) # input
-        putStrLn "\nOptimized Continuation Passing Style:"
-        T.putStrLn (AsText.extractData text)
-
-        return copy
+  return copy
 
 t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)
