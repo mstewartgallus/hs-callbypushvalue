@@ -2,11 +2,11 @@
 
 module Global (Global (..)) where
 
-import Common
 import Name (Name)
+import SystemF.Type
 import TextShow
 
-data Global a = Global (SAlgebra a) Name
+data Global a = Global (SType a) Name
 
 instance Eq (Global a) where
   (Global _ n) == (Global _ n') = n == n && n == n'

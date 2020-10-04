@@ -16,7 +16,7 @@ import qualified AsPorcelain
 import AsText
 import Cbpv (Cbpv, HasThunk (..))
 import qualified Cbpv.Simplify
-import Common
+import Common (FromType)
 import qualified Constant
 import Control.Category
 import qualified Core
@@ -33,6 +33,7 @@ import PairF
 import SystemF (SystemF)
 import qualified SystemF as F
 import qualified SystemF.AsOptimized
+import SystemF.Type
 import TextShow
 import Prelude hiding (id, (.))
 
@@ -45,7 +46,7 @@ iterCbpv = 20
 iterCps :: Int
 iterCps = 20
 
-program :: SystemF t => Term t (F U64 --> F U64 --> F U64)
+program :: SystemF t => Term t (U64 ~> U64 ~> U64)
 program = F.lam $ \_ ->
   F.lam $ \y ->
     ( F.lam $ \z ->
@@ -86,9 +87,9 @@ dupLog term = do
 
   return copy
 
-cbpvTerm :: Cbpv t => Term ((AsCbpv :.: AsDup AsText) t) a -> IO (Code t a)
+cbpvTerm :: Cbpv t => Term ((AsCbpv :.: AsDup AsText) t) a -> IO (Code t (FromType a))
 cbpvTerm term = do
-  let PairF text copy = (AsDup.extract . AsCbpv.extract . AsCompose.extractTerm) # term
+  let PairF text copy = AsDup.extract # (AsCbpv.extract (AsCompose.extractTerm # term))
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract text)
@@ -139,5 +140,5 @@ optimizeCps input = do
 
   return copy
 
-t :: Word64 -> Interpreter.Value (U (F U64))
+-- t :: Word64 -> Interpreter.Value (U (F U64))
 t x = Interpreter.Thunk $ \(Interpreter.Returns k) -> k (Interpreter.I x)

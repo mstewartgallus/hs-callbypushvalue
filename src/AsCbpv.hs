@@ -18,16 +18,16 @@ import NatTrans
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
-extract :: Term (AsCbpv t) :~> Code t
-extract = NatTrans unC
+extract :: Term (AsCbpv t) a -> Code t (FromType a)
+extract = unC
 
 newtype AsCbpv t = AsCbpv t
 
 instance HasCode t => HasTerm (AsCbpv t) where
-  newtype Term (AsCbpv t) a = C {unC :: Code t a}
+  newtype Term (AsCbpv t) a = C {unC :: Code t (FromType a)}
 
-instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
-  constant = C . returns . constant
+instance (HasThunk t, HasConstants t) => F.HasConstants (AsCbpv t) where
+  constant k = C (force (constant k))
 
 instance HasCall t => F.HasCall (AsCbpv t) where
   call = C . call
@@ -44,5 +44,5 @@ instance (HasLet t, HasThunk t) => F.HasLet (AsCbpv t) where
   whereIs f = C . whereIs (unC . f . C . force) . thunk . unC
 
 instance (HasThunk t, HasFn t) => F.HasFn (AsCbpv t) where
-  lambda t f = C $ lambda (SU t) (unC . f . C . force)
+  lambda t f = C $ lambda (SU (fromType t)) (unC . f . C . force)
   (<*>) (C f) = C . (<*>) f . thunk . unC

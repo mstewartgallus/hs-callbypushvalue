@@ -3,8 +3,8 @@
 
 module HasTerm (HasTerm (..)) where
 
-import Common
-import Data.Kind
+import qualified Data.Kind
+import SystemF.Type
 
 class HasTerm t where
-  data Term t :: Algebra -> Type
+  data Term t :: Type -> Data.Kind.Type

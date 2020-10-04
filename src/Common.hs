@@ -1,10 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE NoStarIsType #-}
 
 module Common
-  ( equalAlg,
+  ( fromType,
+    FromType,
+    equalAlg,
     equalSet,
     type (-->),
     Pair,
@@ -28,7 +31,19 @@ where
 
 import Data.Proxy
 import Data.Typeable
+import qualified SystemF.Type as F
 import TextShow
+
+type family FromType a where
+  FromType (a F.~> b) = U (FromType a) ~> FromType b
+  FromType (a F.* b) = F (U (FromType a) * U (FromType b))
+  FromType F.U64 = F U64
+
+fromType :: F.SType a -> SAlgebra (FromType a)
+fromType expr = case expr of
+  F.SFn a b -> SFn (SU (fromType a)) (fromType b)
+  F.SPair a b -> SF (SPair (SU (fromType a)) (SU (fromType b)))
+  F.SU64 -> SF SU64
 
 type Unit = 'Unit
 

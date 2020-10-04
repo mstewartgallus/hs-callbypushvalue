@@ -5,7 +5,7 @@
 
 module SystemF.Simplifier (extract, Simplifier) where
 
-import Common
+import SystemF.Type
 import Control.Category
 import HasTerm
 import NatTrans
@@ -18,7 +18,7 @@ extract = NatTrans $ \(C x) -> x IdCtx
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: HasFn t => Term t a -> Ctx t (a --> b) b
+  ApplyCtx :: HasFn t => Term t a -> Ctx t (a ~> b) b
   IdCtx :: Ctx t a a
 
 instance HasTerm t => HasTerm (Simplifier t) where

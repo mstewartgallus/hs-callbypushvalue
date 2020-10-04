@@ -2,8 +2,8 @@
 
 module Constant (Constant (..), typeOf) where
 
-import Common
 import Data.Word
+import SystemF.Type
 import TextShow
 
 data Constant a where
@@ -15,5 +15,5 @@ instance Eq (Constant a) where
 instance TextShow (Constant a) where
   showb (U64Constant n) = showb n
 
-typeOf :: Constant a -> SSet a
+typeOf :: Constant a -> SType a
 typeOf (U64Constant _) = SU64

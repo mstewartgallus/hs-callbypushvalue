@@ -20,6 +20,7 @@ import HasLet
 import HasStack
 import HasTerminal
 import HasTuple
+import qualified SystemF.Type as F
 
 evaluate :: Data X a -> Value a
 evaluate (V value) = value
@@ -56,7 +57,7 @@ instance HasStack X where
   newtype Stack X a = K (Kont a)
 
 instance HasConstants X where
-  constant (U64Constant x) = V (I x)
+  constant (U64Constant x) = V (Thunk $ \(Returns k) -> k (I x))
 
 instance HasTerminal X where
   terminal = V Coin
@@ -93,24 +94,32 @@ instance HasCall X where
     Just (G x) -> V $ Thunk x
     Nothing -> error "global not found in environment"
 
-newtype G a = G (Kont a -> R)
+newtype G a = G (Kont (FromType a) -> R)
 
 globals :: GlobalMap G
 globals =
   GlobalMap.fromList
-    [ GlobalMap.Entry strictPlus strictPlusImpl,
+    [ GlobalMap.Entry plus plusImpl,
       GlobalMap.Entry minus minusImpl
     ]
 
 infixr 0 `Apply`
 
-strictPlusImpl :: G (U64 ~> U64 ~> F U64)
-strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
+-- strictPlusImpl :: G (U64 ~> U64 ~> F U64)
+-- strictPlusImpl = G $ \(I x `Apply` I y `Apply` Returns k) -> k (I (x + y))
 
-minusImpl :: G (U (F U64) ~> U (F U64) ~> F U64)
+minusImpl :: G (F.U64 F.~> F.U64 F.~> F.U64)
 minusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
   x $
     Returns $ \(I x') ->
       y $
         Returns $ \(I y') ->
           k (I (x' - y'))
+
+plusImpl :: G (F.U64 F.~> F.U64 F.~> F.U64)
+plusImpl = G $ \(Thunk x `Apply` Thunk y `Apply` Returns k) ->
+  x $
+    Returns $ \(I x') ->
+      y $
+        Returns $ \(I y') ->
+          k (I (x' + y'))

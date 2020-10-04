@@ -22,7 +22,7 @@ import HasTuple
 type Cps t = (HasConstants t, HasTerminal t, HasCall t, HasCode t, HasStack t, HasFn t, HasReturn t, HasThunk t, HasLabel t, HasLet t, HasTuple t)
 
 class HasData t => HasCall t where
-  call :: Global a -> Data t (U a)
+  call :: Global a -> Data t (U (FromType a))
 
 class (HasData t, HasCode t, HasStack t) => HasFn t where
   lambda :: Stack t (a ~> b) -> (Data t a -> Stack t b -> Code t c) -> Code t c

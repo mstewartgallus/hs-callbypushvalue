@@ -34,17 +34,20 @@ instance HasData t => HasData (AsIntrinsified t) where
 instance Cbpv t => HasCall (AsIntrinsified t) where
   call g = C $ case GlobalMap.lookup g intrinsics of
     Nothing -> call g
-    Just intrinsic -> intrinsic
+    Just (G intrinsic) -> intrinsic
 
-intrinsics :: Cbpv t => GlobalMap (Code t)
+newtype G t a = G (Code t (FromType a))
+
+intrinsics :: Cbpv t => GlobalMap (G t)
 intrinsics =
   GlobalMap.fromList
-    [ GlobalMap.Entry plus plusIntrinsic
-    ]
+    []
 
-plusIntrinsic :: Cbpv t => Code t (F U64 --> F U64 --> F U64)
-plusIntrinsic = lambda inferSet $ \x' ->
-  lambda inferSet $ \y' ->
-    force x' `letTo` \x'' ->
-      force y' `letTo` \y'' ->
-        call strictPlus <*> x'' <*> y''
+-- GlobalMap.Entry plus (G plusIntrinsic)
+
+-- plusIntrinsic :: Cbpv t => Code t (U (F U64) ~> U (F U64) ~> F U64)
+-- plusIntrinsic = lambda inferSet $ \x' ->
+--   lambda inferSet $ \y' ->
+--     force x' `letTo` \x'' ->
+--       force y' `letTo` \y'' ->
+--         call strictPlus <*> x'' <*> y''

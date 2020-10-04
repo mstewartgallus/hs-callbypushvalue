@@ -1,13 +1,14 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NoStarIsType #-}
 
 module SystemF (lam, SystemF, HasCall (..), HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
 
-import Common
 import Constant
 import Global
 import HasTerm
+import SystemF.Type
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
@@ -28,27 +29,27 @@ class HasTerm t => HasLet t where
   whereIs = flip letBe
 
 class HasTerm t => HasConstants t where
-  constant :: Constant a -> Term t (F a)
+  constant :: Constant a -> Term t a
 
 class HasTerm t => HasCall t where
   call :: Global a -> Term t a
 
 class HasTerm t => HasTuple t where
   -- | factorizer from category theory
-  pair :: (Term t a -> Term t b) -> (Term t a -> Term t c) -> (Term t a -> Term t (Pair b c))
+  pair :: (Term t a -> Term t b) -> (Term t a -> Term t c) -> (Term t a -> Term t (b * c))
 
-  first :: Term t (Pair a b) -> Term t a
-  second :: Term t (Pair a b) -> Term t b
+  first :: Term t (a * b) -> Term t a
+  second :: Term t (a * b) -> Term t b
 
 class HasTerm t => HasFn t where
-  (<*>) :: Term t (a --> b) -> Term t a -> Term t b
-  lambda :: SAlgebra a -> (Term t a -> Term t b) -> Term t (a --> b)
+  (<*>) :: Term t (a ~> b) -> Term t a -> Term t b
+  lambda :: SType a -> (Term t a -> Term t b) -> Term t (a ~> b)
 
-  uncurry :: (Term t a -> Term t (b --> c)) -> (Term t (Pair a b) -> Term t c)
-  curry :: (Term t (Pair a b) -> Term t c) -> (Term t a -> Term t (b --> c))
+  uncurry :: (Term t a -> Term t (b ~> c)) -> (Term t (a * b) -> Term t c)
+  curry :: (Term t (a * b) -> Term t c) -> (Term t a -> Term t (b ~> c))
 
 infixl 4 <*>
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
-lam :: (HasFn t, KnownAlgebra a) => (Term t a -> Term t b) -> Term t (a --> b)
-lam = lambda inferAlgebra
+lam :: (HasFn t, KnownType a) => (Term t a -> Term t b) -> Term t (a ~> b)
+lam = lambda inferType

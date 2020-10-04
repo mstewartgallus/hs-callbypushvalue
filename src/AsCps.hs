@@ -30,7 +30,7 @@ instance HasData t => HasData (AsCps t) where
   data Data (AsCps t) a = D (SSet a) (Data t a)
 
 instance HasConstants t => HasConstants (AsCps t) where
-  constant k = D (Constant.typeOf k) $ constant k
+  constant k = D (SU (fromType (Constant.typeOf k))) $ constant k
 
 instance HasTerminal t => HasTerminal (AsCps t) where
   terminal = D SUnit terminal
@@ -67,4 +67,4 @@ instance Cps.HasFn t => HasFn (AsCps t) where
            in body next
 
 instance (Cps.HasThunk t, Cps.HasCall t) => HasCall (AsCps t) where
-  call g@(Global t _) = C t (\k -> Cps.force (Cps.call g) k)
+  call g@(Global t _) = C (fromType t) (\k -> Cps.force (Cps.call g) k)
