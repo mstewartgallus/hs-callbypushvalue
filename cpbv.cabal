@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 30ea7990c7b24ecb4ec3b01541c1d1996781d3bcf9eedf1afc7bd5351c522da4
+-- hash: 2604292c6b3ed6cb0c530f4a4a8c4aae25361630c5e24c86cb601b66faddaa5f
 
 name:           cpbv
 version:        0.1.0.0
@@ -68,6 +68,7 @@ library
       SystemF
       SystemF.AsOptimized
       SystemF.Simplifier
+      SystemF.Type
       Unique
   other-modules:
       Paths_cpbv
