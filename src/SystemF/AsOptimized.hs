@@ -20,43 +20,53 @@ import qualified SystemF.Simplifier
 import Prelude hiding ((.), (<*>), id)
 
 extract :: Term (Simplifier t) :~> Term t
-extract = step . NatTrans cout
+extract = NatTrans (loop 20)
 
-step :: Term (Opt t) :~> Term t
-step = CostInliner.extractTerm
+loop :: Int -> Term (Simplifier t) a -> Term t a
+loop n x | n > 0 = loop (n - 1) (opt (step x))
+         | otherwise = out x
+
+opt :: Term (Opt t) a -> Term t a
+opt x = (CostInliner.extractTerm
           . MonoInliner.extractTerm
           . AsCompose.extractTerm
           . SystemF.Simplifier.extract
-          . AsCompose.extractTerm
+          . AsCompose.extractTerm) # x
 
 
 data Simplifier t
 
-cin :: Term (Opt t) a -> Term (Simplifier t) a
-cin = C
-
-cout :: Term (Simplifier t) a -> Term (Opt t) a
-cout (C x) = x
-
-instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
-  lambda t f = cin (lambda t (cout . f . cin))
-  (<*>) f = cin . (<*>) (cout f) . cout
-
 type Opt = SystemF.Simplifier.Simplifier :.: MonoInliner :.: CostInliner
 
 instance HasTerm t => HasTerm (Simplifier t) where
-  newtype Term (Simplifier t) a = C (Term (Opt t) a)
+  data Term (Simplifier t) a = C {
+    out :: Term t a,
+    step :: Term (Opt (Simplifier t)) a
+    }
+
+cin :: Term t a -> Term (Simplifier t) a
+cin x = C x undefined
+
+cin' :: Term (Opt (Simplifier t)) a -> Term (Simplifier t) a
+cin' x = C (out (opt x)) x
+
+instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
+  lambda t f = C (lambda t outF) (lambda t optF) where
+    outF x = out (f (cin x))
+    optF x = step (f (cin' x))
+  f <*> x = C (out f <*> out x) (step f <*> step x)
 
 instance HasConstants t => HasConstants (Simplifier t) where
-  constant = cin . constant
+  constant k = C (constant k) (constant k)
 
 instance HasCall t => HasCall (Simplifier t) where
-  call = cin . call
+  call k = C (call k) (call k)
 
 instance HasLet t => HasLet (Simplifier t) where
-  whereIs f = cin . whereIs (cout . f . cin) . cout
+  x `letBe` f = C (out x `letBe` outF) (step x `letBe` optF) where
+    outF x' = out (f (cin x'))
+    optF x' = step (f (cin' x'))
 
 instance HasTuple t => HasTuple (Simplifier t) where
-  pair f g = cin . pair (cout . f . cin) (cout . g . cin) . cout
-  first = cin . first . cout
-  second = cin . second . cout
+  first x = C (first (out x)) (first (step x))
+  second x = C (second (out x)) (second (step x))
