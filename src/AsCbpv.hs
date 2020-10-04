@@ -12,28 +12,25 @@ import HasCode
 import HasConstants
 import HasData
 import HasLet
+import HasTerm
 import HasTuple
 import NatTrans
 import qualified SystemF as F
 import Prelude hiding ((<*>))
 
-extract :: Code (AsCbpv t) :~> Code t
+extract :: Term (AsCbpv t) :~> Code t
 extract = NatTrans unC
 
-newtype AsCbpv t = AsCbpv t deriving (HasCall)
+newtype AsCbpv t = AsCbpv t
 
-instance HasCode t => HasCode (AsCbpv t) where
-  newtype Code (AsCbpv t) a = C {unC :: Code t a}
-
-instance HasData t => HasData (AsCbpv t) where
-  newtype Data (AsCbpv t) a = D {unD :: Data t a}
+instance HasCode t => HasTerm (AsCbpv t) where
+  newtype Term (AsCbpv t) a = C {unC :: Code t a}
 
 instance (HasReturn t, HasConstants t) => F.HasConstants (AsCbpv t) where
   constant = C . returns . constant
 
-instance HasReturn t => HasReturn (AsCbpv t) where
-  returns = C . returns . unD
-  from f = C . from (unC . f . D) . unC
+instance HasCall t => F.HasCall (AsCbpv t) where
+  call = C . call
 
 instance (HasLet t, HasTuple t, HasThunk t, HasReturn t) => F.HasTuple (AsCbpv t) where
   pair f g (C x) =

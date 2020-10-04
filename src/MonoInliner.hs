@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module MonoInliner (extract, extractData, MonoInliner) where
+module MonoInliner (extractTerm, extract, extractData, MonoInliner) where
 
 import Cbpv
 import Control.Category
@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerm
 import HasTerminal
 import HasTuple
 import NatTrans
@@ -20,11 +21,17 @@ import Prelude hiding ((.), (<*>))
 
 data MonoInliner t
 
+extractTerm :: Term (MonoInliner t) :~> Term t
+extractTerm = NatTrans $ \(T _ x) -> x
+
 extract :: Code (MonoInliner t) :~> Code t
 extract = NatTrans $ \(C _ x) -> x
 
 extractData :: Data (MonoInliner t) :~> Data t
 extractData = NatTrans $ \(D _ x) -> x
+
+instance HasTerm t => HasTerm (MonoInliner t) where
+  data Term (MonoInliner t) a = T Int (Term t a)
 
 instance HasCode t => HasCode (MonoInliner t) where
   data Code (MonoInliner t) a = C Int (Code t a)
@@ -45,7 +52,7 @@ instance HasConstants t => HasConstants (MonoInliner t) where
   constant k = D 0 (constant k)
 
 instance SystemF.HasConstants t => SystemF.HasConstants (MonoInliner t) where
-  constant k = C 0 (SystemF.constant k)
+  constant k = T 0 (SystemF.constant k)
 
 instance HasTuple t => HasTuple (MonoInliner t)
 
@@ -121,27 +128,30 @@ instance Cps.HasCall t => Cps.HasCall (MonoInliner t) where
   call = D 0 . Cps.call
 
 instance SystemF.HasTuple t => SystemF.HasTuple (MonoInliner t) where
-  pair f g (C xcost x) =
-    let C fcost _ = f (C 0 undefined)
-        C gcost _ = g (C 0 undefined)
-     in C (fcost + gcost + xcost) $ SystemF.pair ((extract #) . f . C 0) ((extract #) . g . C 0) x
-  first (C tcost tuple) = C tcost $ SystemF.first tuple
-  second (C tcost tuple) = C tcost $ SystemF.second tuple
+  pair f g (T xcost x) =
+    let T fcost _ = f (T 0 undefined)
+        T gcost _ = g (T 0 undefined)
+     in T (fcost + gcost + xcost) $ SystemF.pair ((extractTerm #) . f . T 0) ((extractTerm #) . g . T 0) x
+  first (T tcost tuple) = T tcost $ SystemF.first tuple
+  second (T tcost tuple) = T tcost $ SystemF.second tuple
 
 instance SystemF.HasLet t => SystemF.HasLet (MonoInliner t) where
-  whereIs f (C xcost x) = result
+  whereIs f (T xcost x) = result
     where
       result
         | inlineCost <= 1 = inlined
         | otherwise = notinlined
-      inlined@(C inlineCost _) = f (C 1 x)
-      notinlined = C (xcost + fcost) $
-        SystemF.letBe x $ \x' -> case f (C 0 x') of
-          C _ y -> y
-      C fcost _ = f (C 0 x)
+      inlined@(T inlineCost _) = f (T 1 x)
+      notinlined = T (xcost + fcost) $
+        SystemF.letBe x $ \x' -> case f (T 0 x') of
+          T _ y -> y
+      T fcost _ = f (T 0 x)
 
 instance SystemF.HasFn t => SystemF.HasFn (MonoInliner t) where
   lambda t f =
-    let C fcost _ = f (C 0 undefined)
-     in C fcost $ SystemF.lambda t ((extract #) . f . (C 0))
-  C fcost f <*> C xcost x = C (fcost + xcost) (f SystemF.<*> x)
+    let T fcost _ = f (T 0 undefined)
+     in T fcost $ SystemF.lambda t ((extractTerm #) . f . (T 0))
+  T fcost f <*> T xcost x = T (fcost + xcost) (f SystemF.<*> x)
+
+instance SystemF.HasCall t => SystemF.HasCall (MonoInliner t) where
+  call g = T 0 (SystemF.call g)

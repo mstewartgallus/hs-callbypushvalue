@@ -7,30 +7,29 @@ module SystemF.Simplifier (extract, Simplifier) where
 
 import Common
 import Control.Category
-import HasCall
-import HasCode
+import HasTerm
 import NatTrans
 import SystemF
 import Prelude hiding ((.), (<*>))
 
-extract :: Code (Simplifier t) :~> Code t
+extract :: Term (Simplifier t) :~> Term t
 extract = NatTrans $ \(C x) -> x IdCtx
 
 data Simplifier t
 
 data Ctx t a b where
-  ApplyCtx :: HasFn t => Code t a -> Ctx t (a --> b) b
+  ApplyCtx :: HasFn t => Term t a -> Ctx t (a --> b) b
   IdCtx :: Ctx t a a
 
-instance HasCode t => HasCode (Simplifier t) where
-  newtype Code (Simplifier t) a = C (forall b. Ctx t a b -> Code t b)
+instance HasTerm t => HasTerm (Simplifier t) where
+  newtype Term (Simplifier t) a = C (forall b. Ctx t a b -> Term t b)
 
-into :: Code t a -> Code (Simplifier t) a
+into :: Term t a -> Term (Simplifier t) a
 into val = C $ \ctx -> case ctx of
   ApplyCtx x -> val <*> x
   IdCtx -> val
 
-out :: Code (Simplifier t) a -> Code t a
+out :: Term (Simplifier t) a -> Term t a
 out (C f) = f IdCtx
 
 instance HasCall t => HasCall (Simplifier t) where

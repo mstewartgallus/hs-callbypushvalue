@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module AsText (extract, extractData, AsText) where
+module AsText (extractTerm, extract, extractData, AsText) where
 
 import Cbpv
 import qualified Cps
@@ -12,6 +12,7 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerm
 import HasTerminal
 import HasTuple
 import qualified SystemF
@@ -19,6 +20,9 @@ import TextShow
 import qualified Unique
 
 data AsText
+
+extractTerm :: Term AsText a -> T.Text
+extractTerm (T x) = toText (Unique.run x)
 
 extract :: Code AsText a -> T.Text
 extract (C x) = toText (Unique.run x)
@@ -58,6 +62,9 @@ freshLabel = do
   v <- Unique.uniqueId
   pure $ fromString "l" <> showb v
 
+instance HasTerm AsText where
+  newtype Term AsText a = T (Unique.State Builder)
+
 instance HasData AsText where
   newtype Data AsText a = D (Unique.State Builder)
 
@@ -68,11 +75,11 @@ instance HasStack AsText where
   newtype Stack AsText a = S (Unique.State Builder)
 
 instance SystemF.HasLet AsText where
-  letBe (C x) f = C $ do
+  letBe (T x) f = T $ do
     x' <- x
     newId <- fresh
     let binder = fromString "l" <> showb newId
-    let C y = f (C $ pure binder)
+    let T y = f (T $ pure binder)
     y' <- y
     pure $ x' <> fromString " be " <> binder <> fromString ".\n" <> y'
 
@@ -99,8 +106,12 @@ instance HasCall AsText where
   call g = C $ do
     pure $ fromString "call " <> showb g
 
+instance SystemF.HasCall AsText where
+  call g = T $ do
+    pure $ fromString "call " <> showb g
+
 instance SystemF.HasConstants AsText where
-  constant k = C $ pure $ showb k
+  constant k = T $ pure $ showb k
 
 instance HasConstants AsText where
   constant k = D $ pure $ showb k
@@ -122,20 +133,20 @@ instance SystemF.HasTuple AsText where
   --       y' = y ys
   --    in fromString "(" <> x' <> fromString ", " <> y' <> fromString ")"
 
-  first (C tuple) = C $ do
+  first (T tuple) = T $ do
     tuple' <- tuple
     pure $ tuple' <> fromString ".1"
-  second (C tuple) = C $ do
+  second (T tuple) = T $ do
     tuple' <- tuple
     pure $ tuple' <> fromString ".2"
 
 instance SystemF.HasFn AsText where
-  lambda t f = C $ do
+  lambda t f = T $ do
     binder <- fresh
-    let C y = f (C $ pure binder)
+    let T y = f (T $ pure binder)
     y' <- y
     pure $ fromString "λ " <> binder <> fromString ": " <> showb t <> fromString " →\n" <> y'
-  C f <*> C x = C $ do
+  T f <*> T x = T $ do
     f' <- f
     x' <- x
     pure $ fromString "(" <> f' <> fromString " " <> x' <> fromString ")"

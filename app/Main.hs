@@ -24,9 +24,9 @@ import Cps (Cps)
 import qualified Cps.AsOptimized
 import qualified Data.Text.IO as T
 import Data.Word
-import HasCall
 import HasCode
 import HasData
+import HasTerm
 import qualified Interpreter
 import NatTrans
 import PairF
@@ -45,13 +45,13 @@ iterCbpv = 20
 iterCps :: Int
 iterCps = 20
 
-program :: SystemF t => Code t (F U64 --> F U64 --> F U64)
+program :: SystemF t => Term t (F U64 --> F U64 --> F U64)
 program = F.lam $ \_ ->
   F.lam $ \y ->
     ( F.lam $ \z ->
-        call Core.plus F.<*> z F.<*> y
+        F.call Core.plus F.<*> z F.<*> y
     )
-      F.<*> (call Core.plus F.<*> F.constant (Constant.U64Constant 8) F.<*> y)
+      F.<*> (F.call Core.plus F.<*> F.constant (Constant.U64Constant 8) F.<*> y)
 
 main :: IO ()
 main = do
@@ -77,18 +77,18 @@ main = do
 
   return ()
 
-dupLog :: SystemF t => Code (AsDup AsText t) a -> IO (Code t a)
+dupLog :: SystemF t => Term (AsDup AsText t) a -> IO (Term t a)
 dupLog term = do
-  let PairF text copy = AsDup.extract # term
+  let PairF text copy = AsDup.extractTerm # term
 
   putStrLn "Lambda Calculus:"
-  T.putStrLn (AsText.extract text)
+  T.putStrLn (AsText.extractTerm text)
 
   return copy
 
-cbpvTerm :: Cbpv t => Code ((AsCbpv :.: AsDup AsText) t) a -> IO (Code t a)
+cbpvTerm :: Cbpv t => Term ((AsCbpv :.: AsDup AsText) t) a -> IO (Code t a)
 cbpvTerm term = do
-  let PairF text copy = (AsDup.extract . AsCbpv.extract . AsCompose.extract) # term
+  let PairF text copy = (AsDup.extract . AsCbpv.extract . AsCompose.extractTerm) # term
 
   putStrLn "\nCall By Push Value:"
   T.putStrLn (AsText.extract text)
@@ -114,11 +114,11 @@ cpsTerm term = do
   return copy
 
 -- fixme... loop
-optimizeTerm :: SystemF t => Code (SystemF.AsOptimized.Simplifier (AsDup AsText t)) a -> IO (Code t a)
+optimizeTerm :: SystemF t => Term (SystemF.AsOptimized.Simplifier (AsDup AsText t)) a -> IO (Term t a)
 optimizeTerm input = do
-  let PairF text copy = (AsDup.extract . SystemF.AsOptimized.extract) # input
+  let PairF text copy = (AsDup.extractTerm . SystemF.AsOptimized.extract) # input
   putStrLn "\nOptimized Term:"
-  T.putStrLn (AsText.extract text)
+  T.putStrLn (AsText.extractTerm text)
 
   return copy
 

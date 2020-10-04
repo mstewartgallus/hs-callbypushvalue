@@ -8,8 +8,7 @@ module SystemF.AsOptimized (Simplifier, extract) where
 import SystemF
 import Common
 import Control.Category
-import HasCall
-import HasCode
+import HasTerm
 import NatTrans
 import AsCompose ((:.:))
 import CostInliner (CostInliner)
@@ -20,23 +19,23 @@ import qualified MonoInliner
 import qualified SystemF.Simplifier
 import Prelude hiding ((.), (<*>), id)
 
-extract :: Code (Simplifier t) :~> Code t
+extract :: Term (Simplifier t) :~> Term t
 extract = step . NatTrans cout
 
-step :: Code (Opt t) :~> Code t
-step = CostInliner.extract
-          . MonoInliner.extract
-          . AsCompose.extract
+step :: Term (Opt t) :~> Term t
+step = CostInliner.extractTerm
+          . MonoInliner.extractTerm
+          . AsCompose.extractTerm
           . SystemF.Simplifier.extract
-          . AsCompose.extract
+          . AsCompose.extractTerm
 
 
 data Simplifier t
 
-cin :: Code (Opt t) a -> Code (Simplifier t) a
+cin :: Term (Opt t) a -> Term (Simplifier t) a
 cin = C
 
-cout :: Code (Simplifier t) a -> Code (Opt t) a
+cout :: Term (Simplifier t) a -> Term (Opt t) a
 cout (C x) = x
 
 instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
@@ -45,9 +44,8 @@ instance (HasLet t, HasFn t) => HasFn (Simplifier t) where
 
 type Opt = SystemF.Simplifier.Simplifier :.: MonoInliner :.: CostInliner
 
-instance HasCode t => HasCode (Simplifier t) where
-  newtype Code (Simplifier t) a = C (Code (Opt t) a)
-  probeCode = cin . probeCode
+instance HasTerm t => HasTerm (Simplifier t) where
+  newtype Term (Simplifier t) a = C (Term (Opt t) a)
 
 instance HasConstants t => HasConstants (Simplifier t) where
   constant = cin . constant

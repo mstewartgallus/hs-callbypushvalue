@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module AsDup (AsDup, extract, extractData, extractStack) where
+module AsDup (AsDup, extract, extractTerm, extractData, extractStack) where
 
 import Cbpv
 import Control.Category
@@ -12,12 +12,16 @@ import HasConstants
 import HasData
 import HasLet
 import HasStack
+import HasTerm
 import HasTerminal
 import HasTuple
 import NatTrans
 import PairF
 import qualified SystemF as F
 import Prelude hiding ((.), (<*>))
+
+extractTerm :: Term (AsDup s t) :~> PairF (Term s) (Term t)
+extractTerm = NatTrans $ \(T x y) -> PairF x y
 
 extract :: Code (AsDup s t) :~> PairF (Code s) (Code t)
 extract = NatTrans $ \(C x y) -> PairF x y
@@ -31,10 +35,16 @@ extractStack = NatTrans $ \(S x y) -> PairF x y
 factorizeC :: (c -> Code s a) -> (c -> Code t a) -> c -> Code (AsDup s t) a
 factorizeC f g x = C (f x) (g x)
 
+factorizeT :: (c -> Term s a) -> (c -> Term t a) -> c -> Term (AsDup s t) a
+factorizeT f g x = T (f x) (g x)
+
 factorizeD :: (c -> Data s a) -> (c -> Data t a) -> c -> Data (AsDup s t) a
 factorizeD f g x = D (f x) (g x)
 
 data AsDup s t
+
+instance HasTerm (AsDup s t) where
+  data Term (AsDup s t) a = T {fstT :: Term s a, sndT :: Term t a}
 
 instance HasCode (AsDup s t) where
   data Code (AsDup s t) a = C {fstC :: Code s a, sndC :: Code t a}
@@ -51,20 +61,23 @@ instance (HasTerminal s, HasTerminal t) => HasTerminal (AsDup s t) where
 instance (HasCall s, HasCall t) => HasCall (AsDup s t) where
   call = factorizeC call call
 
+instance (F.HasCall s, F.HasCall t) => F.HasCall (AsDup s t) where
+  call = factorizeT F.call F.call
+
 instance (Cps.HasCall s, Cps.HasCall t) => Cps.HasCall (AsDup s t) where
   call = factorizeD Cps.call Cps.call
 
 instance (F.HasConstants s, F.HasConstants t) => F.HasConstants (AsDup s t) where
-  constant = factorizeC F.constant F.constant
+  constant = factorizeT F.constant F.constant
 
 instance (HasConstants s, HasConstants t) => HasConstants (AsDup s t) where
   constant = factorizeD constant constant
 
 instance (F.HasLet s, F.HasLet t) => F.HasLet (AsDup s t) where
-  whereIs f = factorizeC first second
+  whereIs f = factorizeT first second
     where
-      first (C l r) = F.whereIs (\x' -> fstC $ f (C x' r)) l
-      second (C l r) = F.whereIs (\x' -> sndC $ f (C l x')) r
+      first (T l r) = F.whereIs (\x' -> fstT $ f (T x' r)) l
+      second (T l r) = F.whereIs (\x' -> sndT $ f (T l x')) r
 
 instance (HasLet s, HasLet t) => HasLet (AsDup s t) where
   whereIs f = factorizeC first second
@@ -90,20 +103,20 @@ instance (HasReturn s, HasReturn t) => HasReturn (AsDup s t) where
       second = from (\x' -> sndC $ f (D undefined x')) . sndC
 
 instance (F.HasTuple s, F.HasTuple t) => F.HasTuple (AsDup s t) where
-  pair f g = factorizeC first second
+  pair f g = factorizeT first second
     where
-      first (C l r) =
+      first (T l r) =
         F.pair
-          (\x -> fstC $ f (C x r))
-          (\x -> fstC $ g (C x r))
+          (\x -> fstT $ f (T x r))
+          (\x -> fstT $ g (T x r))
           l
-      second (C l r) =
+      second (T l r) =
         F.pair
-          (\x -> sndC $ f (C l x))
-          (\x -> sndC $ g (C l x))
+          (\x -> sndT $ f (T l x))
+          (\x -> sndT $ g (T l x))
           r
-  first = factorizeC (F.first . fstC) (F.first . sndC)
-  second = factorizeC (F.second . fstC) (F.second . sndC)
+  first = factorizeT (F.first . fstT) (F.first . sndT)
+  second = factorizeT (F.second . fstT) (F.second . sndT)
 
 instance (HasTuple s, HasTuple t) => HasTuple (AsDup s t) where
   pair f g = factorizeD first second
@@ -136,12 +149,12 @@ instance (Cps.HasThunk s, Cps.HasThunk t) => Cps.HasThunk (AsDup s t) where
       second = Cps.thunk t $ \x -> sndC $ f (S (probeStack t) x)
 
 instance (F.HasFn s, F.HasFn t) => F.HasFn (AsDup s t) where
-  lambda t f = C first second
+  lambda t f = T first second
     where
-      first = F.lambda t (fstC . f . (\x -> C x (probeCode t)))
-      second = F.lambda t (sndC . f . (\x -> C (probeCode t) x))
+      first = F.lambda t (fstT . f . (\x -> T x undefined))
+      second = F.lambda t (sndT . f . (\x -> T undefined x))
 
-  C f f' <*> C x x' = C (f F.<*> x) (f' F.<*> x')
+  T f f' <*> T x x' = T (f F.<*> x) (f' F.<*> x')
 
 instance (Cps.HasFn s, Cps.HasFn t) => Cps.HasFn (AsDup s t) where
   lambda (S k k') f = C first second

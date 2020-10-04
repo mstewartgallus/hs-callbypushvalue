@@ -2,12 +2,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module SystemF (lam, SystemF, HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
+module SystemF (lam, SystemF, HasCall (..), HasLet (..), HasTuple (..), HasFn (..), HasConstants (..)) where
 
 import Common
 import Constant
-import HasCall
-import HasCode
+import Global
+import HasTerm
 import Prelude hiding ((<*>))
 
 -- | Type class for the nonstrict System-F Omega intermediate
@@ -18,34 +18,37 @@ import Prelude hiding ((<*>))
 -- adjoint functors.)
 --
 -- FIXME: forall and applyType are not yet implemented
-type SystemF t = (HasCode t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t)
+type SystemF t = (HasTerm t, HasCall t, HasConstants t, HasFn t, HasLet t, HasTuple t)
 
-class HasCode t => HasLet t where
-  letBe :: Code t a -> (Code t a -> Code t b) -> Code t b
+class HasTerm t => HasLet t where
+  letBe :: Term t a -> (Term t a -> Term t b) -> Term t b
   letBe = flip whereIs
 
-  whereIs :: (Code t a -> Code t b) -> Code t a -> Code t b
+  whereIs :: (Term t a -> Term t b) -> Term t a -> Term t b
   whereIs = flip letBe
 
-class HasCode t => HasConstants t where
-  constant :: Constant a -> Code t (F a)
+class HasTerm t => HasConstants t where
+  constant :: Constant a -> Term t (F a)
 
-class HasCode t => HasTuple t where
+class HasTerm t => HasCall t where
+  call :: Global a -> Term t a
+
+class HasTerm t => HasTuple t where
   -- | factorizer from category theory
-  pair :: (Code t a -> Code t b) -> (Code t a -> Code t c) -> (Code t a -> Code t (Pair b c))
+  pair :: (Term t a -> Term t b) -> (Term t a -> Term t c) -> (Term t a -> Term t (Pair b c))
 
-  first :: Code t (Pair a b) -> Code t a
-  second :: Code t (Pair a b) -> Code t b
+  first :: Term t (Pair a b) -> Term t a
+  second :: Term t (Pair a b) -> Term t b
 
-class HasCode t => HasFn t where
-  (<*>) :: Code t (a --> b) -> Code t a -> Code t b
-  lambda :: SAlgebra a -> (Code t a -> Code t b) -> Code t (a --> b)
+class HasTerm t => HasFn t where
+  (<*>) :: Term t (a --> b) -> Term t a -> Term t b
+  lambda :: SAlgebra a -> (Term t a -> Term t b) -> Term t (a --> b)
 
-  uncurry :: (Code t a -> Code t (b --> c)) -> (Code t (Pair a b) -> Code t c)
-  curry :: (Code t (Pair a b) -> Code t c) -> (Code t a -> Code t (b --> c))
+  uncurry :: (Term t a -> Term t (b --> c)) -> (Term t (Pair a b) -> Term t c)
+  curry :: (Term t (Pair a b) -> Term t c) -> (Term t a -> Term t (b --> c))
 
 infixl 4 <*>
 
 -- fixme.. make a module reexporting a bunch of syntactic sugar like this for a nice dsl.
-lam :: (HasFn t, KnownAlgebra a) => (Code t a -> Code t b) -> Code t (a --> b)
+lam :: (HasFn t, KnownAlgebra a) => (Term t a -> Term t b) -> Term t (a --> b)
 lam = lambda inferAlgebra
